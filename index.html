@@ -124,17 +124,16 @@
         <li><a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog">CISA KEV</a> — known exploited vulnerabilities</li>
         <li><a href="https://osv.dev">OSV.dev</a> — package security advisories (GitHub / PyPI / npm)</li>
         <li><a href="https://api.npmjs.org/downloads">npm downloads API</a> + <a href="https://pypistats.org">pypistats</a> — adoption signals</li>
+        <li><a href="https://services.nvd.nist.gov/rest/json/cves/2.0">NVD API 2.0</a> — CVSS severity, CWE mappings, CNA names (enrichment only)</li>
       </ul>
       <b>Method</b>: “AI-related” = heuristic keyword match (ML terms, AI frameworks, AI package names) on CVE descriptions, affected products and PURLs — approximate, expect small error both ways. Month projection = so-far ÷ median cumulative fraction at same day-of-month, last 12 complete months.
     </div>
     <div>
-      Static site · no third-party runtime dependencies · CSP-locked ·
-      raw data: <a href="data/data.json">data.json</a> ·
-      <a href="https://services.nvd.nist.gov/rest/json/cves/2.0">NVD API</a> available for CVSS/CWE enrichment.
+      Static site · no third-party runtime dependencies · CSP-locked + SRI ·
+      raw data: <a href="data/data.json">data.json</a> · heuristic AI matching (see method).
     </div>
   </footer>
 </main>
-<noscript><p class="err">This dashboard requires JavaScript (charts only; no data leaves this origin).</p></noscript>
 <script src="vendor/uPlot.iife.min.js" integrity="sha384-Gx3t0zdBAuQOuvvmaLZj7HKEiSgWTAs+VdtNY7wt19QDPTDQjFIwAuXDj0zeN00c" crossorigin="anonymous"></script>
 <script src="js/app.js"></script>
 </body>
