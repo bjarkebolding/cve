@@ -102,7 +102,7 @@ def run(url, expr, wait=4.0, mobile=None):
         target = find_target()
         if not target:
             print("no target")
-            return
+            return None, []
         s = ws_connect(target["webSocketDebuggerUrl"])
         ws_send(s, {"id": 0, "method": "Runtime.enable"})
         ws_send(s, {"id": 1, "method": "Page.navigate", "params": {"url": url}})
@@ -121,17 +121,15 @@ def run(url, expr, wait=4.0, mobile=None):
                 exc.append(m["params"]["exceptionDetails"]["exception"].get("description", "?"))
         ws_send(s, {"id": 2, "method": "Runtime.evaluate",
                     "params": {"expression": expr, "returnByValue": True}})
+        value = None
         for _ in range(40):
             m = ws_recv(s)
             if m.get("id") == 2:
                 res = m.get("result", {}).get("result", {})
-                print(res.get("value", json.dumps(res)))
+                value = res.get("value")
                 break
-        if exc:
-            print("EXCEPTIONS:")
-            for e in exc[:5]:
-                print(e[:400])
         s.close()
+        return value, exc
     finally:
         proc.terminate()
 
@@ -142,4 +140,9 @@ if __name__ == "__main__":
     wait = float(sys.argv[3]) if len(sys.argv) > 3 else 4.0
     if expr.startswith("@"):
         expr = open(expr[1:]).read()
-    run(url, expr, wait)
+    value, exc = run(url, expr, wait)
+    print(value if value is not None else "(no value)")
+    if exc:
+        print("EXCEPTIONS:")
+        for e in exc[:5]:
+            print(e[:400])
