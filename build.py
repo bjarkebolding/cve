@@ -198,8 +198,8 @@ def parse_file(path):
     return None
 
 
-def nvd_source_id(cve_id):
-    """NVD sourceIdentifier (e.g. security@huggingface.co) for one CVE, or None."""
+def nvd_enrich(cve_id):
+    """NVD (sourceIdentifier, severity, baseScore) for one CVE; None fields if absent."""
     url = f"{NVD_API}?cveId={urllib.parse.quote(cve_id)}&resultsPerPage=1"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "cve-ai-dashboard/1.0"})
@@ -207,11 +207,24 @@ def nvd_source_id(cve_id):
             d = json.loads(r.read())
         v = d.get("vulnerabilities") or []
         if not v:
-            return None
-        return v[0]["cve"].get("sourceIdentifier") or None
+            return None, None, None
+        cve = v[0]["cve"]
+        src = cve.get("sourceIdentifier") or None
+        sev, score = None, None
+        metrics = cve.get("metrics") or {}
+        for key in ("cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+            m = metrics.get(key)
+            if not m:
+                continue
+            prim = next((x for x in m if x.get("type") == "Primary"), m[0])
+            data = prim.get("cvssData") or {}
+            sev = (data.get("baseSeverity") or "").upper() or None
+            score = data.get("baseScore")
+            break
+        return src, sev, score
     except (urllib.error.URLError, json.JSONDecodeError, KeyError, OSError) as err:
         print(f"NVD {cve_id}: {err}", file=sys.stderr)
-        return None
+        return None, None, None
 
 
 def main():
@@ -345,28 +358,43 @@ def main():
                 "cna": cna,
             })
 
-    # resolve CNA org emails via NVD (cached in data/orgs.json)
+    # resolve CNA org emails + CVSS severity via NVD (cached in data/orgs.json)
     orgs = {}
     if os.path.exists(ORGS):
         try:
-            orgs = json.load(open(ORGS))
+            raw = json.load(open(ORGS))
+            # v1 format: {cve: "email"} -> migrate to v2 (not done: refetch for CVSS)
+            orgs = {k: (v if isinstance(v, dict)
+                        else {"src": v, "sev": None, "score": None, "done": False})
+                    for k, v in raw.items()}
         except json.JSONDecodeError:
             orgs = {}
     changed_orgs = False
     for entry in feed:
         cid = entry["id"]
-        if cid in orgs:
-            entry["cna"] = orgs[cid]
+        cached = orgs.get(cid)
+        if cached and cached.get("done"):
+            if cached.get("src"):
+                entry["cna"] = cached["src"]
+            if cached.get("sev"):
+                entry["cvss"] = {"sev": cached["sev"], "score": cached.get("score")}
             continue
         uid = entry["cna"]
         if not uid or len(uid) < 30:  # not a UUID -> nothing to resolve
             continue
-        sid = nvd_source_id(cid)
+        src, sev, score = nvd_enrich(cid)
         time.sleep(NVD_ORG_SLICE)
-        if sid:
-            orgs[cid] = sid
-            entry["cna"] = sid
+        rec = {"src": src or (cached or {}).get("src"),
+               "sev": sev or (cached or {}).get("sev"),
+               "score": score or (cached or {}).get("score"),
+               "done": bool(src or sev)}
+        if rec["done"]:
+            orgs[cid] = rec
             changed_orgs = True
+        if rec["src"]:
+            entry["cna"] = rec["src"]
+        if rec["sev"]:
+            entry["cvss"] = {"sev": rec["sev"], "score": rec["score"]}
     if changed_orgs:
         with open(ORGS, "w") as f:
             json.dump(orgs, f)

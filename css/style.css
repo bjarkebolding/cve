@@ -121,6 +121,14 @@ td.desc { max-width: 46ch; }
   border: 1px solid var(--warn); color: var(--warn); margin-left: 6px;
 }
 .badge.ok { border-color: var(--ok); color: var(--ok); }
+.sev {
+  display: inline-block; font-size: 10px; padding: 0 5px; border-radius: 3px;
+  border: 1px solid; margin-left: 6px; white-space: nowrap;
+}
+.sev.CRITICAL { color: #ff7b72; border-color: #ff7b72; }
+.sev.HIGH { color: #ffa657; border-color: #ffa657; }
+.sev.MEDIUM { color: #d29920; border-color: #d29920; }
+.sev.LOW { color: #56d364; border-color: #56d364; }
 td .cveid { white-space: nowrap; }
 a { color: inherit; }
 

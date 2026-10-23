@@ -402,6 +402,13 @@ function buildRecentAiTable(core, kev) {
       b.textContent = "KEV";
       span.appendChild(b);
     }
+    if (r.cvss) {
+      const s = document.createElement("span");
+      s.className = "sev " + (r.cvss.sev || "").toUpperCase();
+      s.textContent = (r.cvss.sev + " " + (r.cvss.score != null ? r.cvss.score : "")).trim();
+      s.title = "NVD CVSS (primary)";
+      span.appendChild(s);
+    }
     tdId.appendChild(span);
     const tdPub = document.createElement("td");
     tdPub.textContent = r.published + "Z";

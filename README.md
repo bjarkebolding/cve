@@ -19,7 +19,7 @@ plus one page. The only JS runtime on the page is a self-hosted copy of
 | Hourly activity | New CVEs per hour (40d) + record updates per hour (30d) | `cvelistV5` + `deltaLog.json` |
 | AI package vulns | Advisories per month for AI/ML packages (PyPI + npm) | OSV.dev |
 | AI adoption | Monthly npm downloads of AI SDKs (log scale) | npm downloads API |
-| Latest AI CVEs | Feed of the last 30 AI-matched CVEs, CNA + KEV cross-ref | `cvelistV5` + NVD + KEV |
+| Latest AI CVEs | Feed of the last 30 AI-matched CVEs, CNA + CVSS severity + KEV cross-ref | `cvelistV5` + NVD + KEV |
 | KEV (AI) | CISA Known-Exploited entries matching AI keywords | CISA KEV |
 
 ## Data sources (all public, keyless)
@@ -37,9 +37,10 @@ plus one page. The only JS runtime on the page is a self-hosted copy of
 3. **OSV.dev** (API) — package security advisories (GitHub Security, PyPI,
    npm, …) for a curated list of 24 PyPI + 9 npm AI/ML packages.
 4. **npm downloads API** + **pypistats** — adoption / attack-surface proxies.
-5. **NVD API 2.0** (used lightly) — `sourceIdentifier` for CNA names in the
-   feed; full-text keyword counts shown on the AI card. NVD is a *derived*
-   source (it lags the CVE list), so it's used for enrichment, not counts.
+5. **NVD API 2.0** (used lightly) — `sourceIdentifier` for CNA names and
+   primary **CVSS severity/score** for the 30-entry feed (badge in the table);
+   full-text keyword counts shown on the AI card. NVD is a *derived* source
+   (it lags the CVE list), so it's used for enrichment, not counts.
 
 ### Why not just NVD for everything?
 
@@ -137,9 +138,9 @@ data/                 generated JSON (committed; caches gitignored)
 
 ## Ideas / extensions
 
-- **CVSS severity split** of AI CVEs: join the 2k AI records with NVD
-  (≈500 requests with a free API key, 50 req/30 s) and chart
-  critical/high/medium/low per month.
+- **CVSS severity trend** of AI CVEs: join the full 2k AI set with NVD
+  (NVD takes ≤5 `cveId` per request → ≈450 requests; with a free API key at
+  50 req/30 s that's ~15 min) and chart critical/high/medium/low per month.
 - **CWE distribution** for AI CVEs (same join) — “AI software breaks in
   different ways”.
 - **PyPI download history** via the public BigQuery
