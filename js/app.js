@@ -389,6 +389,50 @@ function buildAdoptionChart(dl) {
   makeChart(el, optsLog, dataLog);
 }
 
+/* ================= AI CVE severity mix (NVD) ================= */
+const SEV_COLORS = { CRITICAL: "#ff7b72", HIGH: "#ffa657", MEDIUM: "#d29920", LOW: "#56d364" };
+function buildSevChart(sev) {
+  const el = $("#chart-sev");
+  const rows = sev.months || [];
+  if (!rows.length) { fail(el, new Error("no NVD-rated AI CVEs yet")); return; }
+  const hint = $("#sev-hint");
+  if (hint) {
+    const t = sev.totals || {};
+    hint.textContent = `Primary CVSS of AI-related CVEs (NVD). Rated ${num.format(sev.rated)} of ${num.format(sev.aiTotal)} (NVD lags). ` +
+      `All-time: ${["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((s) => `${s} ${num.format(t[s] || 0)}`).join(" · ")}.`;
+  }
+  const xs = rows.map((r) => monthT(r.m));
+  const keys = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+  const ys = keys.map((k) => rows.map((r) => r[k] || 0));
+  const opts = {
+    width: "100%",
+    height: 280,
+    ariaLabel: "AI CVE severity mix per month",
+    scales: { time: { time: true }, y: { stack: true } },
+    axes: [
+      { space: 58, ticks: (u, val) => {
+        const d = new Date(val * 86400e3);
+        return d.getUTCMonth() === 0 ? String(d.getUTCFullYear()) : d.toISOString().slice(0, 7);
+      } },
+      { space: 40, label: "AI CVEs / mo" },
+    ],
+    series: [
+      { label: "month" },
+      ...keys.map((k) => ({ label: k, stroke: null, width: 0, fill: SEV_COLORS[k], alpha: 0.9 })),
+    ],
+    legend: { show: false },
+    cursor: {
+      dtl: (u, dtl) => {
+        const i = u.cursor.idx;
+        if (i == null) return dtl;
+        const r = rows[i];
+        return `${r.m}\t` + keys.map((k) => `${k} ${r[k] || 0}`).join(" ");
+      },
+    },
+  };
+  makeChart(el, opts, [xs, ...ys]);
+}
+
 /* ================= KEV additions per month ================= */
 function buildKevChart(kev) {
   const el = $("#chart-kev");
@@ -537,14 +581,15 @@ function buildKevAiTable(kev) {
 /* ================= boot ================= */
 (async () => {
   const stamp = $("#stamp");
-  let core, kev, ap, dl, nvd;
+  let core, kev, ap, dl, nvd, sev;
   try {
-    [core, kev, ap, dl, nvd] = await Promise.all([
+    [core, kev, ap, dl, nvd, sev] = await Promise.all([
       loadJSON("data.json"),
       loadJSON("kev.json").catch(() => null),
       loadJSON("ai_packages.json").catch(() => null),
       loadJSON("downloads.json").catch(() => null),
       loadJSON("nvd.json").catch(() => null),
+      loadJSON("severity.json").catch(() => null),
     ]);
   } catch (err) {
     stamp.textContent = "error: " + err.message;
@@ -563,6 +608,7 @@ function buildKevAiTable(kev) {
     buildHoursChart(core);
     if (ap) buildAiPkgsChart(ap);
     if (dl) buildAdoptionChart(dl);
+    if (sev) buildSevChart(sev);
     if (kev) buildKevChart(kev);
     buildRecentAiTable(core, kev);
     wireAiFilter();

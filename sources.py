@@ -27,6 +27,7 @@ import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DATADIR = os.path.join(BASE, "data")
+CVSS_CACHE = os.path.join(DATADIR, "cvss.json")
 UA = {"User-Agent": "cve-ai-dashboard/1.0 (research script)"}
 
 # --- AI package universe ----------------------------------------------------
@@ -218,11 +219,115 @@ def fetch_downloads():
     write_json("downloads.json", out)
 
 
+# --- 5. NVD CVSS severity for the whole AI set (incremental) ----------------
+def _primary_cvss(cve):
+    metrics = cve.get("metrics") or {}
+    for key in ("cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+        m = metrics.get(key)
+        if not m:
+            continue
+        prim = next((x for x in m if x.get("type") == "Primary"), m[0])
+        data = prim.get("cvssData") or {}
+        return (data.get("baseSeverity") or "").upper() or None, data.get("baseScore")
+    return None, None
+
+
+def fetch_cvss(limit=0):
+    """Fetch primary CVSS for every AI CVE (NVD, 5 cveId per request, cached).
+
+    Writes data/cvss.json (cache) and data/severity.json (chart payload).
+    First run: ~450 requests (~50 min anonymous). Later runs: incremental.
+    """
+    meta_path = os.path.join(DATADIR, "ai_meta.json")
+    if not os.path.exists(meta_path):
+        print("ai_meta.json missing (run build.py first)", file=sys.stderr)
+        return
+    meta = json.load(open(meta_path))["ids"]  # {cve: "YYYY-MM-DD"}
+    cache = {}
+    if os.path.exists(CVSS_CACHE):
+        try:
+            cache = json.load(open(CVSS_CACHE))
+        except json.JSONDecodeError:
+            cache = {}
+    todo = [c for c in meta if not (cache.get(c) or {}).get("done")]
+    if limit:
+        todo = todo[:limit]
+    for i in range(0, len(todo), 5):
+        batch = todo[i:i + 5]
+        if i % 50 == 0 and i:
+            with open(CVSS_CACHE, "w") as f:
+                json.dump(cache, f)
+        qs = "&".join(f"cveId={urllib.parse.quote(c)}" for c in batch)
+        d = None
+        for attempt in (1, 2):
+            try:
+                d = json.loads(get(f"https://services.nvd.nist.gov/rest/json/cves/2.0?{qs}"))
+                break
+            except (urllib.error.URLError, json.JSONDecodeError, OSError) as err:
+                print(f"NVD batch {batch[0]}: {err} (attempt {attempt})", file=sys.stderr)
+                time.sleep(30)
+        if d is None:
+            break  # resume next run
+        seen = set()
+        for v in d.get("vulnerabilities") or []:
+            cve = v["cve"]
+            cid = cve.get("id")
+            sev, score = _primary_cvss(cve)
+            seen.add(cid)
+            if cid in meta:
+                cache[cid] = {"sev": sev, "score": score, "done": True}
+        for cid in batch:  # not in NVD yet -> retry next run
+            if cid not in seen:
+                cache[cid] = {"sev": None, "score": None, "done": False}
+        if i + 5 < len(todo):
+            time.sleep(6.5)  # anonymous: 5 req / 30 s
+    with open(CVSS_CACHE, "w") as f:
+        json.dump(cache, f)
+
+    # aggregate -> severity.json
+    by_month = {}
+    totals = {}
+    rated = 0
+    for cid, day in meta.items():
+        sev = (cache.get(cid) or {}).get("sev")
+        if not sev:
+            continue
+        rated += 1
+        totals[sev] = totals.get(sev, 0) + 1
+        row = by_month.setdefault(day[:7], {})
+        row[sev] = row.get(sev, 0) + 1
+    months = []
+    if by_month:
+        first, last = min(by_month), max(by_month)
+        y, m = int(first[:4]), int(first[5:7])
+        while f"{y:04d}-{m:02d}" <= last:
+            ym = f"{y:04d}-{m:02d}"
+            row = by_month.get(ym, {})
+            months.append({"m": ym,
+                           "CRITICAL": row.get("CRITICAL", 0),
+                           "HIGH": row.get("HIGH", 0),
+                           "MEDIUM": row.get("MEDIUM", 0),
+                           "LOW": row.get("LOW", 0)})
+            m += 1
+            if m > 12:
+                m, y = 1, y + 1
+    write_json("severity.json", {
+        "generatedAt": now_iso(),
+        "source": "NVD API 2.0 primary CVSS over the AI-related CVE set (cvelistV5)",
+        "aiTotal": len(meta),
+        "rated": rated,
+        "totals": totals,
+        "months": months,
+    })
+
+
 def main():
     os.makedirs(DATADIR, exist_ok=True)
     tasks = [("KEV", fetch_kev), ("OSV AI packages", fetch_osv),
              ("NVD counts", fetch_nvd_counts),
-             ("downloads", fetch_downloads)]
+             ("downloads", fetch_downloads),
+             ("AI CVSS", lambda: fetch_cvss(
+                 limit=int(os.environ.get("CVSS_LIMIT", 0))))]
     failed = 0
     for name, fn in tasks:
         try:

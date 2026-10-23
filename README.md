@@ -18,6 +18,7 @@ plus one page. The only JS runtime on the page is a self-hosted copy of
 | CVE issuance | All vs AI-related CVEs per day/week/month/year, count/cumulative | `cvelistV5` |
 | Hourly activity | New CVEs per hour (40d) + record updates per hour (30d) | `cvelistV5` + `deltaLog.json` |
 | AI package vulns | Advisories per month for AI/ML packages (PyPI + npm) | OSV.dev |
+| AI CVE severity mix | Stacked CRITICAL/HIGH/MEDIUM/LOW per month over the whole AI set | cvelistV5 + NVD CVSS |
 | AI adoption | Monthly npm downloads of AI SDKs (log scale) | npm downloads API |
 | Latest AI CVEs | Feed of the last 30 AI-matched CVEs, CNA + CVSS severity + KEV cross-ref | `cvelistV5` + NVD + KEV |
 | KEV timeline | KEV additions per month (all products, since Nov 2021) + ransomware stat | CISA KEV |
@@ -38,10 +39,13 @@ plus one page. The only JS runtime on the page is a self-hosted copy of
 3. **OSV.dev** (API) — package security advisories (GitHub Security, PyPI,
    npm, …) for a curated list of 24 PyPI + 9 npm AI/ML packages.
 4. **npm downloads API** + **pypistats** — adoption / attack-surface proxies.
-5. **NVD API 2.0** (used lightly) — `sourceIdentifier` for CNA names and
-   primary **CVSS severity/score** for the 30-entry feed (badge in the table);
-   full-text keyword counts shown on the AI card. NVD is a *derived* source
-   (it lags the CVE list), so it's used for enrichment, not counts.
+5. **NVD API 2.0** (enrichment only) — `sourceIdentifier` for CNA names and
+   primary **CVSS severity/score** for the 30-entry feed (badges); full-text
+   keyword counts on the AI card; and a full **CVSS join over the entire AI
+   set** (≤5 `cveId` per request, ≈450 requests, cached in `cvss.json`,
+   incremental afterwards) → the severity-mix chart. NVD is a *derived*
+   source (it lags the CVE list), so it's used for enrichment, never for the
+   core counts.
 
 ### Why not just NVD for everything?
 
@@ -65,8 +69,8 @@ Tune `AI_PATTERNS` / `AI_PACKAGES` in `build.py`.
 ## Pipeline
 
 ```
-build.py     cvelistV5 (git)  →  data/data.json        (+ data/cache.json)
-sources.py   KEV, OSV, NVD, npm/pypistats → data/{kev,ai_packages,nvd,downloads}.json
+build.py     cvelistV5 (git)  →  data/data.json        (+ data/ai_meta.json, data/cache.json)
+sources.py   KEV, OSV, NVD, npm/pypistats → data/{kev,ai_packages,nvd,downloads,severity}.json
 index.html   static page (CSP-locked) reading data/*.json via same-origin fetch
 ```
 
@@ -77,19 +81,25 @@ index.html   static page (CSP-locked) reading data/*.json via same-origin fetch
   those (~6 s) — the repo publishes ~100 changed files a day.
 - Set `CVE_CLONE_DIR` to relocate the clone (CI uses the runner temp dir).
 - NVD lookups for the 30-entry feed are cached in `data/orgs.json`.
+- `build.py` also emits `data/ai_meta.json` (every AI CVE id + publish date),
+  which `sources.py` uses for the incremental NVD CVSS join (cached in
+  `data/cvss.json`, aggregated to `data/severity.json`). First CVSS run is
+  ~450 NVD requests (~50 min anonymous); later runs only fetch new AI CVEs.
 
 ### Run it
 
 ```bash
 python3 build.py      # incremental (full on first run; --full to force)
-python3 sources.py    # ~1.5 min (NVD rate limits included)
+python3 sources.py    # KEV/OSV/NVD/downloads ~1.5 min + AI CVSS join
+                      #   (first CVSS run ~50 min; CVSS_LIMIT=20 for a quick slice)
 python3 -m http.server 8080
 open http://localhost:8080
 ```
 
-Dev loop: `python3 test_build.py` (unit tests, no network) and
-`python3 tools/cdp_probe.py <url> "<js-expression>"` (headless-Chrome DOM
-probe; set `CHROME` env if needed).
+Dev loop: `python3 test_build.py` (unit tests, no network),
+`./tools/check.sh` (headless-Chrome smoke test: data + render + no overflow;
+needs Chrome, set `CHROME` env if needed), and
+`python3 tools/cdp_probe.py <url> "<js-expression>"` (ad-hoc DOM probe).
 
 ## Hosting (public)
 
@@ -129,19 +139,18 @@ index.html            the page (CSP meta, markup)
 css/style.css         dark, responsive layout
 js/app.js             charts + tables (uPlot, defensive)
 vendor/uPlot.*        pinned uPlot 1.6.32 (self-hosted)
-build.py              cvelistV5 → data/data.json
-sources.py            KEV / OSV / NVD / npm / pypistats → data/*.json
+build.py              cvelistV5 → data/data.json + data/ai_meta.json
+sources.py            KEV / OSV / NVD / npm / pypistats → data/*.json (+ severity.json, cvss.json cache)
 test_build.py         unit tests for the heuristics + parser
+tools/check.sh        headless smoke test (data + render + overflow)
 tools/cdp_probe.py    headless-Chrome probe helper (dev only)
+tools/check_expr.js   JS assertions used by check.sh
 data/                 generated JSON (committed; caches gitignored)
 .github/workflows/    daily rebuild + Pages deploy
 ```
 
 ## Ideas / extensions
 
-- **CVSS severity trend** of AI CVEs: join the full 2k AI set with NVD
-  (NVD takes ≤5 `cveId` per request → ≈450 requests; with a free API key at
-  50 req/30 s that's ~15 min) and chart critical/high/medium/low per month.
 - **CWE distribution** for AI CVEs (same join) — “AI software breaks in
   different ways”.
 - **PyPI download history** via the public BigQuery

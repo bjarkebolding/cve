@@ -98,10 +98,30 @@ def test_agg_pure():
     check("sum stable", total == 90)
 
 
+def test_sources_pure():
+    import sources
+    print("sources._primary_cvss")
+    v31 = {"metrics": {"cvssMetricV31": [
+        {"type": "Secondary", "cvssData": {"baseScore": 1.0, "baseSeverity": "LOW"}},
+        {"type": "Primary", "cvssData": {"baseScore": 8.1, "baseSeverity": "HIGH"}},
+    ]}}
+    sev, score = sources._primary_cvss(v31)
+    check("primary chosen over secondary", sev == "HIGH" and score == 8.1)
+    v2 = {"metrics": {"cvssMetricV2": [{"type": "Primary",
+         "cvssData": {"baseScore": 5.0, "baseSeverity": "MEDIUM"}}]}}
+    sev, score = sources._primary_cvss(v2)
+    check("v2 fallback", sev == "MEDIUM" and score == 5.0)
+    sev, score = sources._primary_cvss({"metrics": {}})
+    check("no metrics -> (None, None)", sev is None and score is None)
+    check("is_ai_text machine learning", sources.is_ai_text("machine learning pipeline"))
+    check("is_ai_text plain", not sources.is_ai_text("SQL injection in login"))
+
+
 def main():
     test_is_ai_blob()
     test_parse_file()
     test_agg_pure()
+    test_sources_pure()
     print(f"\n{PASS} passed, {FAIL} failed")
     raise SystemExit(1 if FAIL else 0)
 

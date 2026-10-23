@@ -37,7 +37,9 @@ jobs:
           assert d["total"] > 300000, d["total"]
           assert d["aiTotal"] > 100, d["aiTotal"]
           assert len(d["months"]) > 300
-          print(f"ok: {d['total']} total, {d['aiTotal']} AI")
+          sv = json.load(open("data/severity.json"))
+          assert sv["aiTotal"] > 100 and len(sv["months"]) > 10, (sv["aiTotal"], len(sv["months"]))
+          print(f"ok: {d['total']} total, {d['aiTotal']} AI, {sv['rated']} rated")
           EOF
       - name: Commit data
         run: |

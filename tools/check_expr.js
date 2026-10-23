@@ -1,7 +1,7 @@
 (() => {
   const out = {};
   out.overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
-  out.inks = ["chart-cves", "chart-hours", "chart-aipkgs", "chart-adoption", "chart-kev"].map((id) => {
+  out.inks = ["chart-cves", "chart-hours", "chart-aipkgs", "chart-adoption", "chart-sev", "chart-kev"].map((id) => {
     const c = document.querySelector("#" + id + " canvas");
     if (!c || !c.width) return id + ":zero";
     let a = 0, b = 0;

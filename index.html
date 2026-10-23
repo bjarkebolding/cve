@@ -56,8 +56,8 @@
   </section>
 
   <section class="panel">
-    <h2>Hourly activity — last 30 days</h2>
-    <p class="hint">New CVE records per hour (official list, hourly timestamps) plus upstream record updates per 7-minute sync, aggregated per hour (cvelistV5 deltaLog).</p>
+    <h2>Hourly activity — new: 40 days · updates: 30 days</h2>
+    <p class="hint">New / AI-new CVE records per hour (published timestamps, 40-day window) plus upstream record updates per 7-minute sync, aggregated per hour (cvelistV5 deltaLog, 30-day rolling window).</p>
     <div id="chart-hours"></div>
   </section>
 
@@ -72,6 +72,12 @@
       <p class="hint">Monthly npm downloads of AI SDK/framework packages — a proxy for growing attack surface.</p>
       <div id="chart-adoption"></div>
     </div>
+  </section>
+
+  <section class="panel">
+    <h2>AI CVE severity mix (NVD, per month)</h2>
+    <p class="hint" id="sev-hint">Primary CVSS severity of AI-related CVEs over time (NVD-rated, stacked bars).</p>
+    <div id="chart-sev"></div>
   </section>
 
   <section class="panel">

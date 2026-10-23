@@ -299,6 +299,7 @@ def main():
     res_days = defaultdict(int)
     hours = defaultdict(int)
     ai_hours = defaultdict(int)
+    ai_meta = {}  # cid -> published date (for NVD CVSS enrichment downstream)
     published_total = ai_total = rejected_total = 0
     recent_ai = []  # (published_iso, id, cna_org)
 
@@ -312,6 +313,7 @@ def main():
             if ai:
                 ai_days[day] += 1
                 ai_total += 1
+                ai_meta[cid] = day
                 if day >= hours_keep_from.isoformat():
                     ai_hours[pub[:13]] += 1
                 if pub[:10] >= (today - dt.timedelta(days=30)).isoformat():
@@ -491,6 +493,8 @@ def main():
         json.dump(payload, f)
     with open(CACHE, "w") as f:
         json.dump(records, f)
+    with open(os.path.join(DATADIR, "ai_meta.json"), "w") as f:
+        json.dump({"generatedAt": payload["generatedAt"], "ids": dict(sorted(ai_meta.items()))}, f)
 
     print(f"wrote {OUT}", file=sys.stderr)
     print(f"  {published_total} published ({ai_total} AI-related), "
