@@ -1,0 +1,9 @@
+# local clone of the official CVE list (~4.5GB) — CI uses CVE_CLONE_DIR
+vendor/cvelistV5/
+
+# local build state (incremental parsing)
+data/cache.json
+data/last_head.txt
+
+__pycache__/
+*.tmp

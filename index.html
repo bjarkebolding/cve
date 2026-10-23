@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI × Cybersecurity — live CVE dashboard</title>
+<meta name="description" content="How AI is changing the cybersecurity landscape: AI-related CVEs from the official CVE list, hourly activity, AI package vulnerabilities, and adoption signals — rebuilt daily from public sources.">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23060608'/%3E%3Cpath d='M6 24 L13 13 L19 19 L26 7' stroke='%234fd8ff' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
+<link rel="stylesheet" href="vendor/uPlot.min.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>AI × Cybersecurity</h1>
+    <p class="tag">How AI is reshaping the vulnerability landscape — built daily from public data.</p>
+    <p class="stamp" id="stamp">loading…</p>
+  </header>
+
+  <section class="cards" id="cards" aria-label="key statistics"></section>
+
+  <section class="panel">
+    <h2>CVE issuance — all vs AI-related</h2>
+    <p class="hint">Published CVE records from the official CVE list, 1999 → now. AI = keyword/packaged match on descriptions, affected products and PURLs.</p>
+    <div id="chart-cves"></div>
+    <div class="controls" id="ctl-cves">
+      <span class="grp"><span class="lbl">Agg</span>
+        <button data-agg="day">Day</button>
+        <button data-agg="week">Week</button>
+        <button data-agg="month" class="on">Month</button>
+        <button data-agg="year">Year</button>
+      </span>
+      <span class="grp"><span class="lbl">Range</span>
+        <button data-range="30d">30D</button>
+        <button data-range="1y">1Y</button>
+        <button data-range="5y">5Y</button>
+        <button data-range="10y">10Y</button>
+        <button data-range="all" class="on">All</button>
+      </span>
+      <span class="grp"><span class="lbl">Mode</span>
+        <button data-mode="count" class="on">Count</button>
+        <button data-mode="cum">Cumulative</button>
+      </span>
+      <span class="grp"><span class="lbl">Series</span>
+        <label class="chk"><input type="checkbox" id="ser-all" checked>All</label>
+        <label class="chk"><input type="checkbox" id="ser-ai" checked>AI-related</label>
+      </span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Hourly activity — last 30 days</h2>
+    <p class="hint">New CVE records per hour (official list, hourly timestamps) plus upstream record updates per 7-minute sync, aggregated per hour (cvelistV5 deltaLog).</p>
+    <div id="chart-hours"></div>
+  </section>
+
+  <section class="duo">
+    <div class="panel">
+      <h2>AI/ML package vulnerabilities</h2>
+      <p class="hint">Security advisories for AI/ML software packages (PyPI + npm) per month, via OSV.dev.</p>
+      <div id="chart-aipkgs"></div>
+    </div>
+    <div class="panel">
+      <h2>AI software adoption (npm)</h2>
+      <p class="hint">Monthly npm downloads of AI SDK/framework packages — a proxy for growing attack surface.</p>
+      <div id="chart-adoption"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Latest AI-related CVEs</h2>
+    <p class="hint">Last 30 AI-matched published records. <b>KEV</b> = also in CISA's Known-Exploited catalog.</p>
+    <div class="tbltools"><input id="ai-filter" type="search" placeholder="filter by CVE id, keyword or CNA…" autocomplete="off"></div>
+    <div class="tablewrap">
+      <table id="tbl-ai">
+        <thead><tr><th>CVE</th><th>Published</th><th>CNA</th><th>Description</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>AI-related known-exploited (CISA KEV)</h2>
+    <div class="tablewrap">
+      <table id="tbl-kev">
+        <thead><tr><th>CVE</th><th>Added</th><th>Product</th><th>Description</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <div>
+      <b>Sources</b> (all public, refreshed daily):
+      <ul>
+        <li><a href="https://github.com/CVEProject/cvelistV5">CVEProject/cvelistV5</a> — official CVE list (records, hourly timestamps, 30-day delta log)</li>
+        <li><a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog">CISA KEV</a> — known exploited vulnerabilities</li>
+        <li><a href="https://osv.dev">OSV.dev</a> — package security advisories (GitHub / PyPI / npm)</li>
+        <li><a href="https://api.npmjs.org/downloads">npm downloads API</a> + <a href="https://pypistats.org">pypistats</a> — adoption signals</li>
+      </ul>
+      <b>Method</b>: “AI-related” = heuristic keyword match (ML terms, AI frameworks, AI package names) on CVE descriptions, affected products and PURLs — approximate, expect small error both ways. Month projection = so-far ÷ median cumulative fraction at same day-of-month, last 12 complete months.
+    </div>
+    <div>
+      Static site · no third-party runtime dependencies · CSP-locked ·
+      raw data: <a href="data/data.json">data.json</a> ·
+      <a href="https://services.nvd.nist.gov/rest/json/cves/2.0">NVD API</a> available for CVSS/CWE enrichment.
+    </div>
+  </footer>
+</main>
+<noscript><p class="err">This dashboard requires JavaScript (charts only; no data leaves this origin).</p></noscript>
+<script src="vendor/uPlot.iife.min.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

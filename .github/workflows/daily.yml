@@ -1,0 +1,75 @@
+# daily rebuild of data + deploy to GitHub Pages
+name: daily
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build CVE core data (cvelistV5)
+        env:
+          CVE_CLONE_DIR: ${{ runner.temp }}/cvelistV5
+        run: |
+          python3 build.py
+          python3 build.py   # second run exercises the incremental path
+      - name: Fetch auxiliary sources (KEV, OSV, npm/pypistats)
+        run: python3 sources.py
+      - name: Sanity check
+        run: |
+          python3 - <<'EOF'
+          import json
+          d = json.load(open("data/data.json"))
+          assert d["total"] > 300000, d["total"]
+          assert d["aiTotal"] > 100, d["aiTotal"]
+          assert len(d["months"]) > 300
+          print(f"ok: {d['total']} total, {d['aiTotal']} AI")
+          EOF
+      - name: Commit data
+        run: |
+          git config user.name "cve-dashboard[bot]"
+          git config user.email "cve-dashboard@users.noreply.github.com"
+          git add data/
+          if ! git diff --cached --quiet; then
+            git commit -m "daily data refresh ($(date -u +%F))"
+            git push
+          else
+            echo "data unchanged"
+          fi
+      - name: Assemble static site
+        id: assemble
+        run: |
+          mkdir -p dist/vendor
+          cp index.html dist/
+          cp -r css js data dist/
+          cp vendor/uPlot.iife.min.js vendor/uPlot.min.css dist/vendor/
+      - name: Upload artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    if: github.event_name == 'push'
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
