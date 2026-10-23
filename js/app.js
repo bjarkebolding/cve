@@ -93,11 +93,19 @@ function fail(el, err) {
 function buildCards(core, kev, ap, dl, nvd) {
   const aiSub = `${(100 * core.aiTotal / Math.max(1, core.total)).toFixed(2)}% of all published`
     + (nvd ? ` · NVD full-text: ML ${num.format(nvd.machineLearning || 0)}, LLM ${num.format(nvd.llm || 0)}` : "");
+  // AI trend: last 3 complete years + current YTD
+  const byYear = {};
+  core.months.forEach((m, i) => { const y = m.slice(0, 4); byYear[y] = (byYear[y] || 0) + core.aiMonths[i]; });
+  const years = Object.keys(byYear).sort();
+  const curY = years.at(-1);
+  const prev = years.slice(-3).filter((y) => y !== curY);
+  const trend = [...prev.map((y) => byYear[y]), byYear[curY]].map((n) => compact(n)).join(" → ")
+    + (prev.length ? ` ('${curY.slice(2)} YTD)` : "");
   const cards = [
     { k: "CVEs published", v: core.total, s: "all-time, official list" },
     {
       k: "AI-related CVEs", v: core.aiTotal, ai: true,
-      s: aiSub,
+      s: `${aiSub} · trend ${trend}`,
     },
     core.projection
       ? {
