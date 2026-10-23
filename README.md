@@ -19,6 +19,7 @@ plus one page. The only JS runtime on the page is a self-hosted copy of
 | Hourly activity | New CVEs per hour (40d) + record updates per hour (30d) | `cvelistV5` + `deltaLog.json` |
 | AI package vulns | Advisories per month for AI/ML packages (PyPI + npm) | OSV.dev |
 | AI CVE severity mix | Stacked CRITICAL/HIGH/MEDIUM/LOW per month over the whole AI set | cvelistV5 + NVD CVSS |
+| Top CWEs of AI CVEs | The 12 most common weakness classes behind AI CVEs (NVD) | cvelistV5 + NVD |
 | AI adoption | Monthly npm downloads of AI SDKs (log scale) | npm downloads API |
 | Latest AI CVEs | Feed of the last 30 AI-matched CVEs, CNA + CVSS severity + KEV cross-ref | `cvelistV5` + NVD + KEV |
 | KEV timeline | KEV additions per month (all products, since Nov 2021) + ransomware stat | CISA KEV |
@@ -151,8 +152,6 @@ data/                 generated JSON (committed; caches gitignored)
 
 ## Ideas / extensions
 
-- **CWE distribution** for AI CVEs (same join) — “AI software breaks in
-  different ways”.
 - **PyPI download history** via the public BigQuery
   `pypi.file_downloads` dataset (needs a GCP service account) for a log-scale
   PyPI mirror of the npm adoption chart.
