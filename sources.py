@@ -233,6 +233,9 @@ def _primary_cvss(cve):
         sev = (data.get("baseSeverity") or "").upper() or None
         score = data.get("baseScore")
         break
+    if sev is None and score is not None:  # old V2 records often lack baseSeverity
+        sev = ("CRITICAL" if score >= 9.0 else "HIGH" if score >= 7.0
+               else "MEDIUM" if score >= 4.0 else "LOW")
     cwe_id, cwe_label = None, None
     for w in cve.get("weaknesses") or []:
         for wd in w.get("description") or []:
@@ -275,8 +278,10 @@ def fetch_cvss(limit=0):
     for i in range(0, len(todo), 5):
         batch = todo[i:i + 5]
         if i % 50 == 0 and i:
-            with open(CVSS_CACHE, "w") as f:
+            tmp = CVSS_CACHE + ".tmp"
+            with open(tmp, "w") as f:
                 json.dump(cache, f)
+            os.replace(tmp, CVSS_CACHE)
         qs = "&".join(f"cveId={urllib.parse.quote(c)}" for c in batch)
         d = None
         for attempt in (1, 2):
@@ -303,8 +308,9 @@ def fetch_cvss(limit=0):
                               "cweLabel": None, "done": False}
         if i + 5 < len(todo):
             time.sleep(6.5)  # anonymous: 5 req / 30 s
-    with open(CVSS_CACHE, "w") as f:
+    with open(CVSS_CACHE + ".tmp", "w") as f:
         json.dump(cache, f)
+    os.replace(CVSS_CACHE + ".tmp", CVSS_CACHE)
 
     # aggregate -> severity.json (+ CWE counts)
     by_month = {}
