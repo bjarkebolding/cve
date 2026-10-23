@@ -221,15 +221,35 @@ def fetch_downloads():
 
 # --- 5. NVD CVSS severity for the whole AI set (incremental) ----------------
 def _primary_cvss(cve):
+    """(severity, score, cwe_id, cwe_label) from a NVD CVE object."""
     metrics = cve.get("metrics") or {}
+    sev, score = None, None
     for key in ("cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
         m = metrics.get(key)
         if not m:
             continue
         prim = next((x for x in m if x.get("type") == "Primary"), m[0])
         data = prim.get("cvssData") or {}
-        return (data.get("baseSeverity") or "").upper() or None, data.get("baseScore")
-    return None, None
+        sev = (data.get("baseSeverity") or "").upper() or None
+        score = data.get("baseScore")
+        break
+    cwe_id, cwe_label = None, None
+    for w in cve.get("weaknesses") or []:
+        for wd in w.get("description") or []:
+            txt = (wd.get("description") or "").strip()
+            if txt.startswith("CWE-"):
+                cwe_label = txt
+                cwe_id = txt.split(":")[0].strip()
+                break
+        if cwe_id:
+            break
+    if cwe_id is None:
+        text = " ".join((d.get("value") or "") for d in cve.get("descriptions") or [])
+        m = re.search(r"\(CWE-(\d+)\)", text)
+        if m:
+            cwe_id = f"CWE-{m.group(1)}"
+            cwe_label = cwe_id
+    return sev, score, cwe_id, cwe_label
 
 
 def fetch_cvss(limit=0):
@@ -272,24 +292,34 @@ def fetch_cvss(limit=0):
         for v in d.get("vulnerabilities") or []:
             cve = v["cve"]
             cid = cve.get("id")
-            sev, score = _primary_cvss(cve)
+            sev, score, cwe_id, cwe_label = _primary_cvss(cve)
             seen.add(cid)
             if cid in meta:
-                cache[cid] = {"sev": sev, "score": score, "done": True}
+                cache[cid] = {"sev": sev, "score": score, "cwe": cwe_id,
+                              "cweLabel": cwe_label, "done": True}
         for cid in batch:  # not in NVD yet -> retry next run
             if cid not in seen:
-                cache[cid] = {"sev": None, "score": None, "done": False}
+                cache[cid] = {"sev": None, "score": None, "cwe": None,
+                              "cweLabel": None, "done": False}
         if i + 5 < len(todo):
             time.sleep(6.5)  # anonymous: 5 req / 30 s
     with open(CVSS_CACHE, "w") as f:
         json.dump(cache, f)
 
-    # aggregate -> severity.json
+    # aggregate -> severity.json (+ CWE counts)
     by_month = {}
     totals = {}
+    cwe_counts = {}
+    cwe_names = {}
     rated = 0
     for cid, day in meta.items():
-        sev = (cache.get(cid) or {}).get("sev")
+        rec = cache.get(cid) or {}
+        sev = rec.get("sev")
+        if rec.get("cwe"):
+            c = rec["cwe"]
+            cwe_counts[c] = cwe_counts.get(c, 0) + 1
+            if rec.get("cweLabel"):
+                cwe_names[c] = rec["cweLabel"]
         if not sev:
             continue
         rated += 1
@@ -317,6 +347,8 @@ def fetch_cvss(limit=0):
         "aiTotal": len(meta),
         "rated": rated,
         "totals": totals,
+        "cwe": dict(sorted(cwe_counts.items(), key=lambda kv: -kv[1])),
+        "cweNames": cwe_names,
         "months": months,
     })
 

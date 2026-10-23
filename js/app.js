@@ -433,6 +433,41 @@ function buildSevChart(sev) {
   makeChart(el, opts, [xs, ...ys]);
 }
 
+/* ================= Top CWEs of AI CVEs (NVD) ================= */
+function buildCweList(sev) {
+  const el = $("#cwe-list");
+  const cwe = sev.cwe || {};
+  const names = sev.cweNames || {};
+  const rows = Object.entries(cwe).slice(0, 12);
+  if (!rows.length) { fail(el, new Error("no CWE data yet")); return; }
+  const hint = $("#cwe-hint");
+  if (hint) {
+    const total = Object.values(cwe).reduce((a, b) => a + b, 0);
+    hint.textContent = `Weakness classes behind AI-related CVEs (NVD CWE mappings). ` +
+      `${num.format(total)} AI CVEs carry a CWE mapping.`;
+  }
+  const max = rows[0][1];
+  for (const [id, n] of rows) {
+    const row = document.createElement("div");
+    row.className = "cwe-row";
+    const lab = document.createElement("span");
+    lab.className = "cwe-lab";
+    lab.textContent = names[id] || id;
+    lab.title = names[id] || id;
+    const bar = document.createElement("span");
+    bar.className = "cwe-bar";
+    const fill = document.createElement("span");
+    fill.className = "cwe-fill";
+    fill.style.width = (100 * n) / max + "%";
+    bar.appendChild(fill);
+    const nEl = document.createElement("span");
+    nEl.className = "cwe-n";
+    nEl.textContent = num.format(n);
+    row.append(lab, bar, nEl);
+    el.appendChild(row);
+  }
+}
+
 /* ================= KEV additions per month ================= */
 function buildKevChart(kev) {
   const el = $("#chart-kev");
@@ -608,7 +643,10 @@ function buildKevAiTable(kev) {
     buildHoursChart(core);
     if (ap) buildAiPkgsChart(ap);
     if (dl) buildAdoptionChart(dl);
-    if (sev) buildSevChart(sev);
+    if (sev) {
+      buildSevChart(sev);
+      buildCweList(sev);
+    }
     if (kev) buildKevChart(kev);
     buildRecentAiTable(core, kev);
     wireAiFilter();

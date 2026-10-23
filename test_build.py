@@ -104,15 +104,21 @@ def test_sources_pure():
     v31 = {"metrics": {"cvssMetricV31": [
         {"type": "Secondary", "cvssData": {"baseScore": 1.0, "baseSeverity": "LOW"}},
         {"type": "Primary", "cvssData": {"baseScore": 8.1, "baseSeverity": "HIGH"}},
-    ]}}
-    sev, score = sources._primary_cvss(v31)
+    ]},
+     "descriptions": [{"value": "XSS in (CWE-79) the parser."}]}
+    sev, score, cwe_id, cwe_label = sources._primary_cvss(v31)
     check("primary chosen over secondary", sev == "HIGH" and score == 8.1)
+    check("cwe from description marker", cwe_id == "CWE-79" and cwe_label == "CWE-79")
     v2 = {"metrics": {"cvssMetricV2": [{"type": "Primary",
-         "cvssData": {"baseScore": 5.0, "baseSeverity": "MEDIUM"}}]}}
-    sev, score = sources._primary_cvss(v2)
-    check("v2 fallback", sev == "MEDIUM" and score == 5.0)
-    sev, score = sources._primary_cvss({"metrics": {}})
-    check("no metrics -> (None, None)", sev is None and score is None)
+         "cvssData": {"baseScore": 5.0, "baseSeverity": "MEDIUM"}}]},
+     "weaknesses": [{"description": [{"description": "CWE-89: Improper Neutralization"}]}]}
+    sev, score, cwe_id, cwe_label = sources._primary_cvss(v2)
+    check("v2 fallback + cwe from weaknesses",
+          sev == "MEDIUM" and score == 5.0 and cwe_id == "CWE-89"
+          and cwe_label == "CWE-89: Improper Neutralization")
+    sev, score, cwe_id, cwe_label = sources._primary_cvss({"metrics": {}})
+    check("no metrics -> (None, None, None, None)",
+          sev is None and score is None and cwe_id is None and cwe_label is None)
     check("is_ai_text machine learning", sources.is_ai_text("machine learning pipeline"))
     check("is_ai_text plain", not sources.is_ai_text("SQL injection in login"))
 

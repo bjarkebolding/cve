@@ -149,3 +149,18 @@ footer ul { margin: 6px 0; padding-left: 18px; }
   .card .v { font-size: 18px; }
   h1 { font-size: 23px; }
 }
+
+/* top CWE list */
+.cwe-list { display: grid; gap: 8px; margin-top: 10px; }
+.cwe-row {
+  display: grid; grid-template-columns: minmax(180px, 380px) 1fr 56px;
+  gap: 10px; align-items: center; font-size: 12.5px;
+}
+.cwe-lab { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cwe-bar { height: 9px; background: rgba(255,255,255,.06); border-radius: 2px; overflow: hidden; }
+.cwe-fill { display: block; height: 100%; background: linear-gradient(90deg, #4fd8ff, #b48cff); }
+.cwe-n { text-align: right; font-variant-numeric: tabular-nums; color: rgba(255,255,255,.7); }
+@media (max-width: 700px) {
+  .cwe-row { grid-template-columns: 1fr 56px; }
+  .cwe-bar { grid-row: 2; grid-column: 1 / -1; }
+}
