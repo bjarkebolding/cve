@@ -27,7 +27,7 @@ jobs:
         run: |
           python3 build.py
           python3 build.py   # second run exercises the incremental path
-      - name: Fetch auxiliary sources (KEV, OSV, npm/pypistats)
+      - name: Fetch auxiliary sources (KEV, OSV, npm/pypistats, NVD CVSS join)
         run: python3 sources.py
       - name: Sanity check
         run: |
@@ -58,7 +58,9 @@ jobs:
           mkdir -p dist/vendor
           cp index.html dist/
           cp -r css js data dist/
+          rm -f dist/data/cache.json dist/data/last_head.txt
           cp vendor/uPlot.iife.min.js vendor/uPlot.min.css dist/vendor/
+          du -sh dist
       - name: Upload artifact
         if: github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3

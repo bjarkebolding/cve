@@ -5,7 +5,7 @@ set -u
 cd "$(dirname "$0")/.."
 
 fail=0
-for f in data/data.json data/kev.json data/ai_packages.json data/downloads.json data/nvd.json; do
+for f in data/data.json data/ai_meta.json data/kev.json data/ai_packages.json data/downloads.json data/nvd.json data/severity.json; do
   if [ ! -f "$f" ]; then echo "MISSING $f"; fail=1; continue; fi
   python3 -c "import json; json.load(open('$f'))" || { echo "BAD JSON $f"; fail=1; }
 done
