@@ -12,7 +12,9 @@ Pipeline:
      against a list of AI/ML keywords. Parsed rows are cached in
      data/cache.json so incremental runs only re-parse git-changed files.
   3. Emit data/data.json (schema-compatible with https://cve.0xosprey.com/data.json
-     plus AI series, hourly buckets and a recent-AI-CVE feed).
+     plus AI series, hourly buckets and a recent-AI-CVE feed), and
+     data/ai_meta.json (every AI CVE id + publish date, used by sources.py
+     for the incremental NVD CVSS/CWE join).
 
 Usage:
   python3 build.py               # build (first run: full; later: incremental)
