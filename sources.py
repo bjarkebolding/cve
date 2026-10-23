@@ -239,7 +239,7 @@ def _primary_cvss(cve):
     cwe_id, cwe_label = None, None
     for w in cve.get("weaknesses") or []:
         for wd in w.get("description") or []:
-            txt = (wd.get("description") or "").strip()
+            txt = (wd.get("value") or "").strip()
             if txt.startswith("CWE-"):
                 cwe_label = txt
                 cwe_id = txt.split(":")[0].strip()

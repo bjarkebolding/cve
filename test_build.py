@@ -111,7 +111,7 @@ def test_sources_pure():
     check("cwe from description marker", cwe_id == "CWE-79" and cwe_label == "CWE-79")
     v2 = {"metrics": {"cvssMetricV2": [{"type": "Primary",
          "cvssData": {"baseScore": 5.0, "baseSeverity": "MEDIUM"}}]},
-     "weaknesses": [{"description": [{"description": "CWE-89: Improper Neutralization"}]}]}
+     "weaknesses": [{"description": [{"lang": "en", "value": "CWE-89: Improper Neutralization"}]}]}
     sev, score, cwe_id, cwe_label = sources._primary_cvss(v2)
     check("v2 fallback + cwe from weaknesses",
           sev == "MEDIUM" and score == 5.0 and cwe_id == "CWE-89"
