@@ -43,7 +43,7 @@ plus one page. The only JS runtime on the page is a self-hosted copy of
 5. **NVD API 2.0** (enrichment only) — `sourceIdentifier` for CNA names and
    primary **CVSS severity/score** for the 30-entry feed (badges); full-text
    keyword counts on the AI card; and a full **CVSS join over the entire AI
-   set** (≤5 `cveId` per request, ≈450 requests, cached in `cvss.json`,
+   set** (one `cveId` per request — NVD only honors the first of a multi-cveId query — ≈2250 requests, cached in `cvss.json`,
    incremental afterwards) → the severity-mix chart. NVD is a *derived*
    source (it lags the CVE list), so it's used for enrichment, never for the
    core counts.

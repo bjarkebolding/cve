@@ -256,10 +256,10 @@ def _primary_cvss(cve):
 
 
 def fetch_cvss(limit=0):
-    """Fetch primary CVSS for every AI CVE (NVD, 5 cveId per request, cached).
+    """Fetch primary CVSS for every AI CVE (NVD, 1 cveId per request, cached).
 
     Writes data/cvss.json (cache) and data/severity.json (chart payload).
-    First run: ~450 requests (~50 min anonymous). Later runs: incremental.
+    First run: ~2250 requests (~50 min anonymous). Later runs: incremental.
     """
     meta_path = os.path.join(DATADIR, "ai_meta.json")
     if not os.path.exists(meta_path):
@@ -275,38 +275,38 @@ def fetch_cvss(limit=0):
     todo = [c for c in meta if not (cache.get(c) or {}).get("done")]
     if limit:
         todo = todo[:limit]
-    for i in range(0, len(todo), 5):
-        batch = todo[i:i + 5]
+    # NOTE: NVD only honors the FIRST cveId of a multi-cveId query (verified
+    # empirically), so we fetch one CVE per request.
+    for i, cid in enumerate(todo):
         if i % 50 == 0 and i:
             tmp = CVSS_CACHE + ".tmp"
             with open(tmp, "w") as f:
                 json.dump(cache, f)
             os.replace(tmp, CVSS_CACHE)
-        qs = "&".join(f"cveId={urllib.parse.quote(c)}" for c in batch)
         d = None
         for attempt in (1, 2):
             try:
-                d = json.loads(get(f"https://services.nvd.nist.gov/rest/json/cves/2.0?{qs}"))
+                d = json.loads(get("https://services.nvd.nist.gov/rest/json/cves/2.0"
+                                   f"?cveId={urllib.parse.quote(cid)}&resultsPerPage=1"))
                 break
             except (urllib.error.URLError, json.JSONDecodeError, OSError) as err:
-                print(f"NVD batch {batch[0]}: {err} (attempt {attempt})", file=sys.stderr)
+                print(f"NVD {cid}: {err} (attempt {attempt})", file=sys.stderr)
                 time.sleep(30)
         if d is None:
             break  # resume next run
-        seen = set()
+        found = False
         for v in d.get("vulnerabilities") or []:
             cve = v["cve"]
-            cid = cve.get("id")
+            if cve.get("id") != cid:
+                continue
+            found = True
             sev, score, cwe_id, cwe_label = _primary_cvss(cve)
-            seen.add(cid)
-            if cid in meta:
-                cache[cid] = {"sev": sev, "score": score, "cwe": cwe_id,
-                              "cweLabel": cwe_label, "done": True}
-        for cid in batch:  # not in NVD yet -> retry next run
-            if cid not in seen:
-                cache[cid] = {"sev": None, "score": None, "cwe": None,
-                              "cweLabel": None, "done": False}
-        if i + 5 < len(todo):
+            cache[cid] = {"sev": sev, "score": score, "cwe": cwe_id,
+                          "cweLabel": cwe_label, "done": True}
+        if not found:  # not in NVD yet -> retry next run
+            cache[cid] = {"sev": None, "score": None, "cwe": None,
+                          "cweLabel": None, "done": False}
+        if i + 1 < len(todo):
             time.sleep(6.5)  # anonymous: 5 req / 30 s
     with open(CVSS_CACHE + ".tmp", "w") as f:
         json.dump(cache, f)
