@@ -39,7 +39,8 @@ print("  ", out)
 print("  exceptions:", exc if exc else "none")
 d = json.loads(out) if isinstance(out, str) else out
 bad = [k for k in d["inks"] if k.endswith(":zero")]
-if exc or d["overflow"] or bad or d["rows"] < 5 or d["err"] == "yes":
+share_ok = d.get("shareLabel") == "AI share of CVEs (%)" and d.get("countLabel") == "CVEs / month"
+if exc or d["overflow"] or bad or d["rows"] < 5 or d["err"] == "yes" or not share_ok:
     sys.exit(1)
 EOF
 

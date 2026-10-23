@@ -11,5 +11,13 @@
   });
   out.rows = document.querySelectorAll("#tbl-ai tbody tr").length;
   out.err = document.querySelector(".panel .err") ? "yes" : "no";
+  // exercise the share mode on the main chart
+  const u = document.querySelector("#chart-cves")._u;
+  const share = document.querySelector("#ctl-cves [data-mode=share]");
+  const count = document.querySelector("#ctl-cves [data-mode=count]");
+  share.click();
+  out.shareLabel = u.axes[1].label;
+  count.click();
+  out.countLabel = u.axes[1].label;
   return JSON.stringify(out);
 })()
