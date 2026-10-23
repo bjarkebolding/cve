@@ -28,6 +28,50 @@ import urllib.request
 BASE = os.path.dirname(os.path.abspath(__file__))
 DATADIR = os.path.join(BASE, "data")
 CVSS_CACHE = os.path.join(DATADIR, "cvss.json")
+
+# Human-readable names for common CWEs (NVD API often returns bare IDs).
+# Fallback only: if NVD supplied a label with a name, that wins.
+CWE_NAMES = {
+    "CWE-79": "Cross-site Scripting (XSS)",
+    "CWE-89": "SQL Injection",
+    "CWE-78": "OS Command Injection",
+    "CWE-22": "Path Traversal",
+    "CWE-502": "Deserialization of Untrusted Data",
+    "CWE-20": "Improper Input Validation",
+    "CWE-125": "Out-of-bounds Read",
+    "CWE-787": "Out-of-bounds Write",
+    "CWE-119": "Memory Corruption",
+    "CWE-434": "Unrestricted Upload of File with Dangerous Type",
+    "CWE-269": "Improper Privilege Management",
+    "CWE-352": "Cross-Site Request Forgery (CSRF)",
+    "CWE-200": "Exposure of Sensitive Information",
+    "CWE-862": "Missing Authorization",
+    "CWE-362": "Race Condition",
+    "CWE-400": "Uncontrolled Resource Consumption (DoS)",
+    "CWE-918": "Server-Side Request Forgery (SSRF)",
+    "CWE-522": "Insufficiently Protected Credentials",
+    "CWE-319": "Cleartext Transmission of Sensitive Information",
+    "CWE-287": "Improper Authentication",
+    "CWE-639": "Authorization Bypass Through User-Controlled Key",
+    "CWE-94": "Code Injection",
+    "CWE-829": "Inclusion of Functionality from Untrusted Control Sphere",
+    "CWE-693": "Protection Mechanism Failure",
+    "CWE-754": "Improper Check for Unusual or Exceptional Conditions",
+    "CWE-369": "Stride Error",
+    "CWE-131": "Incorrect Calculation of Buffer Size",
+    "CWE-347": "Improper Verification of Cryptographic Signature",
+    "CWE-501": "Incomplete Authorization",
+    "CWE-280": "Improper Permission Allocation for Resource",
+    "CWE-134": "Improper Neutralization in Output",
+    "CWE-252": "Unreadable Data",
+    "CWE-386": "Partial Reliance on Client-Supplied Input",
+    "CWE-755": "Improper Handling of Unspecified Resource",
+    "CWE-822": "Untrusted Pointer Dereference",
+    "CWE-120": "Buffer Overflow",
+    "CWE-190": "Integer Overflow",
+    "CWE-416": "Use After Free",
+    "CWE-415": "Double Free",
+}
 UA = {"User-Agent": "cve-ai-dashboard/1.0 (research script)"}
 
 # --- AI package universe ----------------------------------------------------
@@ -324,8 +368,14 @@ def fetch_cvss(limit=0):
         if rec.get("cwe"):
             c = rec["cwe"]
             cwe_counts[c] = cwe_counts.get(c, 0) + 1
-            if rec.get("cweLabel"):
-                cwe_names[c] = rec["cweLabel"]
+            # prefer an NVD label that includes a name; fall back to the map
+            lab = rec.get("cweLabel") or ""
+            if lab and ": " in lab:
+                cwe_names[c] = lab
+            elif c in CWE_NAMES:
+                cwe_names.setdefault(c, CWE_NAMES[c])
+            elif rec.get("cweLabel"):
+                cwe_names.setdefault(c, rec["cweLabel"])
         if not sev:
             continue
         rated += 1

@@ -168,12 +168,27 @@ function buildMainChart(core) {
     bAll = bAll.filter(([t]) => t >= cut);
     bAi = bAi.filter(([t]) => t >= cut);
 
+    if (state.mode === "share") {
+      // AI as a percentage of all CVEs per bucket (same domain, zip it)
+      const share = bAi.map(([t, a], i) => {
+        const all = bAll[i][1];
+        return all ? (100 * a) / all : 0;
+      });
+      uplot.axes[1].label = "AI share of CVEs (%)";
+      uplot.axes[1].ticks = (u, val) => val.toFixed(1) + "%";
+      uplot.setData([bAll.map((x) => x[0]), null, share]);
+      uplot.setSeries(1, { show: false });
+      uplot.setSeries(2, { show: state.showAi });
+      return;
+    }
+
     const seriesData = [
       bAll.map((x) => x[0]),
       bAll.map((x) => x[1]),
       bAi.map((x) => x[1]),
     ];
     uplot.axes[1].label = state.mode === "cum" ? "cumulative CVEs" : `CVEs / ${state.agg}`;
+    uplot.axes[1].ticks = (u, val) => compact(val);
     uplot.setData(seriesData);
     uplot.setSeries(1, { show: state.showAll });
     uplot.setSeries(2, { show: state.showAi });
@@ -205,6 +220,10 @@ function buildMainChart(core) {
           : state.agg === "month" ? d.toISOString().slice(0, 7)
           : d.toISOString().slice(0, 10);
         const parts = [label];
+        if (state.mode === "share") {
+          parts.push("AI " + (u.data[2][i] != null ? u.data[2][i].toFixed(2) : "0.00") + "%");
+          return parts.join("\t");
+        }
         if (state.showAll) parts.push("all " + num.format(u.data[1][i]));
         if (state.showAi) parts.push("AI " + num.format(u.data[2][i]));
         return parts.join("\t");
