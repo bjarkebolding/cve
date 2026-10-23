@@ -4,7 +4,7 @@ A static, self-hosted dashboard showing **how AI is changing the cybersecurity
 landscape** across time scales — hourly, daily, weekly, monthly, yearly — and
 its impact (exploitation, attack-surface growth, adoption).
 
-No server, no database, no third-party runtime dependency: five JSON data files
+No server, no database, no third-party runtime dependency: six JSON data files
 plus one page. The only JS runtime on the page is a self-hosted copy of
 [uPlot](https://uplot.org) (vendored in `vendor/`).
 
@@ -15,7 +15,7 @@ plus one page. The only JS runtime on the page is a self-hosted copy of
 | Panel | What | Source |
 |---|---|---|
 | Stat cards | Totals, AI share, month projection, KEV, package advisories, adoption | all sources |
-| CVE issuance | All vs AI-related CVEs per day/week/month/year, count/cumulative | `cvelistV5` |
+| CVE issuance | All vs AI-related per day/week/month/year; count / cumulative / AI share % | `cvelistV5` |
 | Hourly activity | New CVEs per hour (40d) + record updates per hour (30d) | `cvelistV5` + `deltaLog.json` |
 | AI package vulns | Advisories per month for AI/ML packages (PyPI + npm) | OSV.dev |
 | AI CVE severity mix | Stacked CRITICAL/HIGH/MEDIUM/LOW per month over the whole AI set | cvelistV5 + NVD CVSS |
@@ -85,7 +85,7 @@ index.html   static page (CSP-locked) reading data/*.json via same-origin fetch
 - `build.py` also emits `data/ai_meta.json` (every AI CVE id + publish date),
   which `sources.py` uses for the incremental NVD CVSS join (cached in
   `data/cvss.json`, aggregated to `data/severity.json`). First CVSS run is
-  ~450 NVD requests (~50 min anonymous); later runs only fetch new AI CVEs.
+  ~2250 NVD requests (~50 min anonymous); later runs only fetch new AI CVEs.
 
 ### Run it
 
@@ -130,7 +130,8 @@ Cache-Control: public, max-age=3600   (for data/*.json)
   The page works offline once loaded.
 - All dynamic text is inserted via `textContent` (no `innerHTML` with data).
 - External links open in a new tab with `rel="noopener"`.
-- The only runtime JS is vendored uPlot (51 KB, pinned 1.6.32).
+- The only runtime JS is vendored uPlot (51 KB, pinned 1.6.32), loaded with a
+  Subresource-Integrity hash (`integrity="sha384-..."`).
 - Data files are the same origin; nothing leaves the browser.
 
 ## Layout
