@@ -108,7 +108,7 @@ function buildCards(core, kev, ap, dl, nvd) {
       : null,
     {
       k: "Known exploited (KEV)", v: kev ? kev.total : "—",
-      s: kev ? `${kev.aiCount} AI-matched` : "",
+      s: kev ? `${kev.aiCount} AI-matched · ${kev.ransomwareCount} ransomware` : "",
     },
     {
       k: "AI pkg advisories", v: ap ? Object.values(ap.perPackage).reduce((s, p) => s + p.count, 0) : "—",
@@ -381,6 +381,59 @@ function buildAdoptionChart(dl) {
   makeChart(el, optsLog, dataLog);
 }
 
+/* ================= KEV additions per month ================= */
+function buildKevChart(kev) {
+  const el = $("#chart-kev");
+  const byMonth = {};
+  for (const e of kev.entries || []) {
+    if (!e.added) continue;
+    const m = e.added.slice(0, 7);
+    byMonth[m] = (byMonth[m] || 0) + 1;
+  }
+  const months = Object.keys(byMonth).sort();
+  if (!months.length) { fail(el, new Error("no KEV data")); return; }
+  // dense fill so gaps (no additions) show as 0
+  const monthsAll = [];
+  {
+    let d = new Date(monthT(months[0]) * 86400e3);
+    const last = monthT(months.at(-1));
+    for (;;) {
+      const t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 86400e3;
+      if (t > last) break;
+      monthsAll.push([t, `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`]);
+      d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
+    }
+  }
+  const xs = monthsAll.map((x) => x[0]);
+  const ys = monthsAll.map(([, m]) => byMonth[m] || 0);
+  const opts = {
+    width: "100%",
+    height: 240,
+    ariaLabel: "KEV additions per month",
+    scales: { time: { time: true } },
+    axes: [
+      { space: 58, ticks: (u, val) => {
+        const d = new Date(val * 86400e3);
+        return d.getUTCMonth() === 0 ? String(d.getUTCFullYear()) : d.toISOString().slice(0, 7);
+      } },
+      { space: 36, label: "KEV added / mo" },
+    ],
+    series: [
+      { label: "month" },
+      { label: "KEV additions", stroke: "rgba(255,255,255,0.7)", width: 0, fill: "rgba(255,255,255,0.35)", barWidth: (u, data) => Math.max(1, Math.min(14, (u.width / data[0].length) * 0.85)) },
+    ],
+    legend: { show: false },
+    cursor: {
+      dtl: (u, dtl) => {
+        const i = u.cursor.idx;
+        if (i == null) return dtl;
+        return `${monthsAll[i][1]}\t${num.format(u.data[1][i])}`;
+      },
+    },
+  };
+  makeChart(el, opts, [xs, ys]);
+}
+
 /* ================= tables ================= */
 function buildRecentAiTable(core, kev) {
   const tbody = $("#tbl-ai tbody");
@@ -499,6 +552,7 @@ function buildKevAiTable(kev) {
     buildHoursChart(core);
     if (ap) buildAiPkgsChart(ap);
     if (dl) buildAdoptionChart(dl);
+    if (kev) buildKevChart(kev);
     buildRecentAiTable(core, kev);
     wireAiFilter();
     buildKevAiTable(kev);

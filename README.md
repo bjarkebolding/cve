@@ -20,6 +20,7 @@ plus one page. The only JS runtime on the page is a self-hosted copy of
 | AI package vulns | Advisories per month for AI/ML packages (PyPI + npm) | OSV.dev |
 | AI adoption | Monthly npm downloads of AI SDKs (log scale) | npm downloads API |
 | Latest AI CVEs | Feed of the last 30 AI-matched CVEs, CNA + CVSS severity + KEV cross-ref | `cvelistV5` + NVD + KEV |
+| KEV timeline | KEV additions per month (all products, since Nov 2021) + ransomware stat | CISA KEV |
 | KEV (AI) | CISA Known-Exploited entries matching AI keywords | CISA KEV |
 
 ## Data sources (all public, keyless)

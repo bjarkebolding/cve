@@ -107,6 +107,7 @@ def fetch_kev():
         "source": "CISA Known Exploited Vulnerabilities catalog",
         "total": len(entries),
         "aiCount": ai,
+        "ransomwareCount": sum(1 for e in entries if e["ransomware"]),
         "entries": entries,
     })
 
