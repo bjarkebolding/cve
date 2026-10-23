@@ -174,6 +174,7 @@ function buildMainChart(core) {
   const opts = {
     width: "100%",
     height: 380,
+    ariaLabel: "CVEs per period, all vs AI-related",
     scales: { time: { time: true } },
     axes: [
       { space: 70 },
@@ -240,6 +241,7 @@ function buildHoursChart(core) {
   const opts = {
     width: "100%",
     height: 300,
+    ariaLabel: "Hourly CVE activity, new vs updates",
     scales: { time: { time: true }, y2: { range: (min, max) => [0, Math.max(1, max * 3)] } },
     axes: [
       {
@@ -292,6 +294,7 @@ function buildAiPkgsChart(ap) {
   const opts = {
     width: "100%",
     height: 260,
+    ariaLabel: "AI/ML package advisories per month",
     scales: { time: { time: true } },
     axes: [
       { space: 58, ticks: (u, val) => {
@@ -341,6 +344,7 @@ function buildAdoptionChart(dl) {
   const opts = {
     width: "100%",
     height: 260,
+    ariaLabel: "Monthly npm downloads of AI packages, log scale",
     scales: { time: { time: true } },
     axes: [
       { space: 58, ticks: (u, val) => {

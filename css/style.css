@@ -64,6 +64,14 @@ h2 { font-size: 17px; font-weight: 700; margin: 0 0 4px; }
 /* ---- charts ---- */
 .uplot, .uplot * { font-family: "Courier New", monospace; }
 .chart { width: 100%; }
+#chart-hours { position: relative; }
+.htip {
+  position: absolute; top: 6px; right: 10px;
+  font-size: 12px; color: var(--ink);
+  background: rgba(6, 6, 8, 0.78); padding: 2px 8px;
+  pointer-events: none; font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .u-hz .u-cursor-x, .u-vt .u-cursor-y { border-right: 1px dashed rgba(255,255,255,0.4); }
 .u-hz .u-cursor-y, .u-vt .u-cursor-x { border-bottom: 1px dashed rgba(255,255,255,0.4); }
 .u-select { background: rgba(255,255,255,0.05); }
