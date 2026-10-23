@@ -550,10 +550,13 @@ function buildKevAiTable(kev) {
     stamp.textContent = "error: " + err.message;
     return;
   }
+  const ageH = (Date.now() - new Date(core.generatedAt).getTime()) / 3600e3;
+  const stale = ageH > 48 ? ` · <b>data ${Math.round(ageH / 24)}d old — rebuild</b>` : "";
   stamp.textContent =
     `data as of ${new Date(core.generatedAt).toUTCString()} · ` +
     (kev ? `KEV ${new Date(kev.generatedAt).toISOString().slice(0, 10)} · ` : "") +
-    "rebuilt daily";
+    "rebuilt daily" + (stale ? " ⚠" : "");
+  if (stale) { stamp.classList.add("err"); }
   try {
     buildCards(core, kev, ap, dl, nvd);
     buildMainChart(core);
