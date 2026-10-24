@@ -165,13 +165,18 @@ the rendered DOM:
   internally). `makeChart` measures the *host element's* `clientWidth`
   (not the panel's — the panel's includes its padding, which used to make the
   canvas 20 px too wide on mobile) and a `ResizeObserver` re-applies
-  `setSize` when the layout width changes by more than 2 px.
+  `setSize` when the layout width changes by more than 2 px. The host on the
+  instance is `u.root` (1.6.x exposes no `u.el`).
 - **No `setOptions` in 1.6.x**: state changes (granularity, mode, series
   toggles) go through `setData` / `setSeries(i, {show})`; axis `label` is
   mutated directly on `u.axes[n]`.
-- **Legends**: uPlot legends are display-only; the main chart's series
-  toggles are custom checkboxes, the hourly chart shows a cursor-driven
-  `.htip` text line instead.
+- **Legends**: uPlot 1.6.32 legends are clickable — the series *label*
+  cell (`th`) toggles the series natively (the row/table itself is not the
+  target). The main chart mirrors that toggle into its custom checkboxes +
+  state via a delegated click listener on `.u-legend` (bound on a rAF: the
+  legend DOM only exists after the first layout frame). The hourly chart
+  shows a cursor-driven `.htip` text line instead; the severity chart keeps
+  its legend off (a stacked mix shouldn't be partially toggled).
 - **Headless verification**: `tools/cdp_probe.py` drives headless Chrome over
   CDP; the charts expose themselves as `document.querySelector("#chart-*")._u`
   (uPlot instance), whose `axes[n]._values` is the exact label array uPlot

@@ -260,6 +260,22 @@ function buildMainChart(core) {
   const uplot = makeChart(el, opts, [[], [], []]);
   render();
 
+  // uPlot 1.6 legends are clickable (native toggle on the label cell).
+  // Sync the custom checkboxes + state so a later re-render doesn't
+  // resurrect a legend-toggled series. The legend DOM is built on the
+  // first layout frame, so defer; delegation survives re-builds.
+  requestAnimationFrame(() => {
+    const legendEl = uplot.root.querySelector(".u-legend");
+    if (!legendEl) return;
+    legendEl.addEventListener("click", (e) => {
+      const tr = e.target && e.target.closest ? e.target.closest("tr.u-series") : null;
+      if (!tr) return;
+      const i = [...legendEl.querySelectorAll("tr.u-series")].indexOf(tr);
+      if (i === 1) { state.showAll = uplot.series[1].show; $("#ser-all").checked = state.showAll; }
+      if (i === 2) { state.showAi = uplot.series[2].show; $("#ser-ai").checked = state.showAi; }
+    });
+  });
+
   function wire(attr, apply) {
     document.querySelectorAll(`#ctl-cves [data-${attr}]`).forEach((b) =>
       b.addEventListener("click", () => {
