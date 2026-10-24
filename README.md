@@ -134,6 +134,50 @@ Cache-Control: public, max-age=3600   (for data/*.json)
   Subresource-Integrity hash (`integrity="sha384-..."`).
 - Data files are the same origin; nothing leaves the browser.
 
+## Chart rendering notes (uPlot 1.6)
+
+How each graph is actually built — useful if you are poking at `js/app.js` or
+the rendered DOM:
+
+- **X-axis data units differ per chart.** The time charts (cves, severity, KEV,
+  AI packages, adoption) index x in **days from epoch** (e.g. 20727 =
+  2026-10-23); the hourly chart uses **seconds from epoch**. uPlot's `time`
+  scale does not convert units — it passes the *raw data units* through to the
+  axis `values` formatter and only uses them for positioning — so each chart's
+  formatter converts to a `Date` with its own multiplier (`86400e3` for days,
+  `1e3` for seconds).
+- **Label formatter is `axes[].values`, not `ticks`.** `values:
+  (self, vals) => [..labels]` receives the tick values (in data units) and
+  returns one string per tick (empty string hides the label). `ticks` only
+  styles the tick marks. (The app wraps this as the `tick(fn)` helper.)
+- **Label density is span-aware.** Long spans get year-only labels (e.g.
+  "2004, 2009, 2014…" across 27 years); short spans get "YYYY-MM" or
+  "MM-DD". This lives in the per-chart `values` closures and `monthTick()`.
+- **The hourly chart uses seconds**, because uPlot's time-scale tick *placement*
+  (a discrete increment list of clean day/month steps) assumes
+  second-magnitude values; hour-magnitude values produced only ~1 misplaced
+  tick. At a 41-day second-scale range it places midnight-aligned ticks every
+  5 days (verified: 09-13, 09-18, 09-23…).
+- **y2 "updates" series**: the hourly chart plots record-updates on a second
+  y-scale (`y2`) whose range is `max*3` — i.e. the line is drawn at 1/3 scale
+  and the cursor tooltip shows true counts. The axis is hidden.
+- **Sizing**: uPlot takes a fixed `width` (no `clientWidth` reading
+  internally). `makeChart` measures the *host element's* `clientWidth`
+  (not the panel's — the panel's includes its padding, which used to make the
+  canvas 20 px too wide on mobile) and a `ResizeObserver` re-applies
+  `setSize` when the layout width changes by more than 2 px.
+- **No `setOptions` in 1.6.x**: state changes (granularity, mode, series
+  toggles) go through `setData` / `setSeries(i, {show})`; axis `label` is
+  mutated directly on `u.axes[n]`.
+- **Legends**: uPlot legends are display-only; the main chart's series
+  toggles are custom checkboxes, the hourly chart shows a cursor-driven
+  `.htip` text line instead.
+- **Headless verification**: `tools/cdp_probe.py` drives headless Chrome over
+  CDP; the charts expose themselves as `document.querySelector("#chart-*")._u`
+  (uPlot instance), whose `axes[n]._values` is the exact label array uPlot
+  rendered. Probe with a fresh `CDP_PROFILE` — a persistent profile will
+  serve stale `js/app.js` from its heuristic HTTP cache.
+
 ## Layout
 
 ```

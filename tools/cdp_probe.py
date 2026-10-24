@@ -93,9 +93,10 @@ def ws_recv(s, timeout=15):
 
 
 def run(url, expr, wait=4.0, mobile=None):
+    prof = os.environ.get("CDP_PROFILE") or "/tmp/cdp-prof"
     proc = subprocess.Popen([
         CHROME, "--headless=new", "--disable-gpu", "--no-sandbox",
-        f"--remote-debugging-port={PORT}", "--user-data-dir=/tmp/cdp-prof",
+        f"--remote-debugging-port={PORT}", f"--user-data-dir={prof}",
         "about:blank",
     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -120,7 +121,8 @@ def run(url, expr, wait=4.0, mobile=None):
             if m.get("method") == "Runtime.exceptionThrown":
                 exc.append(m["params"]["exceptionDetails"]["exception"].get("description", "?"))
         ws_send(s, {"id": 2, "method": "Runtime.evaluate",
-                    "params": {"expression": expr, "returnByValue": True}})
+                    "params": {"expression": expr, "returnByValue": True,
+                               "awaitPromise": True}})
         value = None
         for _ in range(40):
             m = ws_recv(s)

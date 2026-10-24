@@ -31,6 +31,17 @@ function dayT(dateStr) { return Date.parse(dateStr + "T00:00:00Z") / 86400e3; }
 function hourT(key) { return Date.parse(key + ":00Z") / 3600e3; }
 function monthT(ym) { const [y, m] = ym.split("-"); return Date.UTC(+y, +m - 1, 1) / 86400e3; }
 
+/* uPlot 1.6: the axis *label* formatter is `values: (self, vals) => [..labels]`
+ * (`ticks` only styles the tick marks) — wrap a per-value fn for readability */
+const tick = (fn) => (u, vals) => vals.map(fn);
+
+/* monthly charts: "YYYY-MM" short-span, bare "YYYY" on long spans */
+const monthTick = (spanMonths) =>
+  tick((val) => {
+    const d = new Date(val * 86400e3);
+    return spanMonths > 96 ? String(d.getUTCFullYear()) : d.toISOString().slice(0, 7);
+  });
+
 /* dense per-day array over [firstDay, lastDay] from sparse {dayStr: count} */
 function denseDays(sparse, first, last) {
   const out = new Array(last - first + 1).fill(0);
@@ -68,13 +79,15 @@ function cumulative(buckets) {
 /* responsive uPlot wrapper (uPlot 1.6: width/height must be numbers; we
  * measure the container and re-set the size on resize) */
 function makeChart(el, opts, data) {
-  const w = Math.max(300, el.parentElement.clientWidth || 800);
+  // Measure the HOST element, not its parent: parent clientWidth includes the
+  // panel's padding, which makes the canvas wider than the content area.
+  const w = Math.max(300, el.clientWidth || 800);
   const h = opts.height || 300;
   const u = new uPlot({ ...opts, width: w, height: h }, data, el);
   const cv = u.ctx && u.ctx.canvas;
   if (cv) { cv.setAttribute("role", "img"); cv.setAttribute("aria-label", opts.ariaLabel || "chart"); }
   const ro = new ResizeObserver(() => {
-    const cw = el.parentElement.clientWidth;
+    const cw = el.clientWidth;
     if (cw > 0 && Math.abs(cw - u.width) > 2) u.setSize({ width: cw, height: h });
   });
   ro.observe(el.parentElement);
@@ -200,8 +213,20 @@ function buildMainChart(core) {
     ariaLabel: "CVEs per period, all vs AI-related",
     scales: { time: { time: true } },
     axes: [
-      { space: 70 },
-      { space: 48, label: "CVEs", ticks: (u, val) => compact(val) },
+      {
+        space: 70,
+        values: (u, vals) => {
+          const spanY = (last - first) / 365.25;
+          return vals.map((v) => {
+            const d = new Date(v * 86400e3);
+            if (state.agg === "year") return String(d.getUTCFullYear());
+            if (state.agg === "month")
+              return spanY > 8 ? String(d.getUTCFullYear()) : d.toISOString().slice(0, 7);
+            return spanY > 2 ? String(d.getUTCFullYear()) : d.toISOString().slice(5, 10);
+          });
+        },
+      },
+      { space: 48, label: "CVEs", values: tick(compact) },
     ],
     series: [
       { label: "date" },
@@ -259,11 +284,12 @@ function buildHoursChart(core) {
   if (!keys.length) { fail(el, new Error("no hourly data")); return; }
   const firstK = keys.sort()[0];
   const lastK = keys[keys.length - 1];
-  const t0 = hourT(firstK), t1 = hourT(lastK);
+  // x in SECONDS from epoch: uPlot's time-scale tick placement assumes seconds
+  const t0 = hourT(firstK) * 3600, t1 = hourT(lastK) * 3600;
   const denseNew = denseHours(newMap, t0, t1);
   const denseAi = denseHours(aiMap, t0, t1);
   const denseUpd = denseHours(updMap, t0, t1);
-  const xs = Array.from({ length: denseNew.length }, (_, i) => t0 + i);
+  const xs = Array.from({ length: denseNew.length }, (_, i) => t0 + i * 3600);
 
   const opts = {
     width: "100%",
@@ -273,25 +299,28 @@ function buildHoursChart(core) {
     axes: [
       {
         space: 60,
-        ticks: (u, val) => {
-          const d = new Date(val * 3600e3);
-          return d.getUTCHours() === 0 ? d.toISOString().slice(5, 10) : "";
-        },
+        values: (u, vals) => vals.map((val) => new Date(val * 1e3).toISOString().slice(5, 10)),
       },
-      { space: 40, label: "new CVEs / hr", ticks: (u, val) => compact(val) },
+      { space: 40, label: "new CVEs / hr", values: tick(compact) },
       {
         show: false,
         space: 40,
-        ticks: (u, val) => compact(val),
+        values: tick(compact),
       },
     ],
     series: [
       { label: "hour" },
-      { label: "New CVEs", fill: "rgba(255,255,255,0.5)", stroke: "rgba(255,255,255,0.75)", width: 0, barWidth: (u, data) => Math.min(4, (u.width / data[0].length) * 0.9) },
+      { label: "New CVEs", stroke: "rgba(255,255,255,0.85)", width: 1.2, fill: "rgba(255,255,255,0.07)" },
       { label: "AI-related new", stroke: COLORS.ai, width: 1.5, fill: "rgba(79,216,255,0.08)" },
       { label: "Record updates (y2, ×1/3)", scale: "y2", stroke: COLORS.upd, width: 1, alpha: 0.55, fill: null },
     ],
     legend: { show: false },
+    cursor: {
+      dtl: (u, val) => {
+        const s = new Date(val * 1e3).toISOString();
+        return s.slice(5, 16) + "Z";
+      },
+    },
     hooks: {
       setCursor: [(u, idx) => {
         // legend row as a DOM hint (no inline handlers needed; textContent only)
@@ -299,7 +328,7 @@ function buildHoursChart(core) {
         if (!tip) { tip = document.createElement("div"); tip.className = "htip"; el.appendChild(tip); }
         if (idx == null) { tip.style.display = "none"; return; }
         tip.style.display = "block";
-        const d = new Date(xs[idx] * 3600e3).toISOString().slice(5, 16);
+        const d = new Date(xs[idx] * 1e3).toISOString().slice(5, 16);
         tip.textContent = `${d}Z  new ${num.format(u.data[1][idx])}  AI ${num.format(u.data[2][idx])}  updates ${num.format(u.data[3][idx])}`;
       }],
     },
@@ -307,8 +336,11 @@ function buildHoursChart(core) {
   makeChart(el, opts, [xs, denseNew, denseAi, denseUpd]);
 }
 function denseHours(sparse, t0, t1) {
-  const out = new Array(t1 - t0 + 1).fill(0);
-  for (const k in sparse) out[hourT(k) - t0] = sparse[k];
+  // t0/t1 are SECONDS; index space is whole hours
+  const n = (t1 - t0) / 3600 + 1;
+  const out = new Array(n).fill(0);
+  const base = t0 / 3600;
+  for (const k in sparse) out[hourT(k) - base] = sparse[k];
   return out;
 }
 
@@ -324,10 +356,7 @@ function buildAiPkgsChart(ap) {
     ariaLabel: "AI/ML package advisories per month",
     scales: { time: { time: true } },
     axes: [
-      { space: 58, ticks: (u, val) => {
-        const d = new Date(val * 86400e3);
-        return d.getUTCMonth() === 0 ? String(d.getUTCFullYear()) : d.toISOString().slice(0, 7);
-      } },
+      { space: 58, values: monthTick(xs.length) },
       { space: 36, label: "advisories / mo" },
     ],
     series: [
@@ -374,10 +403,10 @@ function buildAdoptionChart(dl) {
     ariaLabel: "Monthly npm downloads of AI packages, log scale",
     scales: { time: { time: true } },
     axes: [
-      { space: 58, ticks: (u, val) => {
+      { space: 58, values: tick((val) => {
         const d = new Date(val * 86400e3);
         return d.getUTCMonth() === 0 ? String(d.getUTCFullYear()) : d.toISOString().slice(0, 7);
-      } },
+      }) },
       { space: 40 },
     ],
     series: series,
@@ -388,10 +417,10 @@ function buildAdoptionChart(dl) {
     ...opts,
     axes: [
       opts.axes[0],
-      { space: 40, label: "downloads / mo (log₁₀)", ticks: (u, val) => {
+      { space: 40, label: "downloads / mo (log₁₀)", values: tick((val) => {
         const p = Math.round(val);
         return p === 3 ? "1k" : p === 4 ? "10k" : p === 5 ? "100k" : p === 6 ? "1M" : p === 7 ? "10M" : p === 8 ? "100M" : "";
-      } },
+      }) },
     ],
     cursor: {
       dtl: (u, dtl) => {
@@ -429,10 +458,7 @@ function buildSevChart(sev) {
     ariaLabel: "AI CVE severity mix per month",
     scales: { time: { time: true }, y: { stack: true } },
     axes: [
-      { space: 58, ticks: (u, val) => {
-        const d = new Date(val * 86400e3);
-        return d.getUTCMonth() === 0 ? String(d.getUTCFullYear()) : d.toISOString().slice(0, 7);
-      } },
+      { space: 58, values: monthTick(rows.length) },
       { space: 40, label: "AI CVEs / mo" },
     ],
     series: [
@@ -518,10 +544,7 @@ function buildKevChart(kev) {
     ariaLabel: "KEV additions per month",
     scales: { time: { time: true } },
     axes: [
-      { space: 58, ticks: (u, val) => {
-        const d = new Date(val * 86400e3);
-        return d.getUTCMonth() === 0 ? String(d.getUTCFullYear()) : d.toISOString().slice(0, 7);
-      } },
+      { space: 58, values: monthTick(monthsAll.length) },
       { space: 36, label: "KEV added / mo" },
     ],
     series: [
