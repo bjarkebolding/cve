@@ -17,13 +17,13 @@ plus one page. The only JS runtime on the page is a self-hosted copy of
 | Stat cards | Totals, AI share, month projection, KEV, package advisories, adoption | all sources |
 | CVE issuance | All vs AI-related per day/week/month/year; count / cumulative / AI share % | `cvelistV5` |
 | Hourly activity | New CVEs per hour (40d) + record updates per hour (30d) | `cvelistV5` + `deltaLog.json` |
-| AI package vulns | Advisories per month for AI/ML packages (PyPI + npm) | OSV.dev |
+| AI package vulns | Advisories per month for AI/ML packages (PyPI + npm) + 8 most recent advisories | OSV.dev |
 | AI CVE severity mix | Stacked CRITICAL/HIGH/MEDIUM/LOW per month over the whole AI set | cvelistV5 + NVD CVSS |
 | Top CWEs of AI CVEs | The 12 most common weakness classes behind AI CVEs (NVD) | cvelistV5 + NVD |
 | AI adoption | Monthly npm downloads of AI SDKs (log scale) | npm downloads API |
 | Latest AI CVEs | Feed of the last 30 AI-matched CVEs, CNA + CVSS severity + KEV cross-ref | `cvelistV5` + NVD + KEV |
 | KEV timeline | KEV additions per month (all products, since Nov 2021) + ransomware stat | CISA KEV |
-| KEV (AI) | CISA Known-Exploited entries matching AI keywords | CISA KEV |
+| KEV (AI) | CISA Known-Exploited entries in the AI CVE set (or AI-keyword text match) | CISA KEV + `ai_meta.json` |
 
 ## Data sources (all public, keyless)
 
