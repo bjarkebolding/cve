@@ -1,4 +1,4 @@
-(() => {
+(async () => {
   const out = {};
   out.overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
   out.inks = ["chart-cves", "chart-hours", "chart-aipkgs", "chart-adoption", "chart-sev", "chart-kev"].map((id) => {
@@ -17,7 +17,18 @@
   const count = document.querySelector("#ctl-cves [data-mode=count]");
   share.click();
   out.shareLabel = u.axes[1].label;
+  await new Promise((r) => requestAnimationFrame(r));
+  out.shareYLabel = (u.axes[1]._values || []).map(String).slice(0, 3);
   count.click();
+  await new Promise((r) => requestAnimationFrame(r));
   out.countLabel = u.axes[1].label;
+  // KEV AI table must match the ai-flagged entries in data/kev.json
+  try {
+    const kev = await fetch("data/kev.json").then((r) => r.json());
+    out.kevAiRows = document.querySelectorAll("#tbl-kev tbody tr").length;
+    out.kevAiFlagged = kev.entries.filter((e) => e.ai).length;
+  } catch (e) {
+    out.kevErr = String(e);
+  }
   return JSON.stringify(out);
 })()

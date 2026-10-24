@@ -188,7 +188,7 @@ function buildMainChart(core) {
         return all ? (100 * a) / all : 0;
       });
       uplot.axes[1].label = "AI share of CVEs (%)";
-      uplot.axes[1].ticks = (u, val) => val.toFixed(1) + "%";
+      uplot.axes[1].values = (u, vals) => vals.map((v) => v.toFixed(1) + "%");
       uplot.setData([bAll.map((x) => x[0]), null, share]);
       uplot.setSeries(1, { show: false });
       uplot.setSeries(2, { show: state.showAi });
@@ -201,7 +201,7 @@ function buildMainChart(core) {
       bAi.map((x) => x[1]),
     ];
     uplot.axes[1].label = state.mode === "cum" ? "cumulative CVEs" : `CVEs / ${state.agg}`;
-    uplot.axes[1].ticks = (u, val) => compact(val);
+    uplot.axes[1].values = tick(compact);
     uplot.setData(seriesData);
     uplot.setSeries(1, { show: state.showAll });
     uplot.setSeries(2, { show: state.showAi });

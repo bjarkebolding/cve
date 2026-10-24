@@ -130,16 +130,26 @@ def is_ai_text(text):
 def fetch_kev():
     raw = json.loads(get("https://www.cisa.gov/sites/default/files/feeds/"
                         "known_exploited_vulnerabilities.json"))
+    # Authoritative AI set from the CVE list (build.py); CISA's own text is a
+    # secondary signal (their shortDescriptions rarely name the AI angle).
+    ai_ids = set()
+    meta_path = os.path.join(DATADIR, "ai_meta.json")
+    if os.path.exists(meta_path):
+        try:
+            ai_ids = set(json.load(open(meta_path)).get("ids", {}))
+        except Exception:
+            pass
     entries = []
     ai = 0
     for v in raw["vulnerabilities"]:
+        cve = v.get("cveID", "")
         text = " ".join([v.get("vendorProject", ""), v.get("product", ""),
                          v.get("vulnerabilityName", ""),
                          v.get("shortDescription", "")])
-        flag = is_ai_text(text)
+        flag = is_ai_text(text) or (cve in ai_ids)
         ai += int(flag)
         entries.append({
-            "cve": v.get("cveID", ""),
+            "cve": cve,
             "added": (v.get("dateAdded") or "")[:10],
             "product": f'{v.get("vendorProject", "")} {v.get("product", "")}'.strip(),
             "desc": (v.get("shortDescription") or "")[:200],

@@ -40,7 +40,10 @@ print("  exceptions:", exc if exc else "none")
 d = json.loads(out) if isinstance(out, str) else out
 bad = [k for k in d["inks"] if k.endswith(":zero")]
 share_ok = d.get("shareLabel") == "AI share of CVEs (%)" and d.get("countLabel") == "CVEs / month"
-if exc or d["overflow"] or bad or d["rows"] < 5 or d["err"] == "yes" or not share_ok:
+kev_ok = d.get("kevAiRows") == d.get("kevAiFlagged")
+share_ticks = d.get("shareYLabel") or []
+share_ticks_ok = len(share_ticks) >= 2 and all("%" in t for t in share_ticks if t)
+if exc or d["overflow"] or bad or d["rows"] < 5 or d["err"] == "yes" or not share_ok or not kev_ok or not share_ticks_ok:
     sys.exit(1)
 EOF
 

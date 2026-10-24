@@ -129,6 +129,8 @@ def run(url, expr, wait=4.0, mobile=None):
             if m.get("id") == 2:
                 res = m.get("result", {}).get("result", {})
                 value = res.get("value")
+                if "exceptionDetails" in m.get("result", {}):
+                    exc.append(m["result"]["exceptionDetails"].get("exception", {}).get("description", "evaluate-reject"))
                 break
         s.close()
         return value, exc
