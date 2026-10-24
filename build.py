@@ -298,7 +298,6 @@ def main():
 
     pub_days = defaultdict(int)
     ai_days = defaultdict(int)
-    res_days = defaultdict(int)
     hours = defaultdict(int)
     ai_hours = defaultdict(int)
     ai_meta = {}  # cid -> published date (for NVD CVSS enrichment downstream)
@@ -322,9 +321,6 @@ def main():
                     recent_ai.append((pub, cid))
         elif state == "REJECTED":
             rejected_total += 1
-        # reserved series: every record (except rejected) with a reservation date
-        if state != "REJECTED" and res:
-            res_days[res[:10]] += 1
 
     # recent AI CVE feed: re-read the last 30d of AI records for descriptions
     recent_ai.sort(reverse=True)
@@ -472,7 +468,6 @@ def main():
         "total": published_total,
         "aiTotal": ai_total,
         "rejectedTotal": rejected_total,
-        "reservedTotal": sum(res_days.values()),
         "months": months,
         "counts": counts,
         "aiMonths": [ai_month_counts.get(m, 0) for m in months],
@@ -484,8 +479,6 @@ def main():
         "aiHours": dict(sorted(ai_hours.items())),
         "deltaHourNew": dict(sorted(delta_hour_new.items())),
         "deltaHourUpdated": dict(sorted(delta_hour_upd.items())),
-        "resDays": sorted(res_days),
-        "resCounts": [res_days[d] for d in sorted(res_days)],
         "daily": daily,
         "recentAi": feed,
         "projection": projection,
