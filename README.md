@@ -187,8 +187,10 @@ the rendered DOM:
 
 ```
 index.html            the page (CSP meta, markup)
-css/style.css         dark, responsive layout
+css/style.css         Turrican/C64 dark theme, responsive layout
 js/app.js             charts + tables (uPlot, defensive)
+logo.svg              Turrican sprite logo (generated; see below)
+art/                  reference sprite art used to generate logo.svg
 vendor/uPlot.*        pinned uPlot 1.6.32 (self-hosted)
 build.py              cvelistV5 → data/data.json + data/ai_meta.json
 sources.py            KEV / OSV / NVD / npm / pypistats → data/*.json (+ severity.json, cvss.json cache)
@@ -196,9 +198,20 @@ test_build.py         unit tests for the heuristics + parser
 tools/check.sh        headless smoke test (data + render + overflow)
 tools/cdp_probe.py    headless-Chrome probe helper (dev only)
 tools/check_expr.js   JS assertions used by check.sh
+tools/make_logo.py    regenerate logo.svg from the art/ sprite (stdlib-only PNG)
 data/                 generated JSON (committed; caches gitignored)
 .github/workflows/    daily rebuild + Pages deploy
 ```
+
+### Logo
+
+`logo.svg` is the classic *Turrican* box-art sprite: the white background is
+removed by a corner-connected flood fill (interior white armor is preserved),
+the sprite is cropped to its bounding box, kept at native resolution (no
+upscale), and every pixel is emitted as one SVG rect on a transparent
+background. Regenerate with `python3 tools/make_logo.py` (or pass an alternate
+`art/*.png` + `--crop=x0,y0,x1,y1`). It renders with
+`image-rendering: pixelated` so it stays crisp on the black theme.
 
 ## Ideas / extensions
 

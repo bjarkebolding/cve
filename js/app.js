@@ -18,12 +18,14 @@ const compact = (v) => {
 };
 
 const COLORS = {
-  all: "rgba(255,255,255,0.85)",
-  ai: "#4fd8ff",
-  upd: "#b48cff",
+  all: "#ffffff",            /* armor white */
+  ai: "#2244ee",             /* visor blue */
+  upd: "#aaaaee",            /* light blue */
   bars: "rgba(255,255,255,0.55)",
-  pkgs: "#4fd8ff",
-  npm1: "#4fd8ff", npm2: "rgba(255,255,255,0.85)", npm3: "#b48cff", npm4: "#56d364",
+  pkgs: "#ffff44",           /* muzzle energy */
+  npm1: "#2244ee", npm2: "#ffffff", npm3: "#aaaaee", npm4: "#44eeee",
+  sev: { CRITICAL: "#ee2222", HIGH: "#ffff44", MEDIUM: "#aaee22", LOW: "#44eeee" },
+  kev: "#ee2222",            /* blaster red */
 };
 
 async function loadJSON(name) {
@@ -88,7 +90,19 @@ function makeChart(el, opts, data) {
   // panel's padding, which makes the canvas wider than the content area.
   const w = Math.max(300, el.clientWidth || 800);
   const h = opts.height || 300;
-  const u = new uPlot({ ...opts, width: w, height: h }, data, el);
+  // uPlot's default axis stroke is #000 (black) — invisible on the dark theme.
+  // Axis `stroke` colors the axis line, ticks AND label text, so light it all;
+  // grid gets a subtle blue-gray.
+  const AXIS = {
+    stroke: "#8888aa",
+    grid: { stroke: "rgba(136,136,170,0.16)" },
+  };
+  const ax = (opts.axes || []).map((a) => a && {
+    ...AXIS,
+    ...a,
+    grid: { ...AXIS.grid, ...(a.grid || {}) },
+  });
+  const u = new uPlot({ ...opts, axes: ax, width: w, height: h }, data, el);
   const cv = u.ctx && u.ctx.canvas;
   if (cv) { cv.setAttribute("role", "img"); cv.setAttribute("aria-label", opts.ariaLabel || "chart"); }
   const ro = new ResizeObserver(() => {
@@ -238,7 +252,7 @@ function buildMainChart(core) {
     series: [
       { label: "date" },
       { label: "All CVEs", stroke: COLORS.all, width: 1.5, fill: "rgba(255,255,255,0.05)", spanGaps: true },
-      { label: "AI-related", stroke: COLORS.ai, width: 1.5, fill: "rgba(79,216,255,0.08)", spanGaps: true },
+      { label: "AI-related", stroke: COLORS.ai, width: 1.5, fill: "rgba(34,68,238,0.18)", spanGaps: true },
     ],
     legend: { show: true },
     cursor: {
@@ -334,7 +348,7 @@ function buildHoursChart(core) {
     series: [
       { label: "hour" },
       { label: "New CVEs", stroke: "rgba(255,255,255,0.85)", width: 1.2, fill: "rgba(255,255,255,0.07)" },
-      { label: "AI-related new", stroke: COLORS.ai, width: 1.5, fill: "rgba(79,216,255,0.08)" },
+      { label: "AI-related new", stroke: COLORS.ai, width: 1.5, fill: "rgba(34,68,238,0.15)" },
       { label: "Record updates (y2, ×1/3)", scale: "y2", stroke: COLORS.upd, width: 1, alpha: 0.55, fill: null },
     ],
     legend: { show: false },
@@ -384,7 +398,7 @@ function buildAiPkgsChart(ap) {
     ],
     series: [
       { label: "month" },
-      { label: "AI pkg advisories", stroke: COLORS.pkgs, width: 0, fill: "rgba(79,216,255,0.5)", barWidth: (u, data) => Math.max(1, Math.min(14, (u.width / data[0].length) * 0.85)) },
+      { label: "AI pkg advisories", stroke: COLORS.pkgs, width: 0, fill: "rgba(255,255,68,0.5)", barWidth: (u, data) => Math.max(1, Math.min(14, (u.width / data[0].length) * 0.85)) },
     ],
     legend: { show: false },
     cursor: {
@@ -492,7 +506,7 @@ function buildAdoptionChart(dl) {
 }
 
 /* ================= AI CVE severity mix (NVD) ================= */
-const SEV_COLORS = { CRITICAL: "#ff7b72", HIGH: "#ffa657", MEDIUM: "#d29920", LOW: "#56d364" };
+const SEV_COLORS = { CRITICAL: "#ee2222", HIGH: "#ffff44", MEDIUM: "#aaee22", LOW: "#44eeee" };
 function buildSevChart(sev) {
   const el = $("#chart-sev");
   const rows = sev.months || [];
@@ -610,7 +624,7 @@ function buildKevChart(kev) {
     ],
     series: [
       { label: "month" },
-      { label: "KEV additions", stroke: "rgba(255,255,255,0.7)", width: 0, fill: "rgba(255,255,255,0.35)", barWidth: (u, data) => Math.max(1, Math.min(14, (u.width / data[0].length) * 0.85)) },
+      { label: "KEV additions", stroke: COLORS.kev, width: 0, fill: "rgba(238,34,34,0.75)", barWidth: (u, data) => Math.max(1, Math.min(14, (u.width / data[0].length) * 0.85)) },
     ],
     legend: { show: false },
     cursor: {

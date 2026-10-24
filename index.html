@@ -9,9 +9,9 @@
 <meta property="og:description" content="AI-related CVEs, hourly CVE activity, AI package vulnerabilities, adoption and exploitation signals — rebuilt daily from public sources.">
 <meta property="og:type" content="website">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#060608">
+<meta name="theme-color" content="#000000">
 <meta name="referrer" content="no-referrer">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23060608'/%3E%3Cpath d='M6 24 L13 13 L19 19 L26 7' stroke='%234fd8ff' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="icon" href="logo.svg">
 <meta http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
 <link rel="stylesheet" href="vendor/uPlot.min.css">
@@ -21,9 +21,12 @@
 <noscript><p class="noscript-msg">This dashboard needs JavaScript to render its charts. Data is committed in <code>data/*.json</code> and the pipeline in <code>build.py</code>/<code>sources.py</code>.</p></noscript>
 <main>
   <header>
-    <h1>AI × Cybersecurity</h1>
-    <p class="tag">How AI is reshaping the vulnerability landscape — built daily from public data.</p>
-    <p class="stamp" id="stamp" aria-live="polite">loading…</p>
+    <img class="logo" src="logo.svg" alt="Turrican pixel-art hero firing his blaster" width="58" height="72">
+    <div>
+      <h1>AI <span class="x">×</span> Cybersecurity</h1>
+      <p class="tag">How AI is reshaping the vulnerability landscape — built daily from public data.</p>
+      <p class="stamp" id="stamp" aria-live="polite">loading…</p>
+    </div>
   </header>
 
   <section class="cards" id="cards" aria-label="key statistics"></section>
