@@ -156,13 +156,34 @@ footer ul { margin: 6px 0; padding-left: 18px; }
   display: grid; grid-template-columns: minmax(180px, 380px) 1fr 56px;
   gap: 10px; align-items: center; font-size: 12.5px;
 }
-.cwe-lab { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cwe-lab { display: flex; align-items: baseline; min-width: 0; }
+.cwe-id { flex: none; color: rgba(235,240,255,.45); font-size: 11px; margin-right: 7px; font-variant-numeric: tabular-nums; }
+.cwe-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cwe-bar { height: 9px; background: rgba(255,255,255,.06); border-radius: 2px; overflow: hidden; }
 .cwe-fill { display: block; height: 100%; background: linear-gradient(90deg, #4fd8ff, #b48cff); }
 .cwe-n { text-align: right; font-variant-numeric: tabular-nums; color: rgba(255,255,255,.7); }
 @media (max-width: 700px) {
   .cwe-row { grid-template-columns: 1fr 56px; }
   .cwe-bar { grid-row: 2; grid-column: 1 / -1; }
+}
+
+/* recent AI advisories (OSV) */
+.adv-recent { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.adv-head { color: var(--muted); font-size: 11.5px; margin-bottom: 6px; letter-spacing: .04em; text-transform: uppercase; }
+.adv-row {
+  display: grid; grid-template-columns: 78px 130px minmax(150px, 1fr) 2.2fr;
+  gap: 8px; align-items: baseline; font-size: 12px; padding: 4px 0;
+  border-bottom: 1px dashed rgba(255,255,255,.05);
+}
+.adv-row:last-child { border-bottom: 0; }
+.adv-date { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.adv-pkg { color: var(--acc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adv-cve { color: rgba(255,255,255,.8); white-space: nowrap; }
+.adv-sum { color: rgba(235,240,255,.62); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px) {
+  .adv-row { grid-template-columns: 78px 1fr; }
+  .adv-cve { grid-column: 2; grid-row: 1; }
+  .adv-sum { grid-column: 1 / -1; grid-row: 2; white-space: normal; }
 }
 
 /* noscript fallback */

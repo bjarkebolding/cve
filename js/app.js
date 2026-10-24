@@ -6,11 +6,16 @@
 
 const $ = (s) => document.querySelector(s);
 const num = new Intl.NumberFormat("en");
-const compact = (v) =>
-  v >= 1e9 ? v / 1e9 + "B"
-  : v >= 1e6 ? v / 1e6 + "M"
-  : v >= 1e3 ? v / 1e3 + "k"
-  : String(v);
+const compact = (v) => {
+  const r = (x, p) => {
+    const s = x.toFixed(p);
+    return s.includes(".") ? s.replace(/\.?0+$/, "") : s;
+  };
+  if (v >= 1e9) return r(v / 1e9, 2) + "B";
+  if (v >= 1e6) return r(v / 1e6, 2) + "M";
+  if (v >= 1e3) return r(v / 1e3, 1) + "k";
+  return String(v);
+};
 
 const COLORS = {
   all: "rgba(255,255,255,0.85)",
@@ -393,6 +398,37 @@ function buildAiPkgsChart(ap) {
   makeChart(el, opts, [xs, ys]);
 }
 
+/* ================= recent AI advisories (OSV) ================= */
+function buildAdvRecent(ap) {
+  const el = $("#adv-recent");
+  if (!el) return;
+  const items = (ap.recent || []).slice(0, 8);
+  if (!items.length) return;
+  const head = document.createElement("div");
+  head.className = "adv-head";
+  head.textContent = `Recent advisories (${items.length} of ${ap.recent.length})`;
+  el.appendChild(head);
+  for (const it of items) {
+    const row = document.createElement("div");
+    row.className = "adv-row";
+    const d = document.createElement("span");
+    d.className = "adv-date";
+    d.textContent = (it.published || "").slice(0, 10);
+    const pkg = document.createElement("span");
+    pkg.className = "adv-pkg";
+    pkg.textContent = it.package || it.id;
+    const cve = document.createElement("span");
+    cve.className = "adv-cve";
+    cve.textContent = it.cve || it.id;
+    const sum = document.createElement("span");
+    sum.className = "adv-sum";
+    sum.textContent = it.summary || "";
+    sum.title = it.summary || "";
+    row.append(d, pkg, cve, sum);
+    el.appendChild(row);
+  }
+}
+
 /* ================= adoption (npm, log scale) ================= */
 function buildAdoptionChart(dl) {
   const el = $("#chart-adoption");
@@ -515,8 +551,15 @@ function buildCweList(sev) {
     row.className = "cwe-row";
     const lab = document.createElement("span");
     lab.className = "cwe-lab";
-    lab.textContent = names[id] || id;
-    lab.title = names[id] || id;
+    const name = names[id] || id;
+    const idS = document.createElement("span");
+    idS.className = "cwe-id";
+    idS.textContent = id;
+    const nmS = document.createElement("span");
+    nmS.className = "cwe-name";
+    nmS.textContent = name;
+    lab.append(idS, nmS);
+    lab.title = `${id} — ${name}`;
     const bar = document.createElement("span");
     bar.className = "cwe-bar";
     const fill = document.createElement("span");
@@ -702,6 +745,7 @@ function buildKevAiTable(kev) {
     buildMainChart(core);
     buildHoursChart(core);
     if (ap) buildAiPkgsChart(ap);
+    if (ap) buildAdvRecent(ap);
     if (dl) buildAdoptionChart(dl);
     if (sev) {
       buildSevChart(sev);
