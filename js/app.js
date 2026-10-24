@@ -216,7 +216,9 @@ function buildMainChart(core) {
       {
         space: 70,
         values: (u, vals) => {
-          const spanY = (last - first) / 365.25;
+          // density from the DISPLAYED range (scales), not the full data span;
+          // x values are day indices, so /365.25 gives years
+          const spanY = (u.scales.x.max - u.scales.x.min) / 365.25;
           return vals.map((v) => {
             const d = new Date(v * 86400e3);
             if (state.agg === "year") return String(d.getUTCFullYear());
