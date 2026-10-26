@@ -798,6 +798,16 @@ function buildKpis(ctx, F, S) {
   const SRC = [tileSrc(ctx, "CVE List"), tileSrc(ctx, "CISA KEV"), tileSrc(ctx, "CISA KEV"), tileSrc(ctx, "CVE List + OSV")];
   tiles.forEach((t, i) => { t.src = t.src || SRC[i] || tileSrc(ctx, "CVE List"); });
   kpiTiles($("#kpis"), tiles, "Key indicators are not available for this data build.");
+  // the daily view: last 30 days of confirmed exploitation vs the 30 before
+  try {
+    const t = new Date(F.asOf + "T00:00:00Z"), iso = (d) => new Date(t - d * 86400e3).toISOString().slice(0, 10);
+    const a30 = iso(30), a60 = iso(60);
+    const l30 = ents.filter((e) => e.added > a30), p30 = ents.filter((e) => e.added > a60 && e.added <= a30);
+    if (l30.length || p30.length) {
+      const edge = l30.filter((e) => e.origin === "edge").length, rw = l30.filter((e) => e.ransomware).length;
+      $("#kpis").after(h("p", { class: "last30", text: `Last 30 days: ${num.format(l30.length)} vulnerabilities newly confirmed exploited (${num.format(p30.length)} in the 30 days before), ${num.format(edge)} on edge devices, ${num.format(rw)} flagged ransomware so far · CISA KEV` }));
+    }
+  } catch (e) { /* skip */ }
 }
 
 /* ================= signal vs noise (one cohort) ================= */
@@ -947,8 +957,12 @@ function buildBrief(ctx, F, S) {
     const week = ents.filter((e) => e.daysToKev <= 7).length;
     const edge = S.kev && S.kev.origin && S.kev.origin.edge;
     const tail = fin(edge) && edge ? ` ${oShort("edge", OL).replace(/^./, (c) => c.toUpperCase())} alone account for ${num.format(edge)}.` : "";
+    const ec = ttkCohort(ctx, "edge");
+    const edgeTxt = ec && ec.cur.n >= 15
+      ? ` For edge devices, ${pct(ec.cur.wk / ec.cur.n)} of last 12 months' exploited CVEs reached KEV within a week, median ${daysText(ec.cur.median)}${ec.prev && ec.prev.n >= 15 ? ` (${daysText(ec.prev.median)} the year before)` : ""}.` : tail;
     return { act: "Patch internet-facing systems in days, not monthly cycles.", href: "#exploit",
-      why: `${pct(week / ents.length)} of this year's newly exploited vulnerabilities were exploited within a week of disclosure.${tail} Keep an emergency-change path and reduce exposed management interfaces.` };
+      why: (() => { const c = ttkCohort(ctx); return c && c.cur.n >= 20 ? `${pct(c.cur.wk / c.cur.n)} of the last 12 months' exploited CVEs reached KEV within a week of publication${c.prev ? ` (${pct(c.prev.wk / c.prev.n)} the year before)` : ""}.` : `${pct(week / ents.length)} of this year's KEV additions came within a week of the CVE's publication.`; })()
+        + `${edgeTxt} Keep an emergency-change path and reduce exposed management interfaces.` };
   });
   add(() => {
     const t = S.total;
@@ -1290,6 +1304,23 @@ function ttkBuckets(entries, fromYear) {
   }
   return by;
 }
+/* Of the CVEs published in the 12-month window (and the 12 before) that are in
+ * KEV: how many were added within 7 days, and the median days. One cohort,
+ * so old CVEs newly added to KEV do not dilute the speed figure. */
+function ttkCohort(ctx, origin) {
+  const L = ctx.core.landscape && ctx.core.landscape.all, w = L && L.window;
+  if (!w || !w.cur || !w.prev) return null;
+  const ents = ((ctx.kev && ctx.kev.entries) || []).filter((e) => e.published && fin(e.daysToKev) && (!origin || e.origin === origin));
+  const stat = ([a, b]) => {
+    const c = ents.filter((e) => e.published >= a && e.published <= b).map((e) => e.daysToKev).sort((x, y) => x - y);
+    if (!c.length) return null;
+    const mid = c.length >> 1;
+    return { n: c.length, wk: c.filter((d) => d <= 7).length, median: c.length % 2 ? c[mid] : (c[mid - 1] + c[mid]) / 2 };
+  };
+  const cur = stat(w.cur), prev = stat(w.prev);
+  return cur ? { cur, prev, from: w.cur[0] } : null;
+}
+const daysText = (d) => (d < 1 ? "under a day" : d === 1 ? "1 day" : `${Number.isInteger(d) ? d : fmtX(d)} days`);
 function buildTtk(ctx) {
   const el = $("#chart-ttk");
   const ents = ctx.kev && ctx.kev.entries;
@@ -2641,9 +2672,13 @@ function explainPart1(ctx, F, S) {
     if (by) {
       const n = sumObj(by), wk = (by.d1 || 0) + (by.w1 || 0);
       fig("#chart-ttk", {
-        titleEl: "#h-ttk", title: n ? `${pct(wk / n)} of ${F.year}'s KEV additions were exploited within a week of disclosure` : null,
+        titleEl: "#h-ttk", title: (() => {
+          const c = ttkCohort(ctx);
+          return c && c.cur.n >= 20 ? `${pct(c.cur.wk / c.cur.n)} of the last 12 months' exploited CVEs were added to KEV within a week of publication`
+            + (c.prev ? ` (${pct(c.prev.wk / c.prev.n)} the 12 months before)` : "") : n ? `${pct(wk / n)} of ${F.year}'s KEV additions came within a week of publication` : null;
+        })(),
         subEl: "#ttk-hint", sub: `CISA KEV additions per year (by date added), 2022 → ${F.year} (${partialLabel(F)}), stacked by days from CVE publication to KEV addition.`,
-        how: "Red/orange = exploited within a week of the CVE going public; grey = old CVEs newly confirmed as exploited. Pitfall: KEV dates are when CISA confirmed it, so true exploitation often started earlier.",
+        how: "Bars: KEV additions per year by days from CVE publication to KEV addition; red/orange = within a week, grey = old CVEs newly confirmed as exploited. The title uses one cohort instead: CVEs published in the last 12 months that reached KEV. Pitfall: KEV records when CISA confirmed exploitation, so attacks often started earlier.",
         so: n && wk / n >= 0.25 ? "A monthly patch cycle is too slow for a quarter or more of exploited bugs: keep an emergency path that can ship a fix or mitigation within days." : null,
         src: srcLine(ctx, ["kev", "cve"]),
       });

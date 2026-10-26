@@ -145,7 +145,7 @@ EXPR = r"""(() => {
   const threats = [...document.querySelectorAll("#threat-cards .threat")].map((c) => ({ name: c.querySelector(".th-name").textContent,
     v: (c.querySelector(".v") || {}).textContent || "", unit: (c.querySelector(".th-unit") || {}).textContent || "" }));
   return JSON.stringify({ tiles: tiles("#kpis"), aiTiles: tiles("#ai-kpis"), sig, threats,
-    headline: t("#headline"), kevVendTitle: t("#h-kevvend"), cweTitle: t("#h-cweall"), issTitle: t("#h-issuance"), ransomTitle: t("#h-ransom"), kevVendTop: t("#kevvend-bars .hb-n"), heroTitle: t("#h-hero"), aiHeadline: t("#ai-headline"), signalTitle: t("#h-signal"),
+    headline: t("#headline"), kevVendTitle: t("#h-kevvend"), cweTitle: t("#h-cweall"), issTitle: t("#h-issuance"), ransomTitle: t("#h-ransom"), ttkTitle: t("#h-ttk"), kevVendTop: t("#kevvend-bars .hb-n"), heroTitle: t("#h-hero"), aiHeadline: t("#ai-headline"), signalTitle: t("#h-signal"),
     brief: [...document.querySelectorAll("#brief-list li")].map((l) => l.textContent),
     body: document.querySelector("main").innerText.slice(0, 200000) });
 })()"""
@@ -197,6 +197,13 @@ if page:
     rr = sum(1 for e in ents if e["added"][:4] in st_years and e.get("ransomware"))
     if rn:
         check(f"About {round(100 * rr / rn)}%" in page.get("ransomTitle", ""), f"page: ransomware title {page.get('ransomTitle')!r} != {round(100 * rr / rn)}% settled share")
+    W = L["all"]["window"]
+    # speed: one cohort (published in the 12-month window, in KEV), same figure on card and Brief
+    co = [e for e in ents if e.get("published") and W["cur"][0] <= e["published"] <= W["cur"][1] and e.get("daysToKev") is not None]
+    if len(co) >= 20:
+        wk = f"{round(100 * sum(1 for e in co if e['daysToKev'] <= 7) / len(co))}%"
+        check(page.get("ttkTitle", "").startswith(wk), f"page: speed card {page.get('ttkTitle')!r} != cohort {wk}")
+        check(any(b.startswith("Patch internet-facing") and wk in b for b in page["brief"]), f"page: Brief speed item does not use the cohort {wk}")
     k = tile("Exploited (")
     check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
     check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")

@@ -767,3 +767,5 @@ footer a { color: var(--ink-2); }
 @media (max-width: 760px) {
   .topnav { -webkit-mask-image: linear-gradient(to right, #000 82%, transparent); mask-image: linear-gradient(to right, #000 82%, transparent); }
 }
+
+.last30 { margin: -8px 0 20px; font-size: 13.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
