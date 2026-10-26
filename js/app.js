@@ -848,7 +848,7 @@ function buildThreats(ctx, F, S) {
     const a = S.aiShare;
     cards.push({ id: "app", name: "AI application compromise", signal: "strong", href: "#exploited",
       v: num.format(cur), unit: `exploited flaws in AI apps & agents, ${F.year}`, delta: growthDelta(cur, prevSame, F.prevYear),
-      spark: Array.isArray(core.aiMonths) ? { vals: monthSeries(M, core.months, core.aiMonths), title: "AI-related CVEs per month, last 24 complete months" } : null,
+      spark: { vals: countByMonth(M, app, (e) => e.added), title: "exploited AI app & agent flaws added to CISA KEV per month, last 24 complete months" },
       foot: (prods.length ? `${listJoin(prods)}: conventional code-execution and access flaws in AI tooling, not attacks on the model.` : "")
         + (a ? ` ${num.format(a.n)} AI-related CVEs disclosed this year.` : "") });
   } catch (e) { /* skip */ }
@@ -857,11 +857,10 @@ function buildThreats(ctx, F, S) {
     const cur = kevAll.filter((e) => String(e.added).startsWith(F.year));
     const prev = kevAll.filter((e) => String(e.added).startsWith(F.prevYear));
     const sc = (arr) => arr.filter((e) => e.origin === "supplychain").length;
-    const om = core.originMonths && core.originMonths.supplychain;
     if (cur.length) cards.push({ id: "supply", name: "Software supply chain", signal: "strong", href: "#supply",
       v: pct(sc(cur) / cur.length, 1), unit: `of ${F.year}'s exploited vulnerabilities are open source (${num.format(sc(cur))} of ${num.format(cur.length)})`,
       delta: prev.length ? { up: sc(cur) / cur.length >= sc(prev) / prev.length, text: `from ${pct(sc(prev) / prev.length, 1)}`, title: `share of KEV additions, all of ${F.prevYear}` } : null,
-      spark: om ? { vals: monthSeries(M, core.months, om), title: "open-source CVEs per month, last 24 complete months" } : null,
+      spark: { vals: countByMonth(M, kevAll.filter((e) => e.origin === "supplychain"), (e) => e.added), title: "open-source vulnerabilities added to CISA KEV per month, last 24 complete months" },
       foot: `${S.supply ? num.format(S.supply.n) + " open-source CVEs this year, much of the rise from more filing by GitHub and VulnCheck" : ""}`
         + (fin(S.malYtd) && S.malYtd ? `; ${num.format(S.malYtd)} malicious packages (2025 was inflated by an npm spam flood).` : ".") });
   } catch (e) { /* skip */ }
