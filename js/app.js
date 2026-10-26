@@ -1580,6 +1580,9 @@ function wireAiFilter() {
   input.addEventListener("input", () => {
     const q = input.value.trim().toLowerCase();
     for (const tr of rows) tr.hidden = !!q && !tr.textContent.toLowerCase().includes(q);
+    const t = $("#tbl-ai");
+    t.classList.toggle("searching", !!q);
+    if (t._clipBtn) t._clipBtn.hidden = !!q;
   });
 }
 
@@ -2320,6 +2323,32 @@ function explainPart2(ctx, F, S) {
 }
 
 
+/* Long tables show their first rows; the rest sit behind one quiet toggle.
+ * Rows stay in the DOM (filters and print still see them). */
+const TABLE_CLIP = { "tbl-kevall": 5, "tbl-zd": 5, "tbl-next": 5, "tbl-kev": 5, "tbl-epss": 5, "tbl-ai": 8 };
+function clipTables() {
+  for (const [id, n] of Object.entries(TABLE_CLIP)) {
+    const table = document.getElementById(id);
+    if (!table) continue;
+    const rows = [...table.querySelectorAll("tbody tr")];
+    if (rows.length <= n + 2) continue;
+    rows.slice(n).forEach((tr) => tr.classList.add("more"));
+    table.classList.add("clip");
+    const label = () => (table.classList.contains("open") ? "Show fewer" : `Show all ${rows.length} rows`);
+    const btn = h("button", { type: "button", class: "showall", text: label() });
+    btn.setAttribute("aria-expanded", "false");
+    btn.setAttribute("aria-controls", id);
+    btn.addEventListener("click", () => {
+      const open = table.classList.toggle("open");
+      btn.textContent = label();
+      btn.setAttribute("aria-expanded", String(open));
+      if (!open) table.scrollIntoView({ block: "nearest" });
+    });
+    table.after(btn);
+    table._clipBtn = btn;
+  }
+}
+
 /* ================= quiet layout: details behind an ⓘ =================
  * Each chart/table keeps its takeaway title, the visual and the "So what"
  * line. Subtitle, notes, "How to read" and the source line move into a panel
@@ -2449,6 +2478,7 @@ function infoize() {
       document.querySelector("main").prepend(h("p", { class: "err", text: `render error (${name}): ${err.message}` }));
     }
   }
+  try { clipTables(); } catch (err) { /* tables simply stay full length */ }
   try { infoize(); } catch (err) { /* details simply stay inline */ }
   // canvas charts take their colours at draw time: redraw on a theme switch
   try { matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => location.reload()); } catch (e) { /* old browsers keep the first theme */ }

@@ -321,6 +321,14 @@ h3 { font-size: 15px; line-height: 1.4; font-weight: 600; margin: 28px 0 12px; m
 #ai-filter:focus { outline: none; border-color: var(--accent); }
 
 /* ---------------- tables ---------------- */
+table.clip:not(.open):not(.searching) tbody tr.more { display: none !important; }
+.showall {
+  display: block; margin: 8px 0 0; padding: 0 2px; min-height: 32px;
+  background: none; border: 0; cursor: pointer;
+  font: 500 13.5px/1 var(--sans); color: var(--accent);
+}
+.showall:hover { text-decoration: underline; text-underline-offset: 3px; }
+@media (hover: none), (max-width: 600px) { .showall { min-height: 44px; } }
 .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
 .tablewrap thead th {
@@ -549,3 +557,8 @@ footer a { color: var(--ink-2); }
 }
 
 .cveid .sev, .cveid .badge { font-family: var(--sans); }
+
+@media print {
+  table.clip tbody tr.more { display: table-row !important; }
+  .showall { display: none; }
+}
