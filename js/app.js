@@ -625,7 +625,8 @@ function buildHeadline(ctx, F, S) {
     return `${listJoin(ranked.map(([id]) => oShort(id, OL)))} account for ${num.format(lead)} of them.`.replace(/^./, (c) => c.toUpperCase());
   });
   add(() => (S.hc && fin(S.hc.cur) ? `${pct(S.hc.cur)} of this year's rated CVEs are HIGH or CRITICAL${fin(S.hc.prev) ? ` (${pct(S.hc.prev)} in ${F.prevYear})` : ""}.` : null));
-  if (parts.length) sub.textContent = parts.join(" "); else sub.remove();
+  // the KPI tiles carry these numbers: keep them one tap away, not on screen
+  if (parts.length) { sub.textContent = parts.join(" "); sub.classList.add("hint"); } else sub.remove();
 }
 
 function kpiTiles(wrap, tiles, emptyMsg) {
@@ -647,13 +648,12 @@ function buildKpis(ctx, F, S) {
     d: k.prevSame ? `${num.format(k.prevSame)} by this date in ${F.prevYear}` : "added to CISA KEV this year" });
   if (k && fin(k.zd)) {
     tiles.push({ k: `Zero-days ${F.year}`, v: num.format(k.zd), cls: "warn",
-      d: [`exploited at disclosure (KEV ≤1 day)`, fin(k.zdPrevSame) ? `${num.format(k.zdPrevSame)} by this date ${F.prevYear}` : null,
-        S.p0 && S.p0.cur ? `Project Zero: ${num.format(S.p0.cur)} in the wild` : null].filter(Boolean).join(" · ") });
+      d: ["exploited at disclosure", fin(k.zdPrevSame) ? `${num.format(k.zdPrevSame)} by this date ${F.prevYear}` : null].filter(Boolean).join(" · ") });
   }
   if (S.supply || fin(S.malYtd)) {
     tiles.push(S.supply
       ? { k: "Supply chain", v: num.format(S.supply.n), cls: "sc",
-          d: `open-source CVEs (${pct(S.supply.n / S.supply.of)} of all)` + (fin(S.malYtd) && S.malYtd ? ` · ${num.format(S.malYtd)} malicious packages` : "") }
+          d: "open-source CVEs" + (fin(S.malYtd) && S.malYtd ? ` · ${num.format(S.malYtd)} malicious packages` : "") }
       : { k: "Malicious packages", v: num.format(S.malYtd), cls: "sc", d: `${F.year} YTD, OSV MAL advisories` });
   }
   kpiTiles($("#kpis"), tiles, "Key indicators are not available for this data build.");
@@ -1041,7 +1041,7 @@ function buildAiHeadline(ctx, F, S) {
     const ry = relYtd(ctx.core, F);
     return ry && ry.found && ry.found.cur ? `AI is also finding bugs: ${num.format(ry.found.cur)} CVEs this year credit an AI tool or AI lab (${num.format(ry.found.prev)} in ${F.prevYear}).` : null;
   });
-  if (parts.length) sub.textContent = parts.join(" "); else sub.remove();
+  if (parts.length) { sub.textContent = parts.join(" "); sub.classList.add("hint"); } else sub.remove();
 }
 function buildAiKpis(ctx, F, S) {
   const tiles = [];
@@ -2226,6 +2226,53 @@ function explainPart2(ctx, F, S) {
   } catch (e) { /* skip */ }
 }
 
+
+/* ================= quiet layout: details behind an ⓘ =================
+ * Each chart/table keeps its takeaway title, the visual and the "So what"
+ * line. Subtitle, notes, "How to read" and the source line move into a panel
+ * that opens on hover (mouse), on tap (touch) and on focus (keyboard). */
+let infoSeq = 0;
+function infoize() {
+  const heads = document.querySelectorAll("main h2[id^='h-'], main h3[id^='h-'], main p.headline");
+  for (const t of heads) {
+    if (t.closest("#method") || t.closest(".todo") || t.closest(".exploited-strip")) continue;
+    const BLOCK = ".sub, .panel, section, .tier";
+    const block = t.parentElement.closest(BLOCK) || t.parentElement;
+    // lines that belong to this title's block, not to a nested sub-panel
+    const items = [...block.querySelectorAll("p.hint, p.subhead, p.note, .figfoot > p.how, .figfoot > p.src")]
+      .filter((el) => el.parentElement.closest(BLOCK) === block && !el.closest(".info-body") && el.textContent.trim() && !el.classList.contains("toplegend"));
+    // a headline's info is only its own subhead
+    const pick = t.matches("p.headline") ? items.filter((el) => el.matches(".subhead")) : items.filter((el) => !el.matches(".subhead"));
+    if (!pick.length) continue;
+    const id = "info-" + (++infoSeq);
+    const body = h("div", { class: "info-body", id, role: "note" });
+    for (const el of pick) { el.classList.add("in-info"); body.append(el); }
+    const btn = h("button", { type: "button", class: "info-btn", "aria-expanded": "false", "aria-controls": id, title: "What am I looking at?", text: "i" });
+    btn.setAttribute("aria-label", "Details about this chart");
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const open = !body.classList.contains("open");
+      document.querySelectorAll(".info-body.open").forEach((b) => { if (b !== body) { b.classList.remove("open"); const ob = document.querySelector(`[aria-controls="${b.id}"]`); if (ob) ob.setAttribute("aria-expanded", "false"); } });
+      body.classList.toggle("open", open);
+      btn.setAttribute("aria-expanded", String(open));
+    });
+    t.classList.add("has-info");
+    t.append(btn);
+    t.after(body);
+    // drop the empty footer the moved lines leave behind
+    for (const f of block.querySelectorAll(".figfoot")) if (!f.children.length) f.remove();
+  }
+  document.addEventListener("click", (e) => {
+    if (e.target.closest && e.target.closest(".info-body")) return;
+    document.querySelectorAll(".info-body.open").forEach((b) => b.classList.remove("open"));
+    document.querySelectorAll(".info-btn[aria-expanded='true']").forEach((b) => b.setAttribute("aria-expanded", "false"));
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    document.querySelectorAll(".info-body.open").forEach((b) => b.classList.remove("open"));
+  });
+}
+
 /* ================= boot ================= */
 (async () => {
   const stamp = $("#stamp");
@@ -2308,4 +2355,5 @@ function explainPart2(ctx, F, S) {
       document.querySelector("main").prepend(h("p", { class: "err", text: `render error (${name}): ${err.message}` }));
     }
   }
+  try { infoize(); } catch (err) { /* details simply stay inline */ }
 })();

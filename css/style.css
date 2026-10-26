@@ -450,3 +450,34 @@ td.stack .reltags { margin-bottom: 2px; }
 @media (max-width: 600px) {
   .toplist .hb-row { grid-template-columns: minmax(0, 1fr) 90px; }
 }
+
+/* ---- quiet layout: chart details behind an "i" ---- */
+.has-info { position: relative; }
+.info-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; margin-left: 8px; padding: 0; vertical-align: 2px;
+  border: 1px solid var(--c64-bluegray); border-radius: 50%; background: transparent;
+  color: var(--c64-lightblue); font: italic 700 11px/1 Georgia, serif; cursor: pointer;
+}
+.info-btn:hover, .info-btn:focus-visible, .info-btn[aria-expanded="true"] { color: #000; background: var(--c64-yellow); border-color: var(--c64-yellow); outline: none; }
+.info-body {
+  display: none; position: absolute; z-index: 20; left: 12px; right: 12px; max-width: 70ch;
+  margin-top: -4px; padding: 10px 12px; background: #0b0b1e; border: 1px solid var(--c64-bluegray);
+  box-shadow: 0 6px 18px rgba(0,0,0,.6);
+}
+.info-body p { margin: 0 0 6px; max-width: none; font-size: 12px; line-height: 1.5; color: var(--c64-silver); }
+.info-body p:last-child { margin-bottom: 0; }
+.info-body p.note::before { content: "! "; color: var(--c64-yellow); font-weight: 700; }
+.info-body .src { color: var(--muted); font-size: 11px; }
+.info-body.open { display: block; }
+@media (hover: hover) {
+  .has-info:hover + .info-body, .info-body:hover, .has-info:focus-within + .info-body { display: block; }
+}
+/* touch / narrow: open inline, pushing content down instead of floating */
+@media (hover: none), (max-width: 600px) {
+  .info-body { position: static; margin: 0 0 10px; box-shadow: none; }
+}
+.panel, .sub { position: relative; }
+.figfoot .so { margin-top: 2px; }
+.method-more > summary { cursor: pointer; color: var(--c64-lightblue); font-size: 13px; margin: 4px 0 10px; }
+.i-demo { display: inline-flex; width: 14px; height: 14px; align-items: center; justify-content: center; border: 1px solid var(--c64-bluegray); border-radius: 50%; font: italic 700 9px/1 Georgia, serif; color: var(--c64-lightblue); vertical-align: 1px; }
