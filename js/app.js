@@ -1892,7 +1892,7 @@ function buildSevCompare(ctx) {
     return;
   }
   el.append(sevBar("AI-related CVEs", sc.ai));
-  if (sc.all) el.append(sevBar("All CVEs", sc.all));
+  if (sc.all) el.append(sevBar(sc.allIs === "non-AI" ? "Non-AI CVEs" : "All CVEs", sc.all));
   const hint = $("#breaks-hint");
   if (hint) hint.textContent = (Array.isArray(sc.window) ? `Window: CVEs published ${sc.window[0]} to ${sc.window[1]}. ` : "") +
     "Same window for both sides; severity is the CVSS in the CVE record itself (CNA, else CISA-ADP; v3.1 preferred).";
@@ -1924,7 +1924,7 @@ function buildCweCompare(ctx) {
   const list = h("div", { class: "cwe-list" });
   if (all) {
     list.append(h("div", { class: "cwe-key" },
-      h("span", { class: "k-ai", text: "AI" }), h("span", { class: "k-all", text: "All CVEs" })));
+      h("span", { class: "k-ai", text: "AI" }), h("span", { class: "k-all", text: cc.allIs === "non-AI" ? "Non-AI CVEs" : "All CVEs" })));
   }
   for (const [id, sAi, sAll] of shares) {
     const name = names[id] || "";
@@ -1942,7 +1942,7 @@ function buildCweCompare(ctx) {
       return r;
     };
     bars.append(mk("ai", sAi, "AI CVEs"));
-    if (all) bars.append(mk("all", sAll, "All CVEs"));
+    if (all) bars.append(mk("all", sAll, cc.allIs === "non-AI" ? "Non-AI CVEs" : "All CVEs"));
     list.append(h("div", { class: "cwe-row" }, lab, bars));
   }
   el.append(list);
@@ -2562,11 +2562,12 @@ function explainDetail(ctx, F, S) {
     const sc = core.severityCompare;
     if (sc && sc.ai && F.sevShare && F.sevShare.ai) {
       fig("#sev-compare", {
-        so: "AI software is not lower-risk than the rest: hold it to the same severity-based patch SLAs as other production software.",
+        so: "AI software is not lower-risk than other software: put its CVEs in the same KEV-first queue (KEV, then EPSS, then severity and exposure) rather than a separate AI patch rule.",
         titleEl: "#h-sevcmp",
-        title: `${pct(F.sevShare.ai.hc)} of AI CVEs are HIGH/CRITICAL` + (F.sevShare.all ? ` vs ${pct(F.sevShare.all.hc)} of all CVEs` : ""),
-        subEl: "#sevcmp-sub", sub: `Share of rated CVEs by CVSS severity, published ${Array.isArray(sc.window) ? sc.window.join(" to ") : "in the window"}; 100% bars, AI vs all.`,
-        how: "Severity is the vendor's CVSS base score, not risk; unrated CVEs are excluded from the percentages.",
+        title: `${pct(F.sevShare.ai.hc)} of AI CVEs are HIGH/CRITICAL` + (F.sevShare.all ? ` vs ${pct(F.sevShare.all.hc)} of non-AI CVEs` : "")
+          + (Array.isArray(sc.window) ? ` (${sc.window.join(" to ")})` : ""),
+        subEl: "#sevcmp-sub", sub: `Share of rated CVEs by CVSS severity, published ${Array.isArray(sc.window) ? sc.window.join(" to ") : "in the window"}; 100% bars, AI-related vs non-AI CVEs (found-by-AI alone counts as non-AI).`,
+        how: "Severity is the vendor's CVSS base score, not risk; unrated CVEs are excluded from the percentages. Pitfall: most AI-related CVEs are from the latest year, when all CVEs skew more severe, so part of the gap is timing.",
         src: srcLine(ctx, ["cve"]),
       });
     }
@@ -2582,8 +2583,8 @@ function explainDetail(ctx, F, S) {
       }
       fig("#cwe-compare", {
         titleEl: "#h-cwe",
-        title: best ? `${names[best.id] || best.id} is ${best.r.toFixed(1)}× more common in AI CVEs (${pct(best.a, 1)} vs ${pct(best.b, 1)})` : null,
-        how: "Blue = share of AI CVEs with that CWE; grey = share of all CVEs. Pitfall: only the first CWE of each record counts; '—' = not among the top CWEs overall.",
+        title: best ? `${names[best.id] || best.id} is ${best.r.toFixed(1)}× more common in AI CVEs than in non-AI CVEs (${pct(best.a, 1)} vs ${pct(best.b, 1)})` : null,
+        how: "Blue = share of AI CVEs with that CWE; grey = share of non-AI CVEs. Pitfall: only the first CWE of each record counts; '—' = not among the top CWEs overall.",
         so: best ? `Ask AI vendors and internal AI teams specifically about ${names[best.id] || best.id} defences.` : null,
         src: srcLine(ctx, ["cve"]),
       });
@@ -2595,7 +2596,7 @@ function explainDetail(ctx, F, S) {
     if (o) {
       const r = SEV_KEYS.reduce((t, k) => t + (o[k] || 0), 0), hc = (o.CRITICAL || 0) + (o.HIGH || 0);
       fig("#chart-sev", {
-        so: r ? `${hc / r > 0.5 ? "Most" : "Many"} AI-related CVEs (${pct(hc / r)} of rated) need high-priority handling: budget AI patching like any production stack.` : null,
+        so: r ? `${pct(hc / r)} of rated AI-related CVEs are HIGH or CRITICAL, so severity alone cannot order the work: rank them in the same KEV-first queue as everything else.` : null,
         titleEl: "#h-sevmix", title: r ? `${num.format(hc)} HIGH/CRITICAL AI-related CVEs in ${F.year} so far (${pct(hc / r)} of ${num.format(r)} rated)` : null,
         subEl: "#sev-hint", sub: `AI-related CVEs per year, 2018 → ${F.year} (${partialLabel(F)}), stacked by CVSS severity from the CVE record.`,
         how: "Segments add up to the year's AI-related CVEs, CRITICAL at the bottom, unrated on top. Severity is the vendor's CVSS, not risk.",

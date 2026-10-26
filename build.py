@@ -1303,18 +1303,19 @@ def main():
         for row in records.values():
             if row[0] != "PUBLISHED" or not row[1] or not (window[0] <= row[1][:7] <= window[1]):
                 continue
-            sev_all.append(row[4])
+            # AI-risk CVEs vs the rest (non-AI): a "vs all" comparison would
+            # include the AI CVEs on both sides; found-by-AI alone is not AI risk
+            ai = is_ai_risk(row[13])
+            (sev_ai if ai else sev_all).append(row[4])
             if row[8]:
-                cwe_all[row[8]] += 1
-            if row[13]:
-                sev_ai.append(row[4])
-                if row[8]:
-                    cwe_ai[row[8]] += 1
+                (cwe_ai if ai else cwe_all)[row[8]] += 1
     severity_compare = {"window": window, "ai": sev_mix(sev_ai), "all": sev_mix(sev_all),
+                        "allIs": "non-AI",
                         "source": "record CVSS: CNA 3.1 > CNA 4.0 > CNA 3.0 > ADP 3.1"}
     cwe_compare = {"window": window, "ai": top_counts(cwe_ai, 25), "all": top_counts(cwe_all, 25),
                    "aiTotal": sum(cwe_ai.values()), "allTotal": sum(cwe_all.values()),
-                   "note": "totals = CVEs in the window with a CNA CWE id"}
+                   "allIs": "non-AI",
+                   "note": "totals = CVEs in the window with a CNA CWE id; 'all' = non-AI CVEs"}
 
     payload = {
         "generatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),

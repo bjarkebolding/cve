@@ -122,6 +122,18 @@ if y:
     rise = y["all"]["cur"] - y["all"]["prev"]
     bulk_share = (y["all"]["bulkCur"] - y["all"]["bulkPrev"]) / rise if rise > 0 else 0
 
+# AI vs non-AI comparison: disjoint sides that together cover every CVE in the window
+scmp = d.get("severityCompare") or {}
+if scmp.get("window") and scmp.get("allIs") == "non-AI":
+    wa, wb = scmp["window"]
+    in_win = sum(c for m, c in zip(d["months"], d["counts"]) if wa <= m <= wb)
+    sides = sum(scmp["ai"].values()) + sum(scmp["all"].values())
+    check(sides == in_win, f"data: severityCompare sides {sides} != CVEs in window {in_win}")
+    ai_win = sum(c for m, c in zip(d["months"], d["aiMonths"]) if wa <= m <= wb)
+    check(sum(scmp["ai"].values()) == ai_win, f"data: severityCompare AI side {sum(scmp['ai'].values())} != AI-related in window {ai_win}")
+else:
+    check(False, "data: severityCompare must compare AI with non-AI CVEs")
+
 # independent recomputation of the headline figures the page shows
 exp = {
     "cves_ytd": ytd, "cves_ratio": round(ratio, 1) if ratio else None,
