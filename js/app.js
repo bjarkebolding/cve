@@ -1336,6 +1336,20 @@ function cweRows(top, names, n) {
 function vendorRows(top, n) { return (top || []).slice(0, n || 10).map((r) => ({ label: r.name || r.id, n: r.n, prev: r.prev })); }
 function cnaRows(top, n) { return (top || []).slice(0, n || 10).map((r) => ({ label: prettyCna(r.id), title: r.id, n: r.n, prev: r.prev })); }
 /* the row that grew most in absolute terms, among the shown rows */
+/* Grew fastest RELATIVE to all CVEs: the largest rise in share (n/N vs
+ * prev/prevN), among rows with a meaningful base; null if none outgrew the
+ * overall rate. Raw increases mostly re-rank the biggest classes. */
+function shareRiser(rows, w, minPrev) {
+  if (!w || !w.n || !w.prevN) return null;
+  let best = null;
+  for (const r of rows) {
+    if (!r.prev || r.prev < (minPrev || 100)) continue;
+    const rel = (r.n / w.n) / (r.prev / w.prevN);
+    if (rel > 1.05 && (!best || rel > best.rel)) best = { ...r, rel };
+  }
+  return best;
+}
+const baseX = (w) => (w && w.prevN ? `×${fmtX(w.n / w.prevN)}` : null);
 const topRiser = (rows) => rows.reduce((b, r) => (r.n - (r.prev || 0) > (b ? b.n - (b.prev || 0) : 0) ? r : b), null);
 function buildTops(ctx) {
   const L = ctx.core.landscape && ctx.core.landscape.all;
@@ -2586,19 +2600,20 @@ function explainPart1(ctx, F, S) {
       const names = (ctx.sev && ctx.sev.cweNames) || {};
       const w = L.window || {};
       const span = w.cur ? `${w.cur[0]} to ${w.cur[1]}` : "the last 12 months";
-      const cw = topRiser(cweRows(L.cweTop, names));
+      const cw = shareRiser(cweRows(L.cweTop, names), w, 100);
       fig("#cweall", {
         so: "Fund fixes that remove whole weakness classes (authorization checks, input handling, memory safety) instead of patching one CVE at a time.",
-        titleEl: "#h-cweall", title: cw ? `Fastest-growing weakness: ${cw.label}, ${growthText(cw.n, cw.prev)}` : null,
+        titleEl: "#h-cweall", title: cw ? `Fastest-growing weakness: ${cw.label}, ${growthText(cw.n, cw.prev)} against ${baseX(w)} for all CVEs`
+          : baseX(w) ? `No top weakness class outgrew all CVEs (${baseX(w)})` : null,
         subEl: "#cweall-hint", sub: `CVEs per weakness class (first CWE in the record), ${span} vs the 12 months before. Top 10.`,
-        how: "Bar = last 12 months, tick = the 12 months before. Pitfall: a CVE counts once, under its first CWE; many records have none.",
+        how: "Bar = last 12 months, tick = the 12 months before. 'Fastest-growing' = largest rise in share of all CVEs, among classes with at least 100 CVEs the year before, because all CVEs roughly doubled. Pitfall: a CVE counts once, under its first CWE; many records have none.",
         src: srcLine(ctx, ["cve"]),
       });
       const vr = vendorRows(L.vendorTop);
-      const vb = topRiser(vr);
+      const vb = shareRiser(vr, w, 100);
       fig("#vendall", {
         so: "Counts reflect product footprint and reporting practice: use them to plan vendor patch cadence, not to rank vendor security.",
-        titleEl: "#h-vendall", title: vr.length ? `${vr[0].label} leads with ${num.format(vr[0].n)} CVEs` + (vb && vb !== vr[0] ? ` — ${vb.label} grew most (${growthText(vb.n, vb.prev)})` : "") : null,
+        titleEl: "#h-vendall", title: vr.length ? `${vr[0].label} leads with ${num.format(vr[0].n)} CVEs` + (vb && vb !== vr[0] ? `; ${vb.label} grew fastest (${growthText(vb.n, vb.prev)} against ${baseX(w)} for all CVEs)` : "") : null,
         subEl: "#vendall-hint", sub: `CVEs per vendor (first affected vendor in the record), ${span} vs the 12 months before. Top 10.`,
         how: "Bar = last 12 months, tick = the 12 months before. Pitfall: vendors that file their own CVEs (Linux, Microsoft, Oracle) look larger than vendors whose bugs go unreported.",
         src: srcLine(ctx, ["cve"]),
@@ -2606,7 +2621,7 @@ function explainPart1(ctx, F, S) {
       const cr = cnaRows(L.cnaTop);
       const cb = topRiser(cr);
       fig("#cnaall", {
-        titleEl: "#h-cnaall", title: cb ? `Who files moves the curve: ${cb.label} filed ${num.format(cb.n)} CVEs in the last 12 months (${growthText(cb.n, cb.prev)})` : null,
+        titleEl: "#h-cnaall", title: cb ? `Who files moves the curve: ${cb.label} filed ${num.format(cb.n)} CVEs in the last 12 months (${growthText(cb.n, cb.prev)}, against ${baseX(w)} for all CVEs)` : null,
         subEl: "#cnaall-hint", sub: `CVEs per CVE Numbering Authority (assigner), ${span} vs the 12 months before. Top 10.`,
         how: "Bar = last 12 months, tick = the 12 months before. A CNA is whoever assigned the CVE id — a vendor, a bug-bounty platform or a coordinator.",
         so: cb && cb.n / Math.max(1, cb.prev) >= 3 ? "Before reading the surge as more vulnerable software, discount the new bulk filers: their growth is a reporting change." : null,
@@ -2656,10 +2671,10 @@ function explainPart2(ctx, F, S) {
     const L = core.landscape && core.landscape.ai;
     if (L) {
       const vr = vendorRows(L.vendorTop);
-      const vb = topRiser(vr);
+      const vb = shareRiser(vr, L.window, 20);
       fig("#vendai", {
         so: "Ask your main AI vendors for their disclosure and patch timelines; one product can dominate the count.",
-        titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months` + (vb && vb !== vr[0] ? `; ${vb.label} grew most` : "") : null,
+        titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months` + (vb && vb !== vr[0] ? `; ${vb.label} grew fastest (${growthText(vb.n, vb.prev)} against ${baseX(L.window)} for all AI-related CVEs)` : "") : null,
         how: "Bar = last 12 months, tick = the 12 months before; text = count · change. 'new' = none the year before.",
         src: srcLine(ctx, ["cve"]),
       });

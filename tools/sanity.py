@@ -145,7 +145,7 @@ EXPR = r"""(() => {
   const threats = [...document.querySelectorAll("#threat-cards .threat")].map((c) => ({ name: c.querySelector(".th-name").textContent,
     v: (c.querySelector(".v") || {}).textContent || "", unit: (c.querySelector(".th-unit") || {}).textContent || "" }));
   return JSON.stringify({ tiles: tiles("#kpis"), aiTiles: tiles("#ai-kpis"), sig, threats,
-    headline: t("#headline"), kevVendTitle: t("#h-kevvend"), kevVendTop: t("#kevvend-bars .hb-n"), heroTitle: t("#h-hero"), aiHeadline: t("#ai-headline"), signalTitle: t("#h-signal"),
+    headline: t("#headline"), kevVendTitle: t("#h-kevvend"), cweTitle: t("#h-cweall"), kevVendTop: t("#kevvend-bars .hb-n"), heroTitle: t("#h-hero"), aiHeadline: t("#ai-headline"), signalTitle: t("#h-signal"),
     brief: [...document.querySelectorAll("#brief-list li")].map((l) => l.textContent),
     body: document.querySelector("main").innerText.slice(0, 200000) });
 })()"""
@@ -195,6 +195,12 @@ if page:
         check(page.get("kevVendTitle", "").find(f"{share}%") >= 0,
               f"page: vendor card title {page.get('kevVendTitle')!r} != top-3 share {share}%")
         check(num(page.get("kevVendTop", "")) == top3[0][1], f"page: top vendor count {page.get('kevVendTop')} != {top3[0][1]}")
+    # "fastest-growing" = largest rise in share of all CVEs (base >= 100), not the largest raw increase
+    W = L["all"]["window"]
+    rel = [(r["n"] / W["n"]) / (r["prev"] / W["prevN"]) for r in L["all"]["cweTop"] if r.get("prev", 0) >= 100]
+    best = max(((rv, r["id"]) for rv, r in zip(rel, [r for r in L["all"]["cweTop"] if r.get("prev", 0) >= 100])), default=None)
+    if best and best[0] > 1.05:
+        check(best[1] in page.get("cweTitle", ""), f"page: fastest-growing weakness title {page.get('cweTitle')!r} should name {best[1]}")
     sig = [num(v) for v in page["sig"]]
     want = [exp["signal_base"], exp["signal_hc"], exp["signal_epss"], exp["signal_kev"]]
     check(sig == want, f"page: signal bars {sig} != data {want}")
