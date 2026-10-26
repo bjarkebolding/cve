@@ -133,7 +133,24 @@ a:hover { color: var(--accent); text-decoration-color: currentColor; }
   color: var(--ink-2); text-decoration: none;
 }
 .topnav a:hover { color: var(--ink); }
-.tier, .group, section.panel { scroll-margin-top: 60px; }
+.tier, .group, section.panel, section.context, .panel, .kpis { scroll-margin-top: 60px; }
+.navitem { position: relative; display: inline-flex; }
+.navsub { display: none; }
+@media (hover: hover) and (min-width: 761px) {
+  .navitem > a::after {
+    content: ""; display: inline-block; width: 5px; height: 5px; margin: 0 0 3px 7px;
+    border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg);
+  }
+  .navitem:hover:not(.shut) .navsub, .navitem:focus-within:not(.shut) .navsub {
+    display: flex; flex-direction: column;
+    position: absolute; top: 100%; left: -14px; z-index: 40; min-width: 240px;
+    padding: 6px 0; margin-top: -1px;
+    background: var(--bg); border: 1px solid var(--line-2); border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+  .navsub a.sub { min-height: 34px; padding: 0 14px; display: flex; align-items: center; white-space: nowrap; color: var(--ink-2); }
+  .navsub a.sub:hover, .navsub a.sub:focus-visible { color: var(--ink); background: var(--hover); }
+}
 
 /* ---------------- header ---------------- */
 header { display: flex; gap: 16px; align-items: flex-start; margin-top: 40px; }

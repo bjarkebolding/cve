@@ -76,6 +76,7 @@ for label, mobile in (("desktop", None), ("phone 390px", True)):
     if d["tiers"] != 5 or not d["tierOrder"]: problems.append("section structure (summary/exploit/volume/ai/method) missing or out of order")
     if d["navLinks"] != 6: problems.append("top nav links broken")
     if d.get("briefItems", 0) < 4: problems.append(f"executive brief has {d.get('briefItems', 0)} items")
+    if d.get("navSub", 0) < 15 or d.get("navSub") != d.get("navSubAll"): problems.append("nav sub-menu links missing or broken")
     if d.get("aiKpis", 0) < 2: problems.append("Part 2 KPI tiles missing")
     if d.get("kevAllRows", 0) < 5: problems.append("latest-exploited table < 5 rows")
     if d.get("topRows", 0) < 15: problems.append("top CWE/vendor/CNA lists missing")

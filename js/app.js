@@ -2323,6 +2323,30 @@ function explainPart2(ctx, F, S) {
 }
 
 
+/* Top-nav sub-menus: hovering (or tabbing to) a part lists its sections.
+ * Short static names: the on-page titles are full takeaway sentences. */
+const NAV_SUB = {
+  brief: [],
+  summary: [["kpis", "Key figures"], ["hero", "CVEs per year"], ["where", "Where exploitation happens"]],
+  exploit: [["exploitation", "Exploitation by origin"], ["speed", "Speed of exploitation"], ["kev-latest", "Latest exploited"], ["zerodays", "Recent zero-days"], ["next", "Patch next"]],
+  volume: [["sevyears", "Severity per year"], ["tops", "Top weaknesses, vendors & CNAs"], ["supply", "Supply chain"]],
+  ai: [["ai-kpis", "Key figures"], ["relations", "How CVEs relate to AI"], ["issuance", "AI share of all CVEs"], ["ai-origin", "Where AI CVEs come from"], ["exploited", "Exploited AI vulnerabilities"], ["ai-next", "AI patch next"], ["breaks", "How AI CVEs differ"], ["layers", "AI stack layers"], ["latest", "Latest AI CVEs"], ["cna", "Who reports AI CVEs"], ["context", "Context"]],
+  method: [],
+};
+function buildNavMenus() {
+  for (const a of [...document.querySelectorAll(".topnav > a")]) {
+    const items = (NAV_SUB[a.getAttribute("href").slice(1)] || []).filter(([id]) => document.getElementById(id));
+    if (!items.length) continue;
+    const wrap = h("span", { class: "navitem" });
+    a.replaceWith(wrap);
+    const menu = h("span", { class: "navsub" }, ...items.map(([id, label]) => h("a", { class: "sub", href: "#" + id, text: label })));
+    wrap.append(a, menu);
+    // a click inside the menu closes it (hover would otherwise keep it open)
+    menu.addEventListener("click", () => { wrap.classList.add("shut"); });
+    wrap.addEventListener("mouseleave", () => wrap.classList.remove("shut"));
+  }
+}
+
 /* Long tables show their first rows; the rest sit behind one quiet toggle.
  * Rows stay in the DOM (filters and print still see them). */
 const TABLE_CLIP = { "tbl-kevall": 5, "tbl-zd": 5, "tbl-next": 5, "tbl-kev": 5, "tbl-epss": 5, "tbl-ai": 8 };
@@ -2478,6 +2502,7 @@ function infoize() {
       document.querySelector("main").prepend(h("p", { class: "err", text: `render error (${name}): ${err.message}` }));
     }
   }
+  try { buildNavMenus(); } catch (err) { /* plain nav links still work */ }
   try { clipTables(); } catch (err) { /* tables simply stay full length */ }
   try { infoize(); } catch (err) { /* details simply stay inline */ }
   // canvas charts take their colours at draw time: redraw on a theme switch

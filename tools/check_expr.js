@@ -40,11 +40,13 @@
   out.kpis = document.querySelectorAll("#kpis .kpi").length;
   out.whereRows = document.querySelectorAll("#where-bars .hb-row").length;
   out.tiers = ["summary", "exploit", "volume", "ai", "method"].filter((id) => document.getElementById(id)).length;
-  out.navLinks = [...document.querySelectorAll(".topnav a")].filter((a) => document.querySelector(a.getAttribute("href"))).length;
+  out.navLinks = [...document.querySelectorAll(".topnav a:not(.sub)")].filter((a) => document.querySelector(a.getAttribute("href"))).length;
   // tier 1 must come before tier 2/3 content
   const pos = (id) => { const e = document.getElementById(id); return e ? e.getBoundingClientRect().top + scrollY : -1; };
   out.tierOrder = pos("summary") < pos("exploit") && pos("exploit") < pos("volume") && pos("volume") < pos("ai") && pos("ai") < pos("method");
   out.briefItems = document.querySelectorAll("#brief-list li").length;
+  out.navSub = [...document.querySelectorAll(".topnav a.sub")].filter((a) => document.querySelector(a.getAttribute("href"))).length;
+  out.navSubAll = document.querySelectorAll(".topnav a.sub").length;
   out.aiKpis = document.querySelectorAll("#ai-kpis .kpi").length;
   out.kevAllRows = document.querySelectorAll("#tbl-kevall tbody tr").length;
   out.topRows = document.querySelectorAll("#cweall .hb-row, #vendall .hb-row, #cnaall .hb-row").length;

@@ -45,13 +45,13 @@
     <p class="subhead" id="subhead"></p>
     <div class="kpis" id="kpis" aria-label="key indicators, all CVEs"></div>
     <div class="sumgrid">
-      <div class="panel hero">
+      <div class="panel hero" id="hero">
         <h2 id="h-hero">CVEs per year, by origin</h2>
         <p class="hint" id="hero-sub">Published CVEs per calendar year, stacked by origin.</p>
         <div id="chart-hero" class="chart"></div>
         <p class="note" id="hero-note"></p>
       </div>
-      <div class="panel where" aria-labelledby="h-where">
+      <div class="panel where" id="where" aria-labelledby="h-where">
         <h2 id="h-where">Where exploitation happens</h2>
         <p class="hint" id="where-hint">CISA KEV additions this year, by origin.</p>
         <div id="where-bars"></div>
@@ -307,7 +307,7 @@
     <div id="chart-cna" class="chart"></div>
   </section>
 
-  <section class="context" aria-labelledby="h-context">
+  <section class="context" id="context" aria-labelledby="h-context">
     <h2 id="h-context" class="ctx-h">Context</h2>
     <div class="duo">
       <div class="panel">
