@@ -52,6 +52,8 @@ jobs:
           assert sv["aiTotal"] > 100 and len(sv["months"]) > 10, (sv["aiTotal"], len(sv["months"]))
           print(f"ok: {d['total']} total, {d['aiTotal']} AI, {sv['rated']} rated")
           EOF
+          # cross-checks every data file (the page layer needs Chrome and is skipped here)
+          python3 tools/sanity.py
       - name: Commit data
         run: |
           git config user.name "cve-dashboard[bot]"

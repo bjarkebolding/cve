@@ -1,0 +1,203 @@
+#!/usr/bin/env python3
+"""Sanity check: every number on the page, recomputed independently.
+
+Two layers:
+  1. data   - internal consistency of data/*.json (totals add up, subsets stay
+              subsets, nested bands stay nested, dates are fresh, growth is
+              plausible).
+  2. page   - the rendered page (headless Chrome) is read back and each figure
+              is compared with an independent recomputation from the data, and
+              with the same figure elsewhere on the page.
+
+Run before calling a change ready:  python3 tools/sanity.py [url]
+Exit 1 on any FAIL; WARN lines need a human look but do not fail.
+"""
+import datetime as dt
+import json
+import os
+import re
+import sys
+import tempfile
+
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA = os.path.join(BASE, "data")
+sys.path.insert(0, os.path.join(BASE, "tools"))
+
+fails, warns, oks = [], [], 0
+
+
+def check(cond, msg, warn=False):
+    global oks
+    if cond:
+        oks += 1
+    elif warn:
+        warns.append(msg)
+    else:
+        fails.append(msg)
+
+
+def load(name):
+    with open(os.path.join(DATA, name)) as f:
+        return json.load(f)
+
+
+def num(s):
+    """'86,796' / '7.4%' / '×2.2' -> float (None if no number)."""
+    m = re.search(r"-?\d[\d,]*\.?\d*", s or "")
+    return float(m.group(0).replace(",", "")) if m else None
+
+
+# ---------------------------------------------------------------- 1. data
+d, kev, epss, meta = load("data.json"), load("kev.json"), load("epss.json"), load("ai_meta.json")
+zd = load("zerodays.json") if os.path.exists(os.path.join(DATA, "zerodays.json")) else None
+asof = d["generatedAt"][:10]
+year, prev = asof[:4], str(int(asof[:4]) - 1)
+md = asof[5:]
+today = dt.date.today().isoformat()
+
+check(sum(d["counts"]) == d["total"], f"data: sum(counts) {sum(d['counts'])} != total {d['total']}")
+check(sum(d["aiMonths"]) == d["aiTotal"], f"data: sum(aiMonths) {sum(d['aiMonths'])} != aiTotal {d['aiTotal']}")
+check(all(a <= c for a, c in zip(d["aiMonths"], d["counts"])), "data: a month has more AI-related than all CVEs")
+L = d["landscape"]
+check(L["all"]["total"] == d["total"], f"data: landscape.all.total {L['all']['total']} != total {d['total']}")
+check(L["ai"]["total"] == d["aiTotal"], f"data: landscape.ai.total {L['ai']['total']} != aiTotal {d['aiTotal']}")
+check(len(meta["ids"]) == d["aiTotal"], f"data: ai_meta has {len(meta['ids'])} ids, aiTotal {d['aiTotal']}")
+only_found = [k for k, v in meta["ids"].items() if set(v.get("rels") or []) <= {"found"}]
+check(not only_found, f"data: {len(only_found)} AI-related ids carry only 'found' (e.g. {only_found[:3]})")
+for rel, by in L["ai"]["relYears"].items():
+    allby = L["all"]["relYears"].get(rel, {})
+    bad = [y for y, n in by.items() if n > allby.get(y, 0)]
+    check(not bad, f"data: relYears.ai[{rel}] exceeds relYears.all in {bad}")
+for o, arr in d["originMonths"].items():
+    check(len(arr) == len(d["months"]), f"data: originMonths[{o}] not aligned")
+check(sum(sum(a) for a in d["originMonths"].values()) == d["total"], "data: origins do not sum to total")
+w = L["all"]["window"]
+sw = L["all"].get("sevWindow") or {}
+check(sum(sw.values()) == w["n"], f"data: sevWindow sums to {sum(sw.values())}, window n {w['n']}")
+check(asof >= (dt.date.fromisoformat(today) - dt.timedelta(days=3)).isoformat(), f"data: generatedAt {asof} is stale", warn=True)
+future = [m for m, c in zip(d["months"], d["counts"]) if m > today[:7] and c]
+check(not future, f"data: CVEs dated in future months {future}")
+
+# year-to-date (day precision, same rule as the page)
+ytd = sum(c for day, c in zip(d["days"], d["dayCounts"]) if day.startswith(year) and day[5:] <= md)
+ytd_prev = sum(c for day, c in zip(d["days"], d["dayCounts"]) if day.startswith(prev) and day[5:] <= md)
+ratio = ytd / ytd_prev if ytd_prev else None
+check(ratio is None or 0.3 < ratio < 6, f"data: YTD growth ×{ratio:.2f} implausible", warn=True)
+
+ents = kev["entries"]
+check(len({e["cve"] for e in ents}) == len(ents), "kev: duplicate CVE entries")
+check(all(e["ai"] == bool(set(e.get("rels") or []) - {"found"}) for e in ents if e["ai"]),
+      "kev: an ai-flagged entry has no AI-risk relation")
+check(all(not e["ai"] for e in ents if set(e.get("rels") or []) <= {"found"} and e.get("found")),
+      "kev: a found-only entry is flagged AI")
+kev_cur = [e for e in ents if e["added"].startswith(year)]
+kev_prev_same = [e for e in ents if e["added"].startswith(prev) and e["added"][5:] <= md]
+zd_cur = [e for e in ents if e.get("zeroDay") and str(e.get("published") or "").startswith(year)]
+check(len(zd_cur) <= len(kev_cur) + 50, "kev: more zero-days than KEV additions", warn=True)
+check(all((e.get("daysToKev") is None) or e["daysToKev"] > -400 for e in ents), "kev: daysToKev far negative")
+check(all(e["added"] <= today for e in ents), "kev: dateAdded in the future")
+
+dist = epss.get("dist") or {}
+for k in ("all", "ai"):
+    x = dist.get(k)
+    if x:
+        check(x["ge50"] <= x["ge10"] <= x["n"], f"epss: dist.{k} bands not nested {x}")
+check(dist.get("ai", {}).get("n", 0) <= dist.get("all", {}).get("n", 0), "epss: AI cohort larger than all")
+kev_ids = {e["cve"] for e in ents}
+top = epss.get("top") or {}
+check(not [r for r in top.get("all", []) if r["cve"] in kev_ids], "epss: patch-next list contains KEV entries")
+check(all(set(r.get("rels") or []) - {"found"} for r in top.get("ai", [])), "epss: AI patch-next row without an AI-risk relation")
+check(all(a["epss"] >= b["epss"] for a, b in zip(top.get("all", []), top.get("all", [])[1:])), "epss: patch-next not sorted by EPSS")
+
+if zd:
+    check(zd.get("aiTotal", 0) <= zd.get("total", 0), "zerodays: AI total exceeds total")
+
+# independent recomputation of the headline figures the page shows
+exp = {
+    "cves_ytd": ytd, "cves_ratio": round(ratio, 1) if ratio else None,
+    "kev_cur": len(kev_cur), "kev_prev_same": len(kev_prev_same), "zd_cur": len(zd_cur),
+    "signal_base": w["n"], "signal_hc": sw.get("CRITICAL", 0) + sw.get("HIGH", 0),
+    "signal_epss": dist.get("all", {}).get("ge10"),
+    "signal_kev": sum(1 for e in ents if e.get("published") and w["cur"][0] <= e["published"] <= w["cur"][1]),
+    "supply_kev_cur": sum(1 for e in kev_cur if e.get("origin") == "supplychain"),
+    "ai_ytd": sum(c for day, c in zip(d["aiDays"], d["aiDayCounts"]) if day.startswith(year) and day[5:] <= md),
+    "ai_kev_cur": sum(1 for e in kev_cur if e["ai"]),
+    "found_cur": L["all"]["relYears"].get("found", {}).get(year, 0),
+}
+
+# ---------------------------------------------------------------- 2. page
+url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8080/"
+EXPR = r"""(() => {
+  const t = (q) => { const e = document.querySelector(q); return e ? e.textContent : ""; };
+  const tiles = (q) => [...document.querySelectorAll(q + " .kpi")].map((k) => ({ k: t.call(null, "x") || k.querySelector(".k").textContent,
+    v: k.querySelector(".v").textContent, delta: (k.querySelector(".delta") || {}).textContent || "", d: (k.querySelector(".d") || {}).textContent || "" }));
+  const sig = [...document.querySelectorAll("#signal-bars .sig-row")].map((r) => r.querySelector(".sig-n b").textContent);
+  const threats = [...document.querySelectorAll("#threat-cards .threat")].map((c) => ({ name: c.querySelector(".th-name").textContent,
+    v: (c.querySelector(".v") || {}).textContent || "", unit: (c.querySelector(".th-unit") || {}).textContent || "" }));
+  return JSON.stringify({ tiles: tiles("#kpis"), aiTiles: tiles("#ai-kpis"), sig, threats,
+    headline: t("#headline"), heroTitle: t("#h-hero"), aiHeadline: t("#ai-headline"), signalTitle: t("#h-signal"),
+    brief: [...document.querySelectorAll("#brief-list li")].map((l) => l.textContent),
+    body: document.querySelector("main").innerText.slice(0, 200000) });
+})()"""
+page = None
+try:
+    import cdp_probe as cdp
+    os.environ["CDP_PROFILE"] = tempfile.mkdtemp(prefix="sanity-")
+    out, exc = cdp.run(url, EXPR, wait=8)
+    check(not exc, f"page: JS exceptions {exc}")
+    page = json.loads(out) if out else None
+except Exception as err:  # no Chrome / server: data layer still counts
+    warns.append(f"page: not checked ({err})")
+
+if page:
+    T = {x["k"]: x for x in page["tiles"]}
+    def tile(prefix):
+        return next((x for k, x in T.items() if k.startswith(prefix)), None)
+    a = tile("CVEs published")
+    check(a and num(a["v"]) == exp["cves_ytd"], f"page: CVE tile {a and a['v']} != data {exp['cves_ytd']}")
+    check(a and num(a["delta"]) == exp["cves_ratio"], f"page: CVE tile delta {a and a['delta']} != ×{exp['cves_ratio']}")
+    check(f"{exp['cves_ytd']:,}" in page["headline"], f"page: headline does not state {exp['cves_ytd']:,}")
+    k = tile("Exploited")
+    check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
+    check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")
+    z = tile("Zero-days")
+    check(z and num(z["v"]) == exp["zd_cur"], f"page: zero-day tile {z and z['v']} != data {exp['zd_cur']}")
+    # the same growth figure must read the same everywhere
+    xs = set(re.findall(r"[×x](\d+\.\d)", page["heroTitle"]))
+    sc = tile("Open-source")
+    check(not sc or not xs or num(sc["delta"]) in {float(v) for v in xs},
+          f"page: supply tile delta {sc and sc['delta']} vs hero title {page['heroTitle']!r}")
+    sig = [num(v) for v in page["sig"]]
+    want = [exp["signal_base"], exp["signal_hc"], exp["signal_epss"], exp["signal_kev"]]
+    check(sig == want, f"page: signal bars {sig} != data {want}")
+    check(sig == sorted(sig, reverse=True), f"page: signal stages not decreasing {sig}", warn=True)
+    th = {x["name"]: x for x in page["threats"]}
+    s = th.get("Software supply chain")
+    if s and exp["kev_cur"]:
+        pct_exp = round(100 * exp["supply_kev_cur"] / exp["kev_cur"], 1)
+        check(num(s["v"]) == pct_exp, f"page: supply threat {s['v']} != {pct_exp}%")
+        check(f"({exp['supply_kev_cur']} of {exp['kev_cur']})" in s["unit"], f"page: supply threat unit {s['unit']!r}")
+    A = {x["k"]: x for x in page["aiTiles"]}
+    ai = next((x for kk, x in A.items() if kk.startswith("AI-related CVEs")), None)
+    check(ai and num(ai["v"]) == exp["ai_ytd"], f"page: AI tile {ai and ai['v']} != data {exp['ai_ytd']}")
+    check(ai and ai["v"] in page["aiHeadline"], f"page: AI headline does not repeat the AI tile {ai and ai['v']}")
+    ak = next((x for kk, x in A.items() if kk.startswith("Exploited AI")), None)
+    check(ak and num(ak["v"]) == exp["ai_kev_cur"], f"page: exploited-AI tile {ak and ak['v']} != data {exp['ai_kev_cur']}")
+    app = th.get("AI application compromise")
+    check(not app or not ak or num(app["v"]) <= num(ak["v"]), "page: AI-app threat count exceeds exploited-AI tile")
+    fd = next((x for kk, x in A.items() if kk.startswith("Found by AI")), None)
+    check(fd and num(fd["v"]) == exp["found_cur"], f"page: found-by-AI tile {fd and fd['v']} != data {exp['found_cur']}")
+    body = page["body"]
+    check(not re.search(r"\b(NaN|undefined|Infinity)\b|\[object", body), "page: NaN/undefined in text")
+    check(not re.search(r"(?<![\d.])0\.0%|×0\.0\b", body), "page: a 0.0% / ×0.0 figure (check the denominator)", warn=True)
+    neg = re.findall(r"[^\d\s]\s?-\d[\d,]* (?:CVEs|vulnerabilities)", body)
+    check(not neg, f"page: negative counts {neg[:3]}")
+    years = {int(y) for y in re.findall(r"\b(20\d\d)\b", body)}
+    check(max(years) <= int(year) + 1, f"page: mentions year {max(years)} beyond {year}")
+
+print(f"sanity: {oks} ok, {len(warns)} warn, {len(fails)} fail  (data as of {asof})")
+for w_ in warns:
+    print("  WARN", w_)
+for f_ in fails:
+    print("  FAIL", f_)
+sys.exit(1 if fails else 0)

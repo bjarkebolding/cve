@@ -312,6 +312,7 @@ test_sources.py       unit tests: KEV, EPSS, OSV dedupe/fix, severity fallback
 tools/ai_labels.json  hand-labeled sample for measuring the matcher
 tools/eval_ai.py      precision/recall of the matcher against ai_labels.json
 tools/check.sh        headless smoke test (data + render + overflow)
+tools/sanity.py       every figure on the page recomputed from data/*.json and cross-checked (run before shipping)
 tools/cdp_probe.py    headless-Chrome probe helper (dev only)
 tools/check_expr.js   JS assertions used by check.sh
 data/                 generated JSON (committed; caches gitignored)
