@@ -26,31 +26,69 @@ const compact = (v) => {
 const axisNum = (v) => (!fin(v) ? "" : Math.abs(v) >= 1e6 ? compact(v) : num.format(Math.round(v * 100) / 100));
 const pct = (x, digits = 0) => (100 * x).toFixed(digits) + "%";
 
+/* ---- palette ----
+ * Every colour is a CSS token (css/style.css, :root + dark override); the
+ * charts read the same tokens here, so CSS and canvas never drift apart.
+ * Canvas takes its colours at draw time: a theme switch reloads the page
+ * (see boot). The hex values below are only fallbacks if a token is missing.
+ * Meaning is fixed: blue = AI, red/orange/amber = severity and exploitation
+ * only, grey = "all" and the remainder; the other hues are muted categories
+ * picked to stay apart under protan/deutan/tritan simulation. */
+const LIGHT = !!(window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches);
+const tone = (dark, light) => (LIGHT ? light : dark);
+const ROOT_CSS = getComputedStyle(document.documentElement);
+const tok = (name, dark, light) => (ROOT_CSS.getPropertyValue("--" + name) || "").trim() || tone(dark, light);
+const P = {
+  /* categories */
+  blue: tok("c-blue", "#7c9cff", "#3457d5"),
+  teal: tok("c-teal", "#4fb3a9", "#1f8a80"),
+  sage: tok("c-sage", "#6e9d5e", "#4f7f34"),
+  sand: tok("c-sand", "#d9c79f", "#b39d6a"),
+  mauve: tok("c-mauve", "#b07cb8", "#a2559f"),
+  sky: tok("c-sky", "#8cc8e8", "#7fbde0"),
+  plum: tok("c-plum", "#7a5a9a", "#4f3f7a"),
+  neutral: tok("c-neutral", "#c9ced6", "#4b5563"),
+  grey: tok("c-grey", "#646c7a", "#a3aab5"),
+  slate: tok("c-slate", "#4e5767", "#c2c8d2"),
+  steel: tok("c-steel", "#8594ae", "#7d8ca6"),
+  /* severity / urgency only */
+  red: tok("c-crit", "#ef6b63", "#c8372d"),
+  orange: tok("c-high", "#e5925c", "#c9652c"),
+  amber: tok("c-med", "#dcb162", "#b9861a"),
+  dusk: tok("c-low", "#8fa6c4", "#93a8c4"),
+  /* chart chrome */
+  axis: tok("muted", "#8a919c", "#5f6773"),
+  grid: tok("chart-grid", "rgba(138,145,156,0.14)", "rgba(95,103,115,0.13)"),
+  tickLine: tok("chart-tick", "rgba(138,145,156,0.35)", "rgba(95,103,115,0.35)"),
+  allFill: tok("chart-all-fill", "rgba(201,206,214,0.06)", "rgba(75,85,99,0.06)"),
+  aiFill: tok("chart-ai-fill", "rgba(124,156,255,0.20)", "rgba(52,87,213,0.14)"),
+};
 const COLORS = {
-  all: "#ffffff",            /* armor white */
-  ai: "#2244ee",             /* visor blue */
-  upd: "#aaaaee",            /* light blue */
-  pkgs: "#ffff44",           /* muzzle energy */
-  npm1: "#4466ff", npm2: "#ffffff", npm3: "#aaaaee", npm4: "#44eeee",
-  kev: "#ee2222",            /* blaster red */
+  all: P.neutral,
+  ai: P.blue,
+  upd: P.dusk,
+  pkgs: P.blue,
+  npm1: P.blue, npm2: P.neutral, npm3: P.sand, npm4: P.teal,
+  kev: P.red,
 };
 const SEV_KEYS = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
-const SEV_COLORS = { CRITICAL: "#ee2222", HIGH: "#ffff44", MEDIUM: "#aaee22", LOW: "#44eeee", UNRATED: "#444488" };
+/* ordinal: a warm ramp for urgency, a cool grey-blue for LOW */
+const SEV_COLORS = { CRITICAL: P.red, HIGH: P.orange, MEDIUM: P.amber, LOW: P.dusk, UNRATED: P.slate };
 
-/* AI stack layers: ids are fixed by the data contract. Colours are distinct
- * hues AND distinct lightness on black, so neighbours in the stack never rely
- * on red-vs-green alone. Labels here are only a fallback for lookups — the
- * data's own `layers` list is authoritative. */
+/* AI stack layers: ids are fixed by the data contract. Distinct hues, so
+ * neighbours in the stack never rely on red-vs-green alone. Labels here are
+ * only a fallback for lookups — the data's own `layers` list is
+ * authoritative. */
 const LAYER_COLORS = {
-  mcp: "#ffff44",        /* yellow */
-  gateway: "#ff9933",    /* orange */
-  inference: "#44eeee",  /* cyan */
-  mlops: "#aaee22",      /* lime */
-  llmapp: "#ee66dd",     /* magenta */
-  model: "#ee2222",      /* red */
-  cloud: "#ffffff",      /* white */
-  framework: "#4466ff",  /* visor blue (lightened) */
-  other: "#8888aa",      /* blue-gray */
+  mcp: P.sand,
+  gateway: P.sky,
+  inference: P.teal,
+  mlops: P.sage,
+  llmapp: P.mauve,
+  model: P.plum,
+  cloud: P.neutral,
+  framework: P.blue,
+  other: P.grey,
 };
 const LAYER_FALLBACK = {
   mcp: "MCP servers & agent tools", gateway: "LLM gateways & proxies",
@@ -59,8 +97,8 @@ const LAYER_FALLBACK = {
   cloud: "AI cloud services & assistants", framework: "ML frameworks & libraries",
   other: "Other AI-related",
 };
-const CAT_COLORS = ["#4466ff", "#ffff44", "#44eeee", "#ee66dd", "#aaee22", "#ff9933", "#ffffff", "#ee2222"];
-const OTHER_COLOR = "#444488";
+const CAT_COLORS = [P.blue, P.sand, P.teal, P.mauve, P.sage, P.sky, P.neutral, P.plum];
+const OTHER_COLOR = P.slate;
 
 async function loadJSON(name) {
   const res = await fetch("data/" + name, { cache: "no-cache" });
@@ -149,7 +187,7 @@ function note(el, msg) {
   el.append(h("p", { class: "na", text: msg }));
 }
 function cveLink(id) {
-  return h("a", { href: `https://www.cve.org/CVERecord?id=${encodeURIComponent(id)}`, target: "_blank", rel: "noopener", text: id });
+  return h("a", { class: "cveid", href: `https://www.cve.org/CVERecord?id=${encodeURIComponent(id)}`, target: "_blank", rel: "noopener", text: id });
 }
 function badge(text, cls, title) { return h("span", { class: "badge" + (cls ? " " + cls : ""), text, title }); }
 function sevBadge(sev, score, title) {
@@ -227,7 +265,7 @@ function makeChart(el, opts, data) {
   const w = Math.max(260, el.clientWidth || 800);
   const hgt = opts.height || 300;
   // uPlot's default axis stroke is #000 (black) — invisible on the dark theme.
-  const AXIS = { stroke: "#8888aa", grid: { stroke: "rgba(136,136,170,0.16)" }, ticks: { stroke: "rgba(136,136,170,0.4)" } };
+  const AXIS = { stroke: P.axis, grid: { stroke: P.grid, width: 1 }, ticks: { stroke: P.tickLine, width: 1 } };
   const ax = (opts.axes || []).map((a) => a && { ...AXIS, ...a, grid: { ...AXIS.grid, ...(a.grid || {}) } });
   const u = new uPlot({ ...opts, axes: ax, width: w, height: hgt }, data, el);
   const cv = u.ctx && u.ctx.canvas;
@@ -295,7 +333,7 @@ function stackedBars(el, cfg) {
     height: cfg.height || 300,
     ariaLabel: cfg.ariaLabel,
     // pad the x range by half a bar so the first/last bars aren't clipped
-    scales: { x: { time: cfg.time !== false, range: (u, mn, mx) => { const p = cfg.time === false ? 0.5 : 16; return [mn - p, mx + p]; } }, y: { range: (u, mn, mx) => [0, cfg.yMax ? cfg.yMax : Math.max(1, mx * (cfg.draw ? 1.16 : 1.05))] } },
+    scales: { x: { time: cfg.time !== false, range: (u, mn, mx) => { const p = cfg.time === false ? 0.5 : 16; return [mn - p, mx + p]; } }, y: { range: (u, mn, mx) => [0, cfg.yMax ? cfg.yMax : Math.max(1, mx * (cfg.draw ? 1.28 : 1.05))] } },
     axes: [
       cfg.time === false ? { space: cfg.xSpace || 58, values: cfg.xValues, incrs: cfg.xIncrs } : dayAxis(),
       { space: 40, label: cfg.yLabel, values: tick(axisNum), size: 62 },
@@ -413,11 +451,11 @@ function computeFacts(ctx) {
 
 /* ================= origins (contract v2) ================= */
 const ORIGIN_COLORS = {
-  supplychain: "#44eeee",  /* cyan */
-  plugin: "#ee66dd",       /* magenta */
-  edge: "#ff9933",         /* orange */
-  platform: "#aaee22",     /* lime */
-  other: "#555588",        /* muted blue-gray: the large remainder */
+  supplychain: P.teal,
+  plugin: P.mauve,
+  edge: P.sand,
+  platform: P.sage,
+  other: P.slate,          /* the large remainder stays quiet */
 };
 const ORIGIN_FALLBACK = {
   supplychain: "Open-source projects & packages (supply chain)",
@@ -444,12 +482,12 @@ const originLabel = (core) => {
 };
 /* AI relations (multi-label tags; Part 2). Ids fixed by build.py AI_RELATIONS. */
 const REL_COLORS = {
-  agent: "#ffff44",     /* yellow */
-  product: "#4466ff",   /* visor blue */
-  feature: "#ffffff",   /* white */
-  weakness: "#ee66dd",  /* magenta */
-  compute: "#aaee22",   /* lime */
-  found: "#44eeee",     /* cyan */
+  agent: P.sand,
+  product: P.blue,
+  feature: P.neutral,
+  weakness: P.mauve,
+  compute: P.sage,
+  found: P.teal,
 };
 const REL_FALLBACK = {
   agent: "MCP servers & AI agents", product: "AI software & ML libraries",
@@ -796,7 +834,7 @@ function buildZeroDay(ctx) {
     const cur = ctx.F.year;
     const yLab = (v) => String(v) + (String(v) === cur ? "\nYTD" : "");
     stackedBars(el, {
-      xs: years.map(Number), groups: [{ label: "exploited at disclosure", color: "#ee2222", data: years.map((y) => by[y]) }],
+      xs: years.map(Number), groups: [{ label: "exploited at disclosure", color: P.red, data: years.map((y) => by[y]) }],
       height: 200, time: false, xLabel: "publication year", yLabel: "CVEs per year", legend: false,
       ariaLabel: "KEV entries exploited at disclosure (added within one day of publication), per CVE publication year",
       xValues: tick(yLab), xIncrs: [1, 2, 5], xSpace: 34, xFmt: yLab, barMax: 50,
@@ -848,7 +886,7 @@ function buildSupply(ctx) {
   const ecos = Object.entries(mal.byYear).map(([eco, by]) => [eco, sumObj(by)]).sort((a, b) => b[1] - a[1]);
   const top = ecos.slice(0, 4).map((x) => x[0]);
   const years = [...new Set(Object.values(mal.byYear).flatMap((by) => Object.keys(by || {})))].filter((y) => /^\d{4}$/.test(y) && y >= "2018").sort();
-  const cols = ["#ee2222", "#ffff44", "#ee66dd", "#44eeee"];
+  const cols = [P.blue, P.sand, P.mauve, P.teal];
   const groups = top.map((eco, i) => ({ label: eco, color: cols[i], data: years.map((y) => (mal.byYear[eco] || {})[y] || 0) }));
   if (ecos.length > 4) groups.push({ label: "other", color: OTHER_COLOR, data: years.map((y) => ecos.slice(4).reduce((s, [eco]) => s + ((mal.byYear[eco] || {})[y] || 0), 0)) });
   if (!years.length) { note(el2, "No malicious-package counts since 2018."); return; }
@@ -862,11 +900,11 @@ function buildSupply(ctx) {
 
 /* ================= Part 1: speed of exploitation ================= */
 const TTK_BUCKETS = [
-  { id: "d1", label: "≤1 day (at disclosure)", color: "#ee2222", test: (d) => d <= 1 },
-  { id: "w1", label: "2–7 days", color: "#ff9933", test: (d) => d <= 7 },
-  { id: "m1", label: "8–30 days", color: "#ffff44", test: (d) => d <= 30 },
-  { id: "y1", label: "31–365 days", color: "#44eeee", test: (d) => d <= 365 },
-  { id: "old", label: "over a year", color: "#555588", test: () => true },
+  { id: "d1", label: "≤1 day (at disclosure)", color: P.red, test: (d) => d <= 1 },
+  { id: "w1", label: "2–7 days", color: P.orange, test: (d) => d <= 7 },
+  { id: "m1", label: "8–30 days", color: P.amber, test: (d) => d <= 30 },
+  { id: "y1", label: "31–365 days", color: P.dusk, test: (d) => d <= 365 },
+  { id: "old", label: "over a year", color: P.slate, test: () => true },
 ];
 function ttkBuckets(entries, fromYear) {
   const by = {};
@@ -964,7 +1002,7 @@ function topList(el, rows, opts) {
   for (const r of rows) {
     const fill = h("span", { class: "hb-fill" });
     fill.style.width = ((100 * r.n) / max).toFixed(2) + "%";
-    fill.style.background = opts.color || "#4466ff";
+    fill.style.background = opts.color || P.steel;
     const bar = h("span", { class: "hb-bar" }, fill);
     if (fin(r.prev)) {
       const mark = h("span", { class: "hb-prev", title: `previous 12 months: ${num.format(r.prev)}` });
@@ -988,11 +1026,12 @@ const topRiser = (rows) => rows.reduce((b, r) => (r.n - (r.prev || 0) > (b ? b.n
 function buildTops(ctx) {
   const L = ctx.core.landscape && ctx.core.landscape.all;
   const names = (ctx.sev && ctx.sev.cweNames) || {};
-  const legend = h("p", { class: "hint toplegend", text: "Bar = last 12 months; white tick = the 12 months before; text = count · change." });
+  const legend = h("p", { class: "hint toplegend", text: "Bar = last 12 months; tick = the 12 months before; text = count · change." });
   if (!L) { for (const id of ["#cweall", "#vendall", "#cnaall"]) note($(id), "Not in this data build."); return; }
-  topList($("#cweall"), cweRows(L.cweTop, names), { color: "#4466ff" });
-  topList($("#vendall"), vendorRows(L.vendorTop), { color: "#44eeee" });
-  topList($("#cnaall"), cnaRows(L.cnaTop), { color: "#aaee22" });
+  // Part 1 lists share one quiet colour: the ranking is the message
+  topList($("#cweall"), cweRows(L.cweTop, names), { color: P.steel });
+  topList($("#vendall"), vendorRows(L.vendorTop), { color: P.steel });
+  topList($("#cnaall"), cnaRows(L.cnaTop), { color: P.steel });
   $("#tops").prepend(legend);
 }
 
@@ -1104,7 +1143,7 @@ function buildAiOrigin(ctx) {
 }
 function buildVendAi(ctx) {
   const L = ctx.core.landscape && ctx.core.landscape.ai;
-  topList($("#vendai"), L ? vendorRows(L.vendorTop) : null, { color: "#4466ff" });
+  topList($("#vendai"), L ? vendorRows(L.vendorTop) : null, { color: P.blue });
 }
 
 /* ================= AI deep dive lead-in: exploited chips + actions ================= */
@@ -1304,9 +1343,9 @@ function buildMainChart(core) {
     ],
     series: [
       { label: "date", value: (u, v) => (v == null ? "" : fmtX(v)) },
-      { label: "All CVEs", stroke: COLORS.all, width: 1.5, fill: "rgba(255,255,255,0.05)", spanGaps: true,
+      { label: "All CVEs", stroke: COLORS.all, width: 1.5, fill: P.allFill, spanGaps: true,
         value: (u, v) => (v == null ? "" : num.format(v)) },
-      { label: "AI-related", stroke: "#4466ff", width: 1.8, fill: "rgba(34,68,238,0.22)", spanGaps: true,
+      { label: "AI-related", stroke: COLORS.ai, width: 1.8, fill: P.aiFill, spanGaps: true,
         value: (u, v) => (v == null ? "" : state.mode === "share" ? v.toFixed(2) + "%" : num.format(v)) },
     ],
     legend: { show: true },
@@ -1359,7 +1398,7 @@ function sevBar(title, o) {
     const share = rated ? (o[k] || 0) / rated : 0;
     const seg = h("span", { class: "seg " + k, title: `${k}: ${num.format(o[k] || 0)} (${pct(share, 1)})` });
     seg.style.width = (100 * share).toFixed(2) + "%";
-    if (share >= 0.09) seg.textContent = pct(share);
+    // no text inside the segments: the legend right below carries the shares
     bar.append(seg);
     leg.append(h("span", { class: "sevleg-i" }, h("span", { class: "sev " + k, text: k }), document.createTextNode(" " + pct(share, 1))));
   }
@@ -1786,8 +1825,8 @@ function yearNotes(notes, isTime) {
     if (!xs || !tops) return;
     const dpr = devicePixelRatio || 1;
     c.save();
-    c.font = `${Math.round(10.5 * dpr)}px "Courier New", monospace`;
-    c.fillStyle = "#ffff44";
+    c.font = `${Math.round(11 * dpr)}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+    c.fillStyle = P.axis;
     c.textAlign = "center";
     for (const [y, text] of Object.entries(notes)) {
       if (!text) continue;
@@ -2017,7 +2056,7 @@ function explainDetail(ctx, F, S) {
       fig("#cwe-compare", {
         titleEl: "#h-cwe",
         title: best ? `${names[best.id] || best.id} is ${best.r.toFixed(1)}× more common in AI CVEs (${pct(best.a, 1)} vs ${pct(best.b, 1)})` : null,
-        how: "Blue = share of AI CVEs with that CWE; white = share of all CVEs. Pitfall: only the first CWE of each record counts; '—' = not among the top CWEs overall.",
+        how: "Blue = share of AI CVEs with that CWE; grey = share of all CVEs. Pitfall: only the first CWE of each record counts; '—' = not among the top CWEs overall.",
         so: best ? `Ask AI vendors and internal AI teams specifically about ${names[best.id] || best.id} defences.` : null,
         src: srcLine(ctx, ["cve"]),
       });
@@ -2157,7 +2196,7 @@ function explainPart1(ctx, F, S) {
       fig("#cweall", {
         titleEl: "#h-cweall", title: cw ? `Fastest-growing weakness: ${cw.label}, ${growthText(cw.n, cw.prev)}` : null,
         subEl: "#cweall-hint", sub: `CVEs per weakness class (first CWE in the record), ${span} vs the 12 months before. Top 10.`,
-        how: "Bar = last 12 months, white tick = the 12 months before. Pitfall: a CVE counts once, under its first CWE; many records have none.",
+        how: "Bar = last 12 months, tick = the 12 months before. Pitfall: a CVE counts once, under its first CWE; many records have none.",
         src: srcLine(ctx, ["cve"]),
       });
       const vr = vendorRows(L.vendorTop);
@@ -2165,7 +2204,7 @@ function explainPart1(ctx, F, S) {
       fig("#vendall", {
         titleEl: "#h-vendall", title: vr.length ? `${vr[0].label} leads with ${num.format(vr[0].n)} CVEs` + (vb && vb !== vr[0] ? ` — ${vb.label} grew most (${growthText(vb.n, vb.prev)})` : "") : null,
         subEl: "#vendall-hint", sub: `CVEs per vendor (first affected vendor in the record), ${span} vs the 12 months before. Top 10.`,
-        how: "Bar = last 12 months, white tick = the 12 months before. Pitfall: vendors that file their own CVEs (Linux, Microsoft, Oracle) look larger than vendors whose bugs go unreported.",
+        how: "Bar = last 12 months, tick = the 12 months before. Pitfall: vendors that file their own CVEs (Linux, Microsoft, Oracle) look larger than vendors whose bugs go unreported.",
         src: srcLine(ctx, ["cve"]),
       });
       const cr = cnaRows(L.cnaTop);
@@ -2173,7 +2212,7 @@ function explainPart1(ctx, F, S) {
       fig("#cnaall", {
         titleEl: "#h-cnaall", title: cb ? `Who files moves the curve: ${cb.label} filed ${num.format(cb.n)} CVEs in the last 12 months (${growthText(cb.n, cb.prev)})` : null,
         subEl: "#cnaall-hint", sub: `CVEs per CVE Numbering Authority (assigner), ${span} vs the 12 months before. Top 10.`,
-        how: "Bar = last 12 months, white tick = the 12 months before. A CNA is whoever assigned the CVE id — a vendor, a bug-bounty platform or a coordinator.",
+        how: "Bar = last 12 months, tick = the 12 months before. A CNA is whoever assigned the CVE id — a vendor, a bug-bounty platform or a coordinator.",
         so: cb && cb.n / Math.max(1, cb.prev) >= 3 ? "Before reading the surge as more vulnerable software, discount the new bulk filers: their growth is a reporting change." : null,
         src: srcLine(ctx, ["cve"]),
       });
@@ -2219,7 +2258,7 @@ function explainPart2(ctx, F, S) {
       const vb = topRiser(vr);
       fig("#vendai", {
         titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months` + (vb && vb !== vr[0] ? `; ${vb.label} grew most` : "") : null,
-        how: "Bar = last 12 months, white tick = the 12 months before; text = count · change. 'new' = none the year before.",
+        how: "Bar = last 12 months, tick = the 12 months before; text = count · change. 'new' = none the year before.",
         src: srcLine(ctx, ["cve"]),
       });
     }
@@ -2356,4 +2395,6 @@ function infoize() {
     }
   }
   try { infoize(); } catch (err) { /* details simply stay inline */ }
+  // canvas charts take their colours at draw time: redraw on a theme switch
+  try { matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => location.reload()); } catch (e) { /* old browsers keep the first theme */ }
 })();
