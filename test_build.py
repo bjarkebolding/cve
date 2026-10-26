@@ -212,6 +212,13 @@ def test_parse_file():
             "affected": [{"vendor": "n/a", "product": "n/a"}]},
             adp=[{"affected": [{"vendor": "gradio_project", "product": "gradio"}]}]))
         check("ADP affected product matched", row[3] == "llmapp" and row[10] == "gradio_project gradio")
+        # supplier ADPs list every downstream product bundling the library
+        _, row = run("CVE-2026-10", _rec("CVE-2026-10", cna={
+            "descriptions": [{"lang": "en", "value": "Stack buffer overflow in CMS parsing"}],
+            "affected": [{"vendor": "OpenSSL", "product": "OpenSSL"}]},
+            adp=[{"providerMetadata": {"shortName": "siemens-SADP"},
+                  "affected": [{"vendor": "Siemens", "product": "AI Lightweight Inference Server"}]}]))
+        check("supplier ADP (-SADP) ignored", row[3] is None and row[10] == "OpenSSL")
 
         p3 = os.path.join(d, "x.json")
         _write(p3, '{"unrelated": true}')
@@ -438,7 +445,7 @@ def test_relations():
           R(None, "NVIDIA GPU Display Driver for Linux", "nvidia gpu display driver", "", set()) == ["compute"])
     check("CUDA toolkit -> compute", R(None, "x", "nvidia cuda toolkit", "", set()) == ["compute"])
     for credits in ("Google Big Sleep", "Alex Gaynor using Claude from Anthropic", "iglocska | Claude Opus 5",
-                    "Zhenpeng Lin of depthfirst", "XBOW", "Claude"):
+                    "Zhenpeng Lin of depthfirst", "XBOW", "Claude", "Stanislav Fort (Aisle Research)"):
         check(f"found: {credits}", R(None, "x", "", credits, set()) == ["found"])
     check("Claude the person is not found-by-AI", R(None, "x", "", "Claude Ndanda (TrixX)", set()) == [])
     check("description 'reported by Claude Mythos' -> found",

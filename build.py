@@ -55,9 +55,9 @@ LABELS = os.path.join(BASE, "tools", "ai_labels.json")
 
 # Bump when parse_file()'s output changes meaning: cached rows from an older
 # parser are discarded and every record is re-parsed.
-PARSER_VERSION = 5
+PARSER_VERSION = 6
 # Bump when the AI definition (layers / patterns) changes meaning.
-DEFINITION_VERSION = 4
+DEFINITION_VERSION = 5
 HOURS_KEEP = 40 * 24     # keep hourly buckets for the last N hours
 COMPARE_MONTHS = 24      # severity/CWE comparison window (incl. current month)
 
@@ -354,6 +354,22 @@ def _str(x):
     return x if isinstance(x, str) else ""
 
 
+def product_adps(containers):
+    """ADP containers that may name the vulnerable product. Supplier ADPs
+    ("siemens-SADP", "redhat-SADP") list every downstream product that bundles
+    the library (Siemens "AI Lightweight Inference Server" for an OpenSSL bug),
+    so they are never used for product, vendor, origin or AI matching."""
+    out = []
+    for c in containers.get("adp") or []:
+        if not isinstance(c, dict):
+            continue
+        short = _str((c.get("providerMetadata") or {}).get("shortName")).strip().lower()
+        if short.endswith("-sadp"):
+            continue
+        out.append(c)
+    return out
+
+
 def affected_rows(containers):
     """(vendor, product, packageURL) rows used for AI matching: the CNA entries
     that share the first entry's vendor (later vendors are usually downstream
@@ -370,8 +386,8 @@ def affected_rows(containers):
             first = v
         if v == first:
             rows.append((_str(a.get("vendor")), _str(a.get("product")), _str(a.get("packageURL"))))
-    for c in containers.get("adp") or []:
-        for a in (c.get("affected") or []) if isinstance(c, dict) else []:
+    for c in product_adps(containers):
+        for a in c.get("affected") or []:
             if isinstance(a, dict):
                 rows.append((_str(a.get("vendor")), _str(a.get("product")), _str(a.get("packageURL"))))
     return [r for r in rows if not REDISTRIBUTOR_RE.match(r[0])]
@@ -464,7 +480,7 @@ _NA = ("", "n/a", "na", "unknown", "unspecified", "-")
 
 def record_product(containers):
     """First affected "vendor product" (CNA, then ADP), <= 80 chars, or None."""
-    for c in [containers.get("cna") or {}] + list(containers.get("adp") or []):
+    for c in [containers.get("cna") or {}] + product_adps(containers):
         for a in (c.get("affected") or []) if isinstance(c, dict) else []:
             if not isinstance(a, dict):
                 continue
@@ -479,7 +495,7 @@ def record_product(containers):
 
 def record_vendor(containers):
     """First affected vendor (CNA, then ADP), <= 60 chars, or None."""
-    for c in [containers.get("cna") or {}] + list(containers.get("adp") or []):
+    for c in [containers.get("cna") or {}] + product_adps(containers):
         for a in (c.get("affected") or []) if isinstance(c, dict) else []:
             v = _str(a.get("vendor")).strip() if isinstance(a, dict) else ""
             if v and v.lower() not in _NA and not REDISTRIBUTOR_RE.match(v):
@@ -537,7 +553,7 @@ COMPUTE_RE = re.compile(
 # credits / description naming an AI discovery tool or AI lab. "Claude" alone
 # is a first name, so it needs model/lab context.
 FOUND_RE = re.compile(
-    r"\bbig ?sleep\b|\bxbow\b|\baardvark\b|\bcodemender\b|\bdepthfirst\b|\bzeropath\b|"
+    r"\bbig ?sleep\b|\bxbow\b|\baisle\b|\baardvark\b|\bcodemender\b|\bdepthfirst\b|\bzeropath\b|"
     r"\bvulnhuntr\b|\banthropic\b|\bopenai\b|\bgpt-?\d|\bopenai codex\b|"
     r"\bclaude(?: code| security| mythos| opus| sonnet| haiku| ai\b|[:-]|\s*$)|"
     r"\b(?:using|with|by|and|via) claude\b|"
@@ -723,7 +739,7 @@ def _vendor_match(rules, vendor, product):
 def _rows_all(containers):
     """(vendor, product, packageURL, collectionURL) of every CNA + ADP affected entry."""
     out = []
-    for c in [containers.get("cna") or {}] + list(containers.get("adp") or []):
+    for c in [containers.get("cna") or {}] + product_adps(containers):
         for a in (c.get("affected") or []) if isinstance(c, dict) else []:
             if isinstance(a, dict):
                 out.append(tuple(_str(a.get(k)).strip() for k in
