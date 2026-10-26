@@ -780,6 +780,56 @@ function buildKpis(ctx, F, S) {
   kpiTiles($("#kpis"), tiles, "Key indicators are not available for this data build.");
 }
 
+/* ================= signal vs noise (one cohort) ================= */
+/* All stages count CVEs published in the same trailing 365-day window, so
+ * they are shares of one base (not a funnel: an exploited CVE can be MEDIUM). */
+function signalStages(ctx) {
+  const L = ctx.core.landscape && ctx.core.landscape.all;
+  if (!L || !L.window || !L.window.n) return null;
+  const [from, to] = L.window.cur;
+  const sw = L.sevWindow || null;
+  const dist = ctx.epss && ctx.epss.dist && ctx.epss.dist.all;
+  const kev = ((ctx.kev && ctx.kev.entries) || []).filter((e) => e.published && e.published >= from && e.published <= to);
+  return {
+    from, to, base: L.window.n,
+    hc: sw ? (sw.CRITICAL || 0) + (sw.HIGH || 0) : null,
+    epss: dist && fin(dist.ge10) ? dist.ge10 : null,
+    kev: ctx.kev && ctx.kev.entries ? kev.length : null,
+  };
+}
+const oneIn = (n, base) => (n > 0 ? `1 in ${num.format(Math.round(base / n))}` : "none");
+function buildSignal(ctx) {
+  const el = $("#signal-bars");
+  const st = signalStages(ctx);
+  if (!st) { $("#signal").remove(); return; }
+  const rows = [
+    { label: "Published", sub: "all CVEs", n: st.base, cls: "all" },
+    st.hc != null && { label: "Rated HIGH or CRITICAL", sub: "CVSS in the record", n: st.hc, cls: "hc" },
+    st.epss != null && { label: "Likely to be exploited", sub: "EPSS ≥ 10% in the next 30 days", n: st.epss, cls: "epss" },
+    st.kev != null && { label: "Confirmed exploited", sub: "in CISA KEV", n: st.kev, cls: "kev" },
+  ].filter(Boolean);
+  const list = h("div", { class: "sig", role: "list" });
+  for (const r of rows) {
+    const fill = h("span", { class: "sig-fill " + r.cls });
+    fill.style.width = Math.max(0.35, (100 * r.n) / st.base).toFixed(2) + "%";
+    const share = r.cls === "all" ? "" : r.n / st.base >= 0.1 ? pct(r.n / st.base) : oneIn(r.n, st.base);
+    list.append(h("div", { class: "sig-row", role: "listitem", "aria-label": `${r.label}: ${num.format(r.n)}${share ? " (" + share + ")" : ""}` },
+      h("div", { class: "sig-lab" }, h("span", { class: "sig-name", text: r.label }), h("span", { class: "sig-sub", text: r.sub })),
+      h("span", { class: "sig-bar" }, fill),
+      h("span", { class: "sig-n" }, h("b", { text: num.format(r.n) }), share ? h("span", { class: "sig-share", text: share }) : null)));
+  }
+  el.append(list);
+  const ratio = st.hc && st.kev ? st.hc / st.kev : null;
+  fig(el, {
+    titleEl: "#h-signal",
+    title: st.hc && st.kev ? `Severity flags ${pct(st.hc / st.base)} of new CVEs; exploitation evidence flags ${oneIn(st.kev, st.base)}` : null,
+    subEl: "#signal-hint",
+    sub: `Every bar counts the same CVEs: the ${num.format(st.base)} published from ${fmtDay(st.from)} to ${fmtDay(st.to)}. Bars are shares of that one base, not a funnel: an exploited CVE can be rated MEDIUM. EPSS is a model estimate; KEV is confirmed exploitation and lags. Gartner's 2026–2027 threat outlook puts it as leaders needing to "find the threat signal in all the noise".`,
+    so: ratio ? `A severity-first queue is about ${num.format(Math.round(ratio))}× larger than the confirmed-exploited list. Patch KEV first, then high EPSS, then the rest by severity and exposure.` : null,
+    src: srcLine(ctx, ["cve", "epss", "kev"]),
+  });
+}
+
 /* ================= executive brief: how to adjust ================= */
 /* Five programme changes, each backed by this build's numbers. An item only
  * renders when its evidence exists, so the list never states a bare opinion. */
@@ -2446,7 +2496,7 @@ function explainPart2(ctx, F, S) {
  * Short static names: the on-page titles are full takeaway sentences. */
 const NAV_SUB = {
   brief: [],
-  summary: [["kpis", "Key figures"], ["hero", "CVEs per year"], ["where", "Where exploitation happens"]],
+  summary: [["kpis", "Key figures"], ["signal", "Signal vs noise"], ["hero", "CVEs per year"], ["where", "Where exploitation happens"]],
   exploit: [["exploitation", "Exploitation by origin"], ["speed", "Speed of exploitation"], ["kev-latest", "Latest exploited"], ["zerodays", "Recent zero-days"], ["next", "Patch next"]],
   volume: [["sevyears", "Severity per year"], ["tops", "Top weaknesses, vendors & CNAs"], ["supply", "Supply chain"]],
   ai: [["ai-kpis", "Key figures"], ["relations", "How CVEs relate to AI"], ["issuance", "AI share of all CVEs"], ["ai-origin", "Where AI CVEs come from"], ["exploited", "Exploited AI vulnerabilities"], ["ai-next", "AI patch next"], ["breaks", "How AI CVEs differ"], ["layers", "AI stack layers"], ["latest", "Latest AI CVEs"], ["cna", "Who reports AI CVEs"], ["context", "Context"]],
@@ -2576,6 +2626,7 @@ function infoize() {
     // Part 1: all CVEs
     ["headline", () => buildHeadline(ctx, F, S)],
     ["KPIs", () => buildKpis(ctx, F, S)],
+    ["signal vs noise", () => buildSignal(ctx)],
     ["brief", () => buildBrief(ctx, F, S)],
     ["hero chart", () => buildHeroChart(ctx, F)],
     ["where exploitation happens", () => buildWhere(ctx, F, S)],
