@@ -665,6 +665,8 @@ function kevProducts(F) {
   return [...m.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
 }
 const listJoin = (a) => (a.length <= 1 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]);
+/* cut at a word boundary with an ellipsis (the build stores 240 characters) */
+const wordClip = (s, n) => { if (!s) return s; if (s.length < n) return s; const cut = s.slice(0, n); const i = cut.lastIndexOf(" "); return (i > n * 0.6 ? cut.slice(0, i) : cut).replace(/[,;:.\s]+$/, "") + "…"; };
 const lcFirst = (s) => (/^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
 const clean = (s) => (typeof s === "string" && s && !/NaN|undefined|null|Infinity/.test(s) ? s : null);
 
@@ -839,7 +841,7 @@ function buildSignal(ctx) {
   if (!st) { $("#signal").remove(); return; }
   const rows = [
     { label: "Published", sub: "all CVEs", n: st.base, cls: "all" },
-    st.hc != null && { label: "Rated HIGH or CRITICAL", sub: "CVSS in the record", n: st.hc, cls: "hc" },
+    st.hc != null && { label: "Rated HIGH or CRITICAL", sub: "record CVSS; unrated CVEs count as not", n: st.hc, cls: "hc" },
     st.epss != null && { label: "Elevated exploit probability", sub: "EPSS ≥ 10% (30-day model estimate)", n: st.epss, cls: "epss" },
     st.kev != null && { label: "Confirmed exploited", sub: "in CISA KEV", n: st.kev, cls: "kev" },
   ].filter(Boolean);
@@ -857,7 +859,7 @@ function buildSignal(ctx) {
   const ratio = st.hc && st.kev ? st.hc / st.kev : null;
   fig(el, {
     titleEl: "#h-signal",
-    title: st.hc && st.kev ? `Severity flags ${pct(st.hc / st.base)} of new CVEs; exploitation evidence flags ${oneIn(st.kev, st.base)}` : null,
+    title: st.hc && st.kev ? `Last 12 months: severity flags ${pct(st.hc / st.base)} of new CVEs; exploitation evidence flags ${oneIn(st.kev, st.base)}` : null,
     subEl: "#signal-hint",
     sub: `Every bar counts the same CVEs: the ${num.format(st.base)} published from ${fmtDay(st.from)} to ${fmtDay(st.to)}. Bars are shares of that one base, not a funnel: an exploited CVE can be rated MEDIUM. EPSS is a model estimate; KEV is confirmed exploitation and lags. Gartner's 2026–2027 threat outlook puts it as leaders needing to "find the threat signal in all the noise".`,
     so: ratio ? `A severity-first queue is about ${num.format(Math.round(ratio))}× larger than the confirmed-exploited list. Patch KEV first, then rank the rest by EPSS, severity and exposure`
@@ -1984,14 +1986,14 @@ function buildRecentAiTable(ctx) {
     const cnaName = r.cnaName || "";
     const cna = cnaName || r.cna || "";
     const isEmail = cna.includes("@") && !cnaName;
-    const tdCna = h("td", { class: "cna", "data-label": "CNA", text: cnaName || isEmail ? cna : cna.slice(0, 8), title: r.cna && r.cna !== cna ? r.cna : cna || null });
+    const tdCna = h("td", { class: "cna", "data-label": "CNA", text: isEmail ? cna : prettyCna(cna), title: r.cna && r.cna !== cna ? r.cna : cna || null });
     if (isEmail || cnaName) tdCna.classList.add("nowrap");
     tbody.append(h("tr", null,
       h("td", null, span),
       h("td", { class: "nowrap pub", text: r.published ? r.published + "Z" : "—" }),
       relCell(r.rels || m.rels || (r.layer || m.layer ? ["product"] : []), tidyProduct(r.product || m.product), ctx.relLabel),
       tdCna,
-      h("td", { class: "desc", text: r.description || "(no English description)" })));
+      h("td", { class: "desc", text: wordClip(r.description, 220) || "(no English description)" })));
   }
 }
 function wireAiFilter() {
@@ -2176,7 +2178,7 @@ function buildMethod(ctx) {
  * compute is skipped and the static HTML wording stays. */
 const PRODUCT_NAMES = { tensorflow: "TensorFlow", openclaw: "OpenClaw", pytorch: "PyTorch", langflow: "Langflow", litellm: "LiteLLM", mlflow: "MLflow", vllm: "vLLM", ollama: "Ollama" };
 const prettyProduct = (p) => (p ? PRODUCT_NAMES[String(p).toLowerCase()] || (String(p)[0].toUpperCase() + String(p).slice(1)) : p);
-const CNA_NAMES = { GitHub_M: "GitHub (advisories)", "@huntr_ai": "huntr (Protect AI)", huntr_ai: "huntr (Protect AI)", mitre: "MITRE", VulnCheck: "VulnCheck",
+const CNA_NAMES = { GitHub_M: "GitHub (advisories)", certcc: "CERT/CC", "@certcc": "CERT/CC", "@huntr_ai": "huntr (Protect AI)", huntr_ai: "huntr (Protect AI)", mitre: "MITRE", VulnCheck: "VulnCheck",
   microsoft: "Microsoft", nvidia: "NVIDIA", ibm: "IBM", VulDB: "VulDB", apache: "Apache", intel: "Intel", oracle: "Oracle", redhat: "Red Hat", Wordfence: "Wordfence", Patchstack: "Patchstack", snyk: "Snyk", Google: "Google", INCD: "Israel NCD", other: "other CNAs" };
 /* takeaway for "who reports": the assigner with the biggest jump on last
  * year (a new bulk filer moves the curve), else the largest assigner.
@@ -2346,7 +2348,7 @@ function yearNotes(notes, isTime) {
         continue;
       }
       px = Math.min(Math.max(px, u.bbox.left + w / 2 + 2), u.bbox.left + u.bbox.width - w / 2 - 2);
-      const py = Math.max(u.bbox.top + 11 * dpr, u.valToPos(bv, "y", true) - 5 * dpr);
+      const py = Math.max(u.bbox.top + 11 * dpr, u.valToPos(bv, "y", true) - 9 * dpr);
       c.fillText(text, px, py);
     }
     c.restore();
@@ -2591,7 +2593,7 @@ function explainDetail(ctx, F, S) {
     if (o) {
       const r = SEV_KEYS.reduce((t, k) => t + (o[k] || 0), 0), hc = (o.CRITICAL || 0) + (o.HIGH || 0);
       fig("#chart-sev", {
-        so: "Most AI-related CVEs need high-priority handling: budget AI patching like any production stack.",
+        so: r ? `${hc / r > 0.5 ? "Most" : "Many"} AI-related CVEs (${pct(hc / r)} of rated) need high-priority handling: budget AI patching like any production stack.` : null,
         titleEl: "#h-sevmix", title: r ? `${num.format(hc)} HIGH/CRITICAL AI-related CVEs in ${F.year} so far (${pct(hc / r)} of ${num.format(r)} rated)` : null,
         subEl: "#sev-hint", sub: `AI-related CVEs per year, 2018 → ${F.year} (${partialLabel(F)}), stacked by CVSS severity from the CVE record.`,
         how: "Segments add up to the year's AI-related CVEs, CRITICAL at the bottom, unrated on top. Severity is the vendor's CVSS, not risk.",
@@ -2701,7 +2703,7 @@ function explainPart1(ctx, F, S) {
   try {
     const d = ctx.epss && ctx.epss.dist && ctx.epss.dist.all;
     fig("#tbl-next", {
-      titleEl: "#h-next", title: d && d.n ? `${num.format(d.ge10)} of the last 12 months' ${num.format(d.n)} CVEs have an EPSS of 10% or more — the top ones are not in KEV yet` : null,
+      titleEl: "#h-next", title: d && d.n ? `${num.format(d.ge10)} of the last 12 months' ${num.format(d.n)} EPSS-scored CVEs are at 10% or more — the top ones are not in KEV yet` : null,
       subEl: "#next-hint", sub: "CVEs published in the last 12 months that are not in CISA KEV, ranked by FIRST EPSS (estimated probability of exploitation activity in the next 30 days), highest first.",
       how: "EPSS is a model estimate of exploitation activity in the next 30 days, not observed exploitation. It also misses real exploitation: many CVEs in KEV scored below 10% before they were listed.",
       so: (() => {
