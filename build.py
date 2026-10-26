@@ -968,7 +968,7 @@ def ytd_filers(rows, today, bulk=BULK_CNAS):
     cy, py = str(today.year), str(today.year - 1)
     md = today.strftime("%m-%d")
     zero = lambda: {"cur": 0, "prev": 0, "bulkCur": 0, "bulkPrev": 0}
-    tot, ai, by = zero(), zero(), defaultdict(zero)
+    tot, ai, by, rel = zero(), zero(), defaultdict(zero), defaultdict(zero)
     for day, _sev, _cwe, cna, _vend, origin, rels in rows:
         if day[5:] > md:
             continue
@@ -976,12 +976,12 @@ def ytd_filers(rows, today, bulk=BULK_CNAS):
         if not k:
             continue
         b = "bulkCur" if k == "cur" else "bulkPrev"
-        for c in (tot, by[origin or "other"]) + ((ai,) if is_ai_risk(rels) else ()):
+        for c in (tot, by[origin or "other"]) + ((ai,) if is_ai_risk(rels) else ()) + tuple(rel[r] for r in (rels or ())):
             c[k] += 1
             if cna in bulk:
                 c[b] += 1
     return {"window": [f"{cy}-01-01", today.isoformat()], "prevWindow": [f"{py}-01-01", f"{py}-{md}"],
-            "bulkCnas": list(bulk), "all": tot, "ai": ai, "origins": dict(by)}
+            "bulkCnas": list(bulk), "all": tot, "ai": ai, "origins": dict(by), "rels": dict(rel)}
 
 
 def landscape(rows, months, today, since="2018", top=12):

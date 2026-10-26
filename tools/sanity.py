@@ -145,7 +145,7 @@ EXPR = r"""(() => {
   const threats = [...document.querySelectorAll("#threat-cards .threat")].map((c) => ({ name: c.querySelector(".th-name").textContent,
     v: (c.querySelector(".v") || {}).textContent || "", unit: (c.querySelector(".th-unit") || {}).textContent || "" }));
   return JSON.stringify({ tiles: tiles("#kpis"), aiTiles: tiles("#ai-kpis"), sig, threats,
-    headline: t("#headline"), kevVendTitle: t("#h-kevvend"), cweTitle: t("#h-cweall"), kevVendTop: t("#kevvend-bars .hb-n"), heroTitle: t("#h-hero"), aiHeadline: t("#ai-headline"), signalTitle: t("#h-signal"),
+    headline: t("#headline"), kevVendTitle: t("#h-kevvend"), cweTitle: t("#h-cweall"), issTitle: t("#h-issuance"), kevVendTop: t("#kevvend-bars .hb-n"), heroTitle: t("#h-hero"), aiHeadline: t("#ai-headline"), signalTitle: t("#h-signal"),
     brief: [...document.querySelectorAll("#brief-list li")].map((l) => l.textContent),
     body: document.querySelector("main").innerText.slice(0, 200000) });
 })()"""
@@ -183,6 +183,14 @@ if page:
     if y and y.get("ai") and y["ai"]["prev"] - y["ai"]["bulkPrev"] > 0:
         rax = round((y["ai"]["cur"] - y["ai"]["bulkCur"]) / (y["ai"]["prev"] - y["ai"]["bulkPrev"]), 1)
         check(f"×{rax}" in page["aiHeadline"], f"page: AI headline lacks growth without bulk filers ×{rax}")
+    if y and y.get("rels", {}).get("agent"):
+        ag = y["rels"]["agent"]
+        mt = next((x for kk, x in {t_["k"]: t_ for t_ in page["aiTiles"]}.items() if kk.startswith("MCP")), None)
+        check(mt and num(mt["v"]) == ag["cur"] and f"{ag['prev']:,} by this date" in mt["d"],
+              f"page: MCP tile {mt and (mt['v'], mt['d'])} != one-window {ag['cur']}/{ag['prev']}")
+    if y and y.get("ai"):
+        sh = f"{100 * y['ai']['cur'] / y['all']['cur']:.1f}%"
+        check(sh in page.get("issTitle", "") and sh in json.dumps(page["aiTiles"]), f"page: AI share {sh} not identical on tile and issuance title")
     k = tile("Exploited (")
     check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
     check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")

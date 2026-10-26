@@ -473,6 +473,7 @@ def test_ytd_filers():
     check("per origin", r["origins"]["supplychain"] == {"cur": 2, "prev": 0, "bulkCur": 1, "bulkPrev": 0}
           and r["origins"]["edge"] == {"cur": 0, "prev": 1, "bulkCur": 0, "bulkPrev": 1})
     check("AI-related row: found-only excluded", r["ai"] == {"cur": 1, "prev": 0, "bulkCur": 1, "bulkPrev": 0})
+    check("per relation", r["rels"]["agent"] == {"cur": 1, "prev": 0, "bulkCur": 1, "bulkPrev": 0} and r["rels"]["found"]["cur"] == 1)
     check("windows labelled", r["window"] == ["2026-01-01", "2026-10-26"] and r["prevWindow"] == ["2025-01-01", "2025-10-26"])
 
 

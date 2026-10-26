@@ -970,7 +970,8 @@ function buildBrief(ctx, F, S) {
     if (!a || !a.n) return null;
     const ry = relYtd(ctx.core, F);
     const ag = ry && ry.agent;
-    const agent = ag && ag.cur && ag.prev && ag.cur > ag.prev ? ` MCP and agent CVEs are already ×${fmtX(ag.cur / ag.prev)} last year's total.` : "";
+    const yr = ytdRel(ctx.core, "agent");
+    const agent = yr && yr.cur > yr.prev ? ` MCP and agent CVEs are ×${fmtX(yr.cur / yr.prev)} the same period last year${yr.rx ? ` (×${fmtX(yr.rx)} without bulk filing by ${BULK_NAMES})` : ""}.` : "";
     const exp = S.kev && fin(S.kev.aiCur) ? `, ${num.format(S.kev.aiCur)} of them confirmed exploited` : "";
     return { act: "Bring AI apps, agents and MCP servers into scope.", href: "#ai", tag: "AI application compromise",
       why: `${num.format(a.n)} CVEs this year (${pct(a.n / a.of, 1)}) are AI-related${exp}.${agent} Inventory them, assign owners, threat-model them and limit the data and tools they can reach.` };
@@ -1449,14 +1450,14 @@ function buildAiKpis(ctx, F, S) {
   const ry = relYtd(core, F);
   const mcp = core.layerMonths && core.layerMonths.mcp;
   if (ry && ry.agent) {
-    // same complete months on both sides (the relation counts are whole years)
-    const ym = mcp ? ytdMonths(core, mcp, F) : null;
-    const delta = ym ? growthDelta(ym.cur, ym.prev, F.prevYear) : null;
-    if (delta) delta.title = `MCP-layer CVEs, ${ym.label} ${F.year} vs ${ym.label} ${F.prevYear}`;
-    tiles.push({ k: `MCP & agent CVEs ${F.year}`, v: num.format(ry.agent.cur), cls: "ai", delta,
+    // the build's one YTD window for value, comparison and badge
+    const ag = ytdRel(core, "agent");
+    tiles.push({ k: `MCP & agent CVEs ${F.year}`, v: num.format(ag ? ag.cur : ry.agent.cur), cls: "ai",
+      delta: ag ? growthDelta(ag.cur, ag.prev, F.prevYear) : null,
       spark: mcp ? { vals: monthSeries(M, core.months, mcp), title: sparkTitle } : null,
-      d: `${num.format(ry.agent.prev)} in all of ${F.prevYear}` });
+      d: ag ? `${num.format(ag.prev)} by this date in ${F.prevYear}` + (ag.rx ? ` · ×${fmtX(ag.rx)} without ${BULK_NAMES}` : "") : `${num.format(ry.agent.prev)} in all of ${F.prevYear}` });
   }
+
   const k = S.kev;
   if (k && F.kevAi) {
     const md = F.asOf.slice(5);
@@ -2167,6 +2168,13 @@ function ytdRatio(core, origin) {
     bulkShare: c.cur - c.prev > 0 ? (c.bulkCur - c.bulkPrev) / (c.cur - c.prev) : null };
 }
 const BULK_NAMES = "GitHub and VulnCheck";
+/* one relation (agent, product …) over the same YTD window */
+function ytdRel(core, rel) {
+  const c = core && core.ytd && core.ytd.rels && core.ytd.rels[rel];
+  if (!c || !c.prev) return null;
+  const xp = c.prev - c.bulkPrev;
+  return { cur: c.cur, prev: c.prev, rx: xp > 0 ? (c.cur - c.bulkCur) / xp : null };
+}
 function ytdMonths(core, arr, F) {
   if (!Array.isArray(arr) || !Array.isArray(core.months)) return null;
   const curM = +F.asOf.slice(5, 7);
@@ -2516,11 +2524,12 @@ function explainDetail(ctx, F, S) {
     }
   } catch (e) { /* skip */ }
   try {
-    const ytd = ytdMonths(core, core.aiMonths, F), all = ytdMonths(core, core.counts, F);
+    const ya = core.ytd && core.ytd.ai, yall = core.ytd && core.ytd.all;
+    const ytd = ya ? { cur: ya.cur, prev: ya.prev } : null, all = yall ? { cur: yall.cur, prev: yall.prev } : null;
     fig("#chart-cves", {
       so: "AI is a growing slice of the patch workload: put AI tooling in the asset inventory so these CVEs reach an owner.",
       titleEl: "#h-issuance",
-      title: ytd && all && all.cur && all.prev ? `AI's share of all CVEs: ${pct(ytd.cur / all.cur, 1)} in ${ytd.label} ${F.year} vs ${pct(ytd.prev / all.prev, 1)} a year earlier` : null,
+      title: ytd && all && all.cur && all.prev ? `AI's share of all CVEs: ${pct(ytd.cur / all.cur, 1)} so far in ${F.year} vs ${pct(ytd.prev / all.prev, 1)} by this date in ${F.prevYear}` : null,
       subEl: "#issuance-hint", sub: "AI-related CVEs as a % of all published CVEs, per month since 2018. Spikes are single-product bulk disclosures (e.g. TensorFlow 2021, OpenClaw 2026). Switch Mode to Count or Cumulative for absolute numbers (lines, not stacked).",
       after: "#ctl-cves",
       how: "Count = CVEs per period; Cumulative = running total; AI share % = AI ÷ all per period. Pitfall: the last period is partial.",
