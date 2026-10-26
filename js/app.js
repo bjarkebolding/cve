@@ -34,7 +34,8 @@ const pct = (x, digits = 0) => (100 * x).toFixed(digits) + "%";
  * Meaning is fixed: blue = AI, red/orange/amber = severity and exploitation
  * only, grey = "all" and the remainder; the other hues are muted categories
  * picked to stay apart under protan/deutan/tritan simulation. */
-const LIGHT = !!(window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches);
+const FORCED_THEME = document.documentElement.getAttribute("data-theme");
+const LIGHT = FORCED_THEME ? FORCED_THEME === "light" : !!(window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches);
 const tone = (dark, light) => (LIGHT ? light : dark);
 const ROOT_CSS = getComputedStyle(document.documentElement);
 const tok = (name, dark, light) => (ROOT_CSS.getPropertyValue("--" + name) || "").trim() || tone(dark, light);
@@ -2820,5 +2821,14 @@ function infoize() {
   try { clipTables(); } catch (err) { /* tables simply stay full length */ }
   try { infoize(); } catch (err) { /* details simply stay inline */ }
   // canvas charts take their colours at draw time: redraw on a theme switch
-  try { matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => location.reload()); } catch (e) { /* old browsers keep the first theme */ }
+  try { matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => { if (!FORCED_THEME) location.reload(); }); } catch (e) { /* old browsers keep the first theme */ }
+  // Auto / Light / Dark: canvas charts take colours at draw time, so a switch reloads
+  for (const b of document.querySelectorAll("[data-theme-set]")) {
+    const v = b.getAttribute("data-theme-set");
+    b.setAttribute("aria-pressed", String((FORCED_THEME || "auto") === v));
+    b.addEventListener("click", () => {
+      try { if (v === "auto") localStorage.removeItem("theme"); else localStorage.setItem("theme", v); } catch (e) { /* storage blocked */ }
+      location.reload();
+    });
+  }
 })();

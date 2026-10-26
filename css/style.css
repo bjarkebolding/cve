@@ -56,7 +56,7 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0e1014;
     --raise: #181b21;
     --hover: rgba(255, 255, 255, 0.035);
@@ -96,6 +96,46 @@
     color-scheme: dark;
   }
 }
+:root[data-theme="dark"] {
+  --bg: #0e1014;
+  --raise: #181b21;
+  --hover: rgba(255, 255, 255, 0.035);
+  --ink: #e9ebee;          /* 15.9:1 */
+  --ink-2: #b3b9c3;        /* 9.7:1 */
+  --muted: #8a919c;        /* 6.0:1 */
+  --line: #262a32;
+  --line-2: #3a404a;
+  --track: #1d2027;
+  --accent: #7c9cff;       /* 7.3:1 */
+  --warn: #ef6b63;         /* 6.3:1 */
+  --focus: #9db4ff;
+  --nav-bg: rgba(14, 16, 20, 0.9);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+  --c-blue: #7c9cff;
+  --c-teal: #4fb3a9;
+  --c-sage: #6e9d5e;
+  --c-sand: #d9c79f;
+  --c-mauve: #b07cb8;
+  --c-sky: #8cc8e8;
+  --c-plum: #7a5a9a;
+  --c-neutral: #c9ced6;
+  --c-grey: #646c7a;
+  --c-slate: #4e5767;
+  --c-steel: #8594ae;
+  --c-crit: #ef6b63;
+  --c-high: #e5925c;
+  --c-med: #dcb162;
+  --c-low: #8fa6c4;
+  --c-unrated: #4e5767;
+  --c-all: #c9ced6;
+  --chart-grid: rgba(138, 145, 156, 0.14);
+  --chart-tick: rgba(138, 145, 156, 0.35);
+  --chart-all-fill: rgba(201, 206, 214, 0.06);
+  --chart-ai-fill: rgba(124, 156, 255, 0.20);
+  color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
@@ -702,3 +742,13 @@ footer a { color: var(--ink-2); }
   table.clip tbody tr.more { display: table-row !important; }
   .showall { display: none; }
 }
+
+/* ---------------- theme switch (slides are usually light) ---------------- */
+.theme-switch { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; }
+.theme-switch button {
+  min-height: 30px; padding: 0 9px; border: 1px solid transparent; border-radius: 6px; background: none;
+  font: 500 12.5px/1 var(--sans); color: var(--muted); cursor: pointer;
+}
+.theme-switch button[aria-pressed="true"] { color: var(--ink); border-color: var(--line-2); background: var(--raise); }
+@media (max-width: 760px) { .theme-switch { display: none; } }
+@media print { .theme-switch { display: none; } }
