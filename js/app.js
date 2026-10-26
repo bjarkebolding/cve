@@ -756,8 +756,11 @@ function countByMonth(months, items, keyFn) {
   for (const it of items || []) { const m = String(keyFn(it) || "").slice(0, 7); if (m in c) c[m] += 1; }
   return months.map((m) => c[m]);
 }
+/* Change badge vs the same period last year. Below a base of 10 a ratio
+ * is noise ("×10" from 1 to 10), so the badge shows both counts instead. */
 const growthDelta = (cur, prev, prevYear) => (prev > 0 && fin(cur)
-  ? { up: cur >= prev, text: cur / prev >= 1.995 ? `×${fmtX(cur / prev)}` : `${Math.round(Math.abs(100 * (cur / prev - 1)))}%`, title: `vs the same period of ${prevYear}` }
+  ? { up: cur >= prev, title: `vs the same period of ${prevYear}`,
+      text: prev < 10 ? `${num.format(cur)} vs ${num.format(prev)}` : cur / prev >= 1.995 ? `×${fmtX(cur / prev)}` : `${Math.round(Math.abs(100 * (cur / prev - 1)))}%` }
   : null);
 const tileSrc = (ctx, name) => `${name} · ${String((ctx.core && ctx.core.generatedAt) || "").slice(0, 10)} · ${SITE}`;
 function buildKpis(ctx, F, S) {
@@ -774,9 +777,11 @@ function buildKpis(ctx, F, S) {
     spark: { vals: countByMonth(M, ents, (e) => e.added), title: sparkTitle },
     d: k.prevSame ? `${num.format(k.prevSame)} by this date in ${F.prevYear}` : "added to CISA KEV this year" });
   if (k && fin(k.zd)) {
-    tiles.push({ k: `Zero-days ${F.year}`, v: num.format(k.zd), cls: "warn", delta: growthDelta(k.zd, k.zdPrevSame, F.prevYear),
+    const zb = ctx.zd && ctx.zd.byYear;
+    tiles.push({ k: `Exploited at disclosure ${F.year}`, v: num.format(k.zd), cls: "warn", delta: growthDelta(k.zd, k.zdPrevSame, F.prevYear),
       spark: { vals: countByMonth(M, ents.filter((e) => e.zeroDay), (e) => e.published), title: sparkTitle },
-      d: ["exploited at disclosure", fin(k.zdPrevSame) ? `${num.format(k.zdPrevSame)} by this date in ${F.prevYear}` : null].filter(Boolean).join(" · ") });
+      d: [fin(k.zdPrevSame) ? `${num.format(k.zdPrevSame)} by this date in ${F.prevYear}` : null,
+        zb && fin(zb[F.year]) ? `Project Zero: ${num.format(zb[F.year])} in-the-wild zero-days patched (${num.format(zb[F.prevYear] || 0)} in all of ${F.prevYear})` : null].filter(Boolean).join(" · ") });
   }
   if (S.supply || fin(S.malYtd)) {
     const om = ctx.core.originMonths && ctx.core.originMonths.supplychain;
@@ -1268,7 +1273,7 @@ function buildKevAll(ctx) {
   for (const r of rows) {
     const idCell = h("td", { class: "nowrap" }, cveLink(r.cve));
     if (r.ransomware) idCell.append(badge("RANSOMWARE", "", "CISA: known use in ransomware campaigns"));
-    if (r.zeroDay) idCell.append(badge("0-DAY", "", "added to KEV within one day of CVE publication"));
+    if (r.zeroDay) idCell.append(badge("AT DISCLOSURE", "", "added to CISA KEV within one day of CVE publication (a zero-day proxy)"));
     const sc = scores ? scores[r.cve] : null;
     tbody.append(h("tr", null, idCell,
       h("td", { text: tidyProduct(r.product) || "—", title: r.desc || null }),
@@ -2595,7 +2600,7 @@ function explainPart1(ctx, F, S) {
     const rw = yr.filter((e) => e.ransomware).length;
     fig("#tbl-kevall", {
       titleEl: "#h-kevall", title: yr.length ? `Latest exploited vulnerabilities — ${num.format(yr.length)} added in ${F.year}, ${num.format(rw)} linked to ransomware` : null,
-      subEl: "#kevall-hint", sub: "The 15 most recent CISA KEV additions, newest first. RANSOMWARE = CISA knows of ransomware use; 0-DAY = added within one day of the CVE's publication.",
+      subEl: "#kevall-hint", sub: "The 15 most recent CISA KEV additions, newest first. RANSOMWARE = CISA knows of ransomware use; AT DISCLOSURE = added within one day of the CVE's publication (a zero-day proxy, not confirmed zero-day exploitation).",
       how: "Every row is confirmed in-the-wild exploitation. EPSS = estimated chance of exploitation activity in the next 30 days.",
       so: "If you run any of these products, these come before everything else in the patch queue.",
       src: srcLine(ctx, ["kev", "epss"]),

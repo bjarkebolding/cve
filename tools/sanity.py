@@ -170,10 +170,20 @@ if page:
     if y and bulk_share >= 0.3:  # a growth headline driven by bulk filers must say so
         check("without" in page["headline"] and "without" in page["heroTitle"],
               f"page: {bulk_share:.0%} of the CVE rise is bulk filing, but the headline/hero title do not show growth without it")
-    k = tile("Exploited")
+    # the KEV-proxy tile must not be called "zero-days", and must cite Project Zero beside it
+    check(not tile("Zero-days"), "page: KEV at-disclosure proxy labelled 'Zero-days'")
+    if zd and zd.get("byYear", {}).get(year) is not None:
+        zt = tile("Exploited at disclosure")
+        check(zt and f"Project Zero: {zd['byYear'][year]:,}" in zt["d"], "page: at-disclosure tile lacks the Project Zero count")
+    # no ×N growth multiple on a base below 10
+    for t_ in page["tiles"] + page["aiTiles"]:
+        mb = re.search(r"([\d,]+) by this date", t_.get("d") or "")
+        if "×" in (t_.get("delta") or "") and mb:
+            check(num(mb.group(1)) >= 10, f"page: tile {t_['k']!r} shows {t_['delta']} on a base of {mb.group(1)}")
+    k = tile("Exploited (")
     check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
     check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")
-    z = tile("Zero-days")
+    z = tile("Exploited at disclosure")
     check(z and num(z["v"]) == exp["zd_cur"], f"page: zero-day tile {z and z['v']} != data {exp['zd_cur']}")
     # the same growth figure must read the same everywhere
     xs = set(re.findall(r"[×x](\d+\.\d)", page["heroTitle"]))
