@@ -289,9 +289,10 @@ h3 { font-size: 15px; line-height: 1.4; font-weight: 600; margin: 28px 0 12px; m
 .hero .u-inline .u-series th::after { content: none; }
 .hero .u-legend .u-series th { padding: 0 4px 0 0; }
 /* main chart */
-#chart-cves .u-legend tr.u-series:first-child { display: none; }
-#chart-cves .u-inline .u-series th::after { content: none; }
-#chart-cves .u-legend .u-value { padding-left: 4px; }
+/* every legend: no x-axis entry, no colon; hover values sit after the label */
+.u-legend tr.u-series:first-child { display: none; }
+.u-inline .u-series th::after { content: none; }
+.u-legend .u-value { padding-left: 4px; color: var(--ink); font-variant-numeric: tabular-nums; }
 
 /* ---------------- controls ---------------- */
 .controls {

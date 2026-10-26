@@ -1169,7 +1169,7 @@ function buildRelations(ctx, F) {
     ariaLabel: "AI-related CVEs per year by relation, one line per relation (a CVE can count in several)",
     scales: { x: { time: false } },
     axes: [
-      { space: 34, values: tick((v) => String(v) + (String(v) === cur ? " YTD" : "")), incrs: [1, 2, 5] },
+      { space: 34, values: tick((v) => String(v) + (String(v) === cur ? "\nYTD" : "")), incrs: [1, 2, 5], size: 44 },
       { space: 36, label: "CVEs per year", values: tick(axisNum), size: 56 },
     ],
     series: [
