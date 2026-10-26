@@ -797,7 +797,12 @@ function signalStages(ctx) {
   const sw = L.sevWindow || null;
   const dist = ctx.epss && ctx.epss.dist && ctx.epss.dist.all;
   const kev = ((ctx.kev && ctx.kev.entries) || []).filter((e) => e.published && e.published >= from && e.published <= to);
+  // how many of the confirmed-exploited ones EPSS >= 10% would have caught
+  const sc = (ctx.epss && ctx.epss.scores) || {};
+  const scored = kev.filter((e) => sc[e.cve] && fin(sc[e.cve].epss));
+  const caught = scored.filter((e) => sc[e.cve].epss >= 0.1).length;
   return {
+    recall: scored.length >= 20 ? { caught, of: scored.length } : null,
     from, to, base: L.window.n,
     hc: sw ? (sw.CRITICAL || 0) + (sw.HIGH || 0) : null,
     epss: dist && fin(dist.ge10) ? dist.ge10 : null,
@@ -812,7 +817,7 @@ function buildSignal(ctx) {
   const rows = [
     { label: "Published", sub: "all CVEs", n: st.base, cls: "all" },
     st.hc != null && { label: "Rated HIGH or CRITICAL", sub: "CVSS in the record", n: st.hc, cls: "hc" },
-    st.epss != null && { label: "Likely to be exploited", sub: "EPSS ≥ 10% in the next 30 days", n: st.epss, cls: "epss" },
+    st.epss != null && { label: "Elevated exploit probability", sub: "EPSS ≥ 10% (30-day model estimate)", n: st.epss, cls: "epss" },
     st.kev != null && { label: "Confirmed exploited", sub: "in CISA KEV", n: st.kev, cls: "kev" },
   ].filter(Boolean);
   const list = h("div", { class: "sig", role: "list" });
@@ -832,7 +837,8 @@ function buildSignal(ctx) {
     title: st.hc && st.kev ? `Severity flags ${pct(st.hc / st.base)} of new CVEs; exploitation evidence flags ${oneIn(st.kev, st.base)}` : null,
     subEl: "#signal-hint",
     sub: `Every bar counts the same CVEs: the ${num.format(st.base)} published from ${fmtDay(st.from)} to ${fmtDay(st.to)}. Bars are shares of that one base, not a funnel: an exploited CVE can be rated MEDIUM. EPSS is a model estimate; KEV is confirmed exploitation and lags. Gartner's 2026–2027 threat outlook puts it as leaders needing to "find the threat signal in all the noise".`,
-    so: ratio ? `A severity-first queue is about ${num.format(Math.round(ratio))}× larger than the confirmed-exploited list. Patch KEV first, then high EPSS, then the rest by severity and exposure.` : null,
+    so: ratio ? `A severity-first queue is about ${num.format(Math.round(ratio))}× larger than the confirmed-exploited list. Patch KEV first, then rank the rest by EPSS, severity and exposure`
+      + (st.recall ? `: EPSS ≥ 10% flagged only ${num.format(st.recall.caught)} of the ${num.format(st.recall.of)} confirmed-exploited CVEs (${pct(st.recall.caught / st.recall.of)}), so treat it as a ranking signal, not a cut-off.` : ".") : null,
     src: srcLine(ctx, ["cve", "epss", "kev"]),
   });
 }
@@ -920,7 +926,7 @@ function buildBrief(ctx, F, S) {
     const st = signalStages(ctx);
     if (!st || !st.hc || !st.kev) return null;
     return { act: "Rank the patch queue by exploitation, not by severity.", href: "#signal",
-      why: `In the last 12 months ${pct(st.hc / st.base)} of new CVEs were rated HIGH or CRITICAL, but only ${oneIn(st.kev, st.base)} is confirmed exploited (CISA KEV)${st.epss ? ` and ${oneIn(st.epss, st.base)} is likely to be (EPSS ≥ 10%)` : ""}. Patch KEV first, then high EPSS, then the rest by severity and exposure.` };
+      why: `In the last 12 months ${pct(st.hc / st.base)} of new CVEs were rated HIGH or CRITICAL, but only ${oneIn(st.kev, st.base)} is confirmed exploited (CISA KEV)${st.epss ? `, and ${oneIn(st.epss, st.base)} has an elevated exploit probability (EPSS ≥ 10%)` : ""}. Patch KEV first, then rank the rest by EPSS, severity and exposure${st.recall ? `; EPSS ≥ 10% missed ${pct(1 - st.recall.caught / st.recall.of)} of the CVEs that were exploited, so no score is a safe cut-off` : ""}.` };
   });
   add(() => {
     const ents = (ctx.kev && ctx.kev.entries || []).filter((e) => e && String(e.added).startsWith(F.year) && fin(e.daysToKev));
@@ -2518,8 +2524,13 @@ function explainPart1(ctx, F, S) {
     fig("#tbl-next", {
       titleEl: "#h-next", title: d && d.n ? `${num.format(d.ge10)} of the last 12 months' ${num.format(d.n)} CVEs have an EPSS of 10% or more — the top ones are not in KEV yet` : null,
       subEl: "#next-hint", sub: "CVEs published in the last 12 months that are not in CISA KEV, ranked by FIRST EPSS (estimated probability of exploitation activity in the next 30 days), highest first.",
-      how: "EPSS is a model estimate, not observed exploitation; a high score means attackers are likely already probing for it.",
-      so: d && d.n ? `Fewer than ${pct(Math.max(d.ge10 / d.n, 0.001), 1)} of new CVEs clear 10% EPSS — patching that slice after KEV covers most near-term exploitation at a fraction of the volume.` : null,
+      how: "EPSS is a model estimate of exploitation activity in the next 30 days, not observed exploitation. It also misses real exploitation: many CVEs in KEV scored below 10% before they were listed.",
+      so: (() => {
+        if (!d || !d.n) return null;
+        const st = signalStages(ctx);
+        const miss = st && st.recall ? ` It is a ranking aid, not a safety net: ${pct(1 - st.recall.caught / st.recall.of)} of the CVEs confirmed exploited in the same period scored below 10%.` : "";
+        return `Fewer than ${pct(Math.max(d.ge10 / d.n, 0.001), 1)} of new CVEs clear 10% EPSS: after KEV, work this list from the top, weighted by your exposure and asset criticality.${miss}`;
+      })(),
       src: srcLine(ctx, ["epss", "kev", "cve"]),
     });
   } catch (e) { /* skip */ }

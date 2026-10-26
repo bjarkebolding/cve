@@ -180,6 +180,13 @@ if page:
     sc = tile("Open-source")
     check(not sc or not xs or num(sc["delta"]) in {float(v) for v in xs},
           f"page: supply tile delta {sc and sc['delta']} vs hero title {page['heroTitle']!r}")
+    sc_ = epss.get("scores") or {}
+    coh = [e for e in ents if e.get("published") and w["cur"][0] <= e["published"] <= w["cur"][1] and e["cve"] in sc_]
+    if len(coh) >= 20:
+        caught = sum(1 for e in coh if sc_[e["cve"]]["epss"] >= 0.1)
+        check(f"only {caught:,} of the {len(coh):,} confirmed-exploited" in page["body"],
+              f"page: EPSS recall {caught}/{len(coh)} not stated on the signal card")
+    check("likely to be exploited" not in page["body"].lower(), "page: EPSS described as 'likely to be exploited'")
     sig = [num(v) for v in page["sig"]]
     want = [exp["signal_base"], exp["signal_hc"], exp["signal_epss"], exp["signal_kev"]]
     check(sig == want, f"page: signal bars {sig} != data {want}")
