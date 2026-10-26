@@ -301,6 +301,11 @@ def origin_of_text(text):
         return "other"
 
 
+def is_ai_risk(rels):
+    """build.is_ai_risk: any relation other than "found" (AI discovered the bug)."""
+    return any(r != "found" for r in (rels or ()))
+
+
 def relations_of_text(text, vendor=""):
     """build.ai_relations on free text (KEV/0day rows: no credits/CWE), else []."""
     b = _build()
@@ -363,8 +368,9 @@ def kev_entries(vulns, meta, records=None, ai_match=is_ai_text,
                 layer_fn=layer_of_text, origin_fn=origin_of_text, rel_fn=relations_of_text):
     """KEV catalog rows -> (entries newest first, aiCount).
 
-    AI-related = CVE in ai_meta / with relations in the parse cache (the
-    authoritative CVE-list tagging) OR build's matcher on CISA's
+    AI-related = CVE in ai_meta / with an AI-risk relation in the parse cache
+    (the authoritative CVE-list tagging; "found" alone does not count, see
+    build.is_ai_risk) OR build's matcher on CISA's
     vendor/product/name/description text. origin/published come from the
     parse cache (records), else KEV text / ai_meta. Origins ignore AI.
     """
@@ -379,13 +385,14 @@ def kev_entries(vulns, meta, records=None, ai_match=is_ai_text,
         r = records.get(cve) or {}
         rels = list((m or {}).get("rels") or r.get("rels") or [])
         # KEV text is only consulted for CVEs the parse cache doesn't know
-        flag = bool(m is not None or rels or (not r and ai_match(text)))
+        flag = bool(m is not None or is_ai_risk(rels) or (not r and ai_match(text)))
         added = (v.get("dateAdded") or "")[:10]
         pub = (m or {}).get("d") or r.get("d")
         layer = None
         if flag:
             layer = (m or {}).get("layer") or r.get("layer") or layer_fn(text)
-            rels = rels or rel_fn(text, v.get("vendorProject", "")) or ["product"]
+            if not is_ai_risk(rels):  # flagged by the KEV text matcher only
+                rels = (rel_fn(text, v.get("vendorProject", "")) or ["product"]) + [x for x in rels if x == "found"]
         origin = r.get("origin") or origin_fn(vp)
         if origin in ("mcp", "ai"):  # parse cache from before origins ignored AI
             origin = "other"
@@ -398,6 +405,7 @@ def kev_entries(vulns, meta, records=None, ai_match=is_ai_text,
             "ransomware": v.get("knownRansomwareCampaignUse") == "Known",
             "ai": flag,
             "rels": rels if flag else [],
+            "found": "found" in rels,  # discovered by an AI tool (any CVE)
             "layer": layer,
             "vendor": (v.get("vendorProject") or "").strip(),
             "origin": origin,
@@ -495,7 +503,7 @@ def zerodays_payload(rows, records=None, kev_ids=(), origin_fn=origin_of_text,
         if r["origin"] in ("mcp", "ai"):
             r["origin"] = "other"
         r["rels"] = list(rec.get("rels") or ([] if rec else rel_fn(text, r["vendor"])))
-        r["ai"] = bool(r["rels"])
+        r["ai"] = is_ai_risk(r["rels"])
         r["inKev"] = r["cve"] in kev_ids
         if r["date"]:
             by_year[r["date"][:4]] = by_year.get(r["date"][:4], 0) + 1
@@ -635,7 +643,7 @@ def epss_rank(scores, records, kev_ids, since, n=EPSS_TOP):
         r = records.get(cve)
         if not r or not r.get("d") or r["d"] < since:
             continue
-        keys = ("all", "ai") if r.get("rels") else ("all",)
+        keys = ("all", "ai") if is_ai_risk(r.get("rels")) else ("all",)
         for k in keys:
             dist[k]["n"] += 1
             dist[k]["ge10"] += sc["epss"] >= 0.1

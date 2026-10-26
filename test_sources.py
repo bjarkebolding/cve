@@ -178,10 +178,10 @@ def test_epss():
                "E": {"d": "2026-07-01", "product": "e", "origin": "edge", "rels": []}}
     top, dist = sources.epss_rank(scores, records, kev_ids={"E"}, since="2025-10-27")
     check("top all: recent, not in KEV, by EPSS", [r["cve"] for r in top["all"]] == ["A", "B", "C"])
-    check("top ai: AI-related only", [r["cve"] for r in top["ai"]] == ["B", "C"]
+    check("top ai: AI-related only, found-by-AI alone excluded", [r["cve"] for r in top["ai"]] == ["B"]
           and top["ai"][0]["rels"] == ["agent"])
     check("dist counts recent incl. KEV", dist["all"] == {"n": 4, "ge10": 4, "ge50": 3}
-          and dist["ai"] == {"n": 2, "ge10": 2, "ge50": 1})
+          and dist["ai"]["n"] == 1)
 
 
 def test_severity():
@@ -285,6 +285,10 @@ def test_kev_origin():
     check("non-AI entries have no rels", by["CVE-2026-1"]["rels"] == [] and not by["CVE-2026-1"]["ai"])
     known, _ = sources.kev_entries(vulns[:1], {}, records, ai_match=lambda t: True)
     check("cache-known CVE without relations ignores the KEV text matcher", not known[0]["ai"])
+    cid = vulns[0]["cveID"]
+    found_only = {cid: dict(records.get(cid) or {"d": "2026-01-01", "origin": "other"}, rels=["found"])}
+    fo, _ = sources.kev_entries(vulns[:1], {}, found_only, ai_match=lambda t: True)
+    check("exploited CVE found by AI only: not AI-related, found flag set", not fo[0]["ai"] and fo[0]["found"])
     check("unknown CVE: classify_origin on text, no published",
           by["CVE-2026-4"]["origin"] == "edge" and by["CVE-2026-4"]["published"] is None
           and by["CVE-2026-4"]["zeroDay"] is False)
@@ -330,10 +334,13 @@ def test_zerodays():
     check("recent newest first, dated only", [r["cve"] for r in p["recent"]] == ["CVE-2026-96951", "CVE-2025-1"])
     check("origin + inKev", p["recent"][1]["origin"] == "platform" and p["recent"][0]["inKev"]
           and not p["recent"][1]["inKev"])
-    p = sources.zerodays_payload(rows, {"CVE-2025-1": {"origin": "platform", "rels": ["found"]}},
+    p = sources.zerodays_payload(rows, {"CVE-2025-1": {"origin": "platform", "rels": ["product"]}},
                                  set(), origin_fn=lambda t: "other", rel_fn=lambda t, v: [])
     check("AI-related zero-days from relations", p["aiTotal"] == 1 and p["aiByYear"] == {"2025": 1}
           and [r["cve"] for r in p["recentAi"]] == ["CVE-2025-1"])
+    p = sources.zerodays_payload(rows, {"CVE-2025-1": {"origin": "platform", "rels": ["found"]}},
+                                 set(), origin_fn=lambda t: "other", rel_fn=lambda t, v: [])
+    check("found-by-AI alone is not an AI-related zero-day", p["aiTotal"] == 0)
 
 
 def test_malicious():

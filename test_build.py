@@ -450,6 +450,8 @@ def test_relations():
     check("Claude the person is not found-by-AI", R(None, "x", "", "Claude Ndanda (TrixX)", set()) == [])
     check("description 'reported by Claude Mythos' -> found",
           R(None, "This issue was reported by Claude Mythos.", "", "", set()) == ["found"])
+    check("is_ai_risk: found alone is not AI risk", not build.is_ai_risk(["found"]) and not build.is_ai_risk([])
+          and build.is_ai_risk(["found", "agent"]) and build.is_ai_risk(["weakness"]))
     check("kernel records only take found",
           R(None, "nvidia gpu, prompt injection", "nvidia gpu", "Big Sleep", set(), kernel=True) == ["found"])
     check("multi-label", R("mcp", "prompt injection in an MCP server", "", "XBOW", set()) ==

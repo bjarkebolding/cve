@@ -57,7 +57,7 @@ LABELS = os.path.join(BASE, "tools", "ai_labels.json")
 # parser are discarded and every record is re-parsed.
 PARSER_VERSION = 6
 # Bump when the AI definition (layers / patterns) changes meaning.
-DEFINITION_VERSION = 5
+DEFINITION_VERSION = 6
 HOURS_KEEP = 40 * 24     # keep hourly buckets for the last N hours
 COMPARE_MONTHS = 24      # severity/CWE comparison window (incl. current month)
 
@@ -516,6 +516,14 @@ AI_RELATIONS = [
     {"id": "found", "label": "Found by AI tools or AI labs"},
 ]
 RELATION_IDS = [x["id"] for x in AI_RELATIONS]
+
+
+def is_ai_risk(rels):
+    """AI-related = an AI system is part of the attack surface (agent, product,
+    feature, weakness, compute). "found" alone (an AI tool discovered a bug in
+    curl) measures who finds bugs, not AI risk: it is tracked across all CVEs
+    (landscape.all.relYears.found) but does not make a CVE AI-related."""
+    return any(r != "found" for r in (rels or ()))
 
 # Copilot, Gemini & co. built into mainstream products (cloud layer included)
 FEATURE_RE = re.compile(
@@ -1152,7 +1160,7 @@ def main():
                 hours[pub[:13]] += 1  # "YYYY-MM-DDTHH"
             if layer:
                 layer_month[layer][day[:7]] += 1
-            if rels:
+            if is_ai_risk(rels):
                 land_ai.append(lrow)
                 ai_days[day] += 1
                 ai_total += 1

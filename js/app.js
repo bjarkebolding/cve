@@ -501,7 +501,7 @@ const REL_RULES = {
   feature: "AI assistants shipped inside mainstream products — Microsoft/GitHub Copilot, Gemini in Google products, Apple Intelligence, Einstein, Now Assist, GitLab Duo …",
   weakness: "a weakness that only exists because a model is in the loop: prompt injection, jailbreaks, system-prompt leaks, model poisoning, unsafe model loading, unhandled LLM output (CWE-1426/1427).",
   compute: "the GPU / accelerator stack AI runs on: NVIDIA GPU drivers, CUDA, vGPU, DGX/HGX, Container Toolkit, BlueField; AMD Instinct/ROCm; Intel Gaudi.",
-  found: "the CVE record credits an AI discovery tool, model or lab (Google Big Sleep, XBOW, depthfirst, ZeroPath, Claude/Anthropic, OpenAI …) or says an AI found it.",
+  found: "the CVE record credits an AI discovery tool, model or lab (Google Big Sleep, XBOW, AISLE, depthfirst, ZeroPath, Claude/Anthropic, OpenAI …) or says an AI found it. Counted across all CVEs as a discovery trend; on its own it does not make a CVE AI-related.",
 };
 function relList(core, meta) {
   const l = (core && Array.isArray(core.relations) && core.relations) || (meta && Array.isArray(meta.relations) && meta.relations) || null;
@@ -1181,10 +1181,18 @@ function layerYtd(core, F) {
   for (const arr of Object.values(lm)) if (Array.isArray(arr)) core.months.forEach((m, i) => { if (m.startsWith(F.year)) n += arr[i] || 0; });
   return n;
 }
+/* AI-risk relations per year (this year, last year). "found" is left out:
+ * an AI tool finding a bug in curl is discovery, not AI attack surface. */
 function relYtd(core, F) {
   const ry = core.landscape && core.landscape.ai && core.landscape.ai.relYears;
   if (!ry) return null;
-  return Object.fromEntries(Object.entries(ry).map(([id, by]) => [id, { cur: (by || {})[F.year] || 0, prev: (by || {})[F.prevYear] || 0 }]));
+  return Object.fromEntries(Object.entries(ry).filter(([id]) => id !== "found")
+    .map(([id, by]) => [id, { cur: (by || {})[F.year] || 0, prev: (by || {})[F.prevYear] || 0 }]));
+}
+/* CVEs whose discovery credits an AI tool or lab, across ALL CVEs */
+function foundYtd(core, F) {
+  const by = core.landscape && core.landscape.all && core.landscape.all.relYears && core.landscape.all.relYears.found;
+  return by ? { cur: by[F.year] || 0, prev: by[F.prevYear] || 0 } : null;
 }
 function buildAiHeadline(ctx, F, S) {
   const el = $("#ai-headline"), sub = $("#ai-subhead");
@@ -1211,11 +1219,12 @@ function buildAiHeadline(ctx, F, S) {
   add(() => {
     const k = S.kev;
     if (!k || !k.cur) return null;
-    return `Exploitation is still rare: ${num.format(k.aiCur)} of the ${num.format(k.cur)} vulnerabilities CISA added to KEV in ${F.year} are AI-related.`;
+    const prev = (F.kevAi || []).filter((e) => String(e.added).startsWith(F.prevYear)).length;
+    return `Exploitation is rising from a low base: ${num.format(k.aiCur)} of the ${num.format(k.cur)} vulnerabilities CISA added to KEV in ${F.year} are AI-related, against ${num.format(prev)} in all of ${F.prevYear}.`;
   });
   add(() => {
-    const ry = relYtd(ctx.core, F);
-    return ry && ry.found && ry.found.cur ? `AI is also finding bugs: ${num.format(ry.found.cur)} CVEs this year credit an AI tool or AI lab (${num.format(ry.found.prev)} in ${F.prevYear}).` : null;
+    const fy = foundYtd(ctx.core, F);
+    return fy && fy.cur ? `Separately, AI is finding bugs: ${num.format(fy.cur)} CVEs this year, in any software, credit an AI tool or AI lab (${num.format(fy.prev)} in ${F.prevYear}). They count as discovery, not as AI-related risk.` : null;
   });
   if (parts.length) { sub.textContent = parts.join(" "); sub.classList.add("hint"); } else sub.remove();
 }
@@ -1249,8 +1258,12 @@ function buildAiKpis(ctx, F, S) {
       spark: { vals: countByMonth(M, F.kevAi, (e) => e.added), title: sparkTitle },
       d: `${pct(k.cur ? k.aiCur / k.cur : 0, 1)} of ${F.year} KEV additions · ${num.format(F.kevAi.length)} all time` });
   }
-  if (ry && ry.found) tiles.push({ k: `Found by AI ${F.year}`, v: num.format(ry.found.cur),
-    d: `CVEs crediting an AI tool or AI lab · ${num.format(ry.found.prev)} in all of ${F.prevYear}` });
+  const fy = foundYtd(core, F);
+  if (fy) {
+    const fk = ((ctx.kev && ctx.kev.entries) || []).filter((e) => e.found).length;
+    tiles.push({ k: `Found by AI ${F.year} (any software)`, v: num.format(fy.cur),
+      d: `discovery, not AI risk · ${num.format(fy.prev)} in all of ${F.prevYear}` + (fk ? ` · ${num.format(fk)} later exploited` : "") });
+  }
   kpiTiles($("#ai-kpis"), tiles, "AI indicators are not available for this data build.");
 }
 function buildRelations(ctx, F) {
@@ -2185,7 +2198,7 @@ function explainAi(ctx, F) {
       fig("#tbl-epss", {
         titleEl: "#h-patch", title: d && d.n ? `${num.format(d.ge10)} of ${num.format(d.n)} AI-related CVEs from the last 12 months have an EPSS of 10% or more — these are the top ones not yet in KEV` : null,
         subEl: "#epss-hint", sub: "AI-related CVEs published in the last 12 months and not in CISA KEV, ranked by FIRST EPSS (estimated probability of exploitation activity in the next 30 days), highest first.",
-        how: "EPSS is a model estimate (0–100%), not observed exploitation. AI relation = why it counts as AI-related; 'found by AI' rows are ordinary software whose bug an AI tool or lab reported.",
+        how: "EPSS is a model estimate (0–100%), not observed exploitation. AI relation = why it counts as AI-related; 'found by AI' alone never qualifies a CVE here.",
         so: "Order of work: the exploited table above first (confirmed exploitation, whatever its EPSS), then this list from the top.",
         src: srcLine(ctx, ["epss", "kev"]),
       });

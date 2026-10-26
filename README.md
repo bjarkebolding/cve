@@ -112,8 +112,12 @@ smaller count of confirmed in-the-wild zero-days.
 
 ## “AI-related” — methodology (Part 2)
 
-A CVE is AI-related when at least one **AI relation** applies
-(`build.py` → `AI_RELATIONS`; multi-label tags, not exclusive buckets):
+A CVE is AI-related when at least one **AI relation** other than `found`
+applies (`build.py` → `AI_RELATIONS`, `is_ai_risk`; multi-label tags, not
+exclusive buckets). `found` alone (an AI tool found a bug in curl or OpenSSL)
+measures who discovers bugs, not AI attack surface: it is reported across all
+CVEs (`landscape.all.relYears.found`, KEV `found` flag) and never makes a CVE
+AI-related on its own.
 
 | id | Relation | Rule (summary) |
 |---|---|---|
@@ -122,7 +126,7 @@ A CVE is AI-related when at least one **AI relation** applies
 | `feature` | AI assistants in mainstream software | AI-cloud layer from Microsoft/Google/Amazon/Apple/…, or a named built-in assistant (Copilot, Gemini, Apple Intelligence, Einstein, Now Assist, GitLab Duo, …) |
 | `weakness` | AI-specific weakness | CWE-1426/1427, or prompt injection, LLM/model jailbreak, system-prompt leak, model poisoning, unsafe ML-model loading, unhandled LLM output |
 | `compute` | AI compute: GPU & accelerator stack | NVIDIA GPU driver/CUDA/vGPU/DGX/HGX/Container Toolkit/BlueField, AMD Instinct/ROCm, Intel Gaudi (includes consumer GPU drivers: one driver branch) |
-| `found` | Found by AI tools or AI labs | the record's credits name an AI tool/model/lab (Big Sleep, XBOW, depthfirst, ZeroPath, Claude/Anthropic, OpenAI …) or the description says an AI found it; "Claude" alone needs model/lab context (it is also a first name) |
+| `found` | Found by AI tools or AI labs | the record's credits name an AI tool/model/lab (Big Sleep, XBOW, AISLE, depthfirst, ZeroPath, Claude/Anthropic, OpenAI …) or the description says an AI found it; "Claude" alone needs model/lab context (it is also a first name) |
 
 Linux kernel records only take `found` (their commit text names unrelated
 drivers). KEV and Project Zero entries take their relations from the parse
