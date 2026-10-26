@@ -22,7 +22,7 @@
 <noscript><p class="noscript-msg">This dashboard needs JavaScript to render its charts. Data is committed in <code>data/*.json</code> and the pipeline in <code>build.py</code>/<code>sources.py</code>.</p></noscript>
 <main>
   <nav class="topnav" aria-label="page sections">
-    <a href="#summary">All CVEs</a><a href="#exploit">Exploitation</a><a href="#volume">Volume</a><a href="#ai">AI-related</a><a href="#method">Method</a>
+    <a href="#brief">Brief</a><a href="#summary">All CVEs</a><a href="#exploit">Exploitation</a><a href="#volume">Volume</a><a href="#ai">AI-related</a><a href="#method">Method</a>
   </nav>
 
   <!-- ===================== PART 1: ALL CVEs ===================== -->
@@ -35,6 +35,11 @@
         <p class="stamp" id="stamp" aria-live="polite">loading…</p>
       </div>
     </header>
+    <section class="brief" id="brief" aria-labelledby="h-brief">
+      <h2 id="h-brief">How to adjust your programme</h2>
+      <p class="hint">Five changes the current data supports. Each cites the numbers behind it; follow a line to the evidence below. Recomputed with every daily rebuild.</p>
+      <ol class="brief-list" id="brief-list"></ol>
+    </section>
     <p class="tier-label"><span>Part 1</span> All CVEs — the full picture</p>
     <p class="headline" id="headline"></p>
     <p class="subhead" id="subhead"></p>

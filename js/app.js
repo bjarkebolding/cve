@@ -697,6 +697,60 @@ function buildKpis(ctx, F, S) {
   kpiTiles($("#kpis"), tiles, "Key indicators are not available for this data build.");
 }
 
+/* ================= executive brief: how to adjust ================= */
+/* Five programme changes, each backed by this build's numbers. An item only
+ * renders when its evidence exists, so the list never states a bare opinion. */
+function buildBrief(ctx, F, S) {
+  const ol = $("#brief-list");
+  const items = [];
+  const add = (fn) => { try { const r = fn(); if (r && clean(r.why)) items.push(r); } catch (e) { /* skip */ } };
+  const OL = originLabel(ctx.core);
+  add(() => {
+    const t = S.total;
+    if (!t || !t.prev) return null;
+    const doy = Math.max(1, Math.round(daysBetween(F.year + "-01-01", F.asOf) + 1));
+    return { act: "Size for the volume: automate intake and triage.", href: "#volume",
+      why: `${num.format(t.cur)} CVEs so far in ${F.year}, ×${fmtX(t.cur / t.prev)} the same period of ${F.prevYear}: about ${num.format(Math.round(t.cur / doy))} a day. Manual review of every advisory does not scale.` };
+  });
+  add(() => {
+    const k = S.kev, t = S.total;
+    if (!k || !k.cur || !S.hc || !fin(S.hc.cur) || !t) return null;
+    return { act: "Rank the patch queue by exploitation, not by CVSS.", href: "#next",
+      why: `${pct(S.hc.cur)} of this year's rated CVEs are HIGH or CRITICAL, but only ${num.format(k.cur)} vulnerabilities were confirmed exploited (CISA KEV). Patch KEV first, then the highest EPSS scores.` };
+  });
+  add(() => {
+    const ents = (ctx.kev && ctx.kev.entries || []).filter((e) => e && String(e.added).startsWith(F.year) && fin(e.daysToKev));
+    if (ents.length < 10) return null;
+    const week = ents.filter((e) => e.daysToKev <= 7).length;
+    const edge = S.kev && S.kev.origin && S.kev.origin.edge;
+    const tail = fin(edge) && edge ? ` ${oShort("edge", OL).replace(/^./, (c) => c.toUpperCase())} alone account for ${num.format(edge)}.` : "";
+    return { act: "Patch internet-facing systems in days, not monthly cycles.", href: "#exploit",
+      why: `${pct(week / ents.length)} of this year's newly exploited vulnerabilities were exploited within a week of disclosure.${tail} Keep an emergency-change path and reduce exposed management interfaces.` };
+  });
+  add(() => {
+    if (!S.supply) return null;
+    const mal = fin(S.malYtd) && S.malYtd ? ` and ${num.format(S.malYtd)} malicious packages were published` : "";
+    return { act: "Control what enters the software supply chain.", href: "#supply",
+      why: `${num.format(S.supply.n)} CVEs this year are in open-source projects and packages${mal}. Keep SBOMs current, pin versions and allow-list package sources.` };
+  });
+  add(() => {
+    const a = S.aiShare;
+    if (!a || !a.n) return null;
+    const ry = relYtd(ctx.core, F);
+    const ag = ry && ry.agent;
+    const agent = ag && ag.cur && ag.prev && ag.cur > ag.prev ? ` MCP and agent CVEs are already ×${fmtX(ag.cur / ag.prev)} last year's total.` : "";
+    const exp = S.kev && fin(S.kev.aiCur) ? `, ${num.format(S.kev.aiCur)} of them confirmed exploited` : "";
+    return { act: "Bring AI agents, MCP servers and AI features into scope.", href: "#ai",
+      why: `${num.format(a.n)} CVEs this year (${pct(a.n / a.of, 1)}) are AI-related${exp}.${agent} Inventory them, assign owners and limit what they can reach.` };
+  });
+  if (!items.length) { $("#brief").remove(); return; }
+  for (const it of items) {
+    ol.append(h("li", null,
+      h("p", { class: "act" }, h("a", { href: it.href, text: it.act })),
+      h("p", { class: "why", text: it.why })));
+  }
+}
+
 /* the CNA whose filings grew most (last 12 months vs the 12 before) — the
  * honest "who files moves the curve" caveat under the hero chart */
 function cnaSurge(L, min) {
@@ -2350,6 +2404,7 @@ function infoize() {
     // Part 1: all CVEs
     ["headline", () => buildHeadline(ctx, F, S)],
     ["KPIs", () => buildKpis(ctx, F, S)],
+    ["brief", () => buildBrief(ctx, F, S)],
     ["hero chart", () => buildHeroChart(ctx, F)],
     ["where exploitation happens", () => buildWhere(ctx, F, S)],
     ["KEV by origin", () => buildKevOrigin(ctx)],
