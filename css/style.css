@@ -289,6 +289,8 @@ header h1 .x { color: var(--muted); font-weight: 400; }
 }
 .kpi .delta.up { color: var(--warn); background: color-mix(in srgb, var(--warn) 11%, transparent); }
 .kpi .delta.down { color: var(--c-sage); background: color-mix(in srgb, var(--c-sage) 12%, transparent); }
+.ksrc { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 11.5px; line-height: 1.4; color: var(--muted); }
+.th-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
 .kspark { height: 36px; margin: 8px 0 8px; }
 .spark { display: block; width: 100%; height: 36px; overflow: visible; }
 .spark-line { fill: none; stroke: var(--c-neutral); stroke-width: 1.6; stroke-linejoin: round; }
@@ -322,6 +324,28 @@ h3 { font-size: 15px; line-height: 1.4; font-weight: 600; margin: 28px 0 12px; m
 .duo .panel { margin-bottom: 0; }
 .panel .duo .sub { margin-top: 0; }
 .panel > .sub { margin-top: 40px; }
+
+/* ---------------- slide cards: one chart or table per card ---------------- */
+.slide {
+  background: var(--raise); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(20, 24, 32, 0.04);
+  padding: 20px 22px 16px; margin: 0 0 24px;
+}
+section.slide { border-top: 1px solid var(--line); }
+.slide-group { border-top: 0; padding-top: 8px; margin-bottom: 40px; }
+.slide-group > .duo { gap: 16px; }
+.slide-group > .duo + .duo { margin-top: 16px; }
+.slide-group .duo > .slide { margin: 0; }
+.slide-group > .sub.slide + .sub.slide { margin-top: 16px; }
+.slide .figfoot { max-width: none; }
+.slide .figfoot .src { margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+@media (max-width: 760px) {
+  .slide { padding: 16px 14px 12px; margin-bottom: 16px; }
+  .slide-group .duo > .slide + .slide { margin-top: 12px; }
+}
+@media print {
+  .slide { break-inside: avoid; box-shadow: none; }
+}
 
 .sumgrid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px; }
 .sumgrid .panel {

@@ -727,7 +727,8 @@ function kpiTiles(wrap, tiles, emptyMsg) {
       h("div", { class: "k", text: x.k }),
       h("div", { class: "vrow" }, h("span", { class: "v" + (x.cls ? " " + x.cls : ""), text: x.v }), delta),
       spark,
-      x.d ? h("div", { class: "d", text: x.d }) : null));
+      x.d ? h("div", { class: "d", text: x.d }) : null,
+      x.src ? h("div", { class: "ksrc", text: x.src }) : null));
   }
 }
 /* the last n complete months, oldest first */
@@ -747,6 +748,7 @@ function countByMonth(months, items, keyFn) {
 const growthDelta = (cur, prev, prevYear) => (prev > 0 && fin(cur)
   ? { up: cur >= prev, text: cur / prev >= 1.995 ? `×${fmtX(cur / prev)}` : `${Math.round(Math.abs(100 * (cur / prev - 1)))}%`, title: `vs the same period of ${prevYear}` }
   : null);
+const tileSrc = (ctx, name) => `${name} · ${String((ctx.core && ctx.core.generatedAt) || "").slice(0, 10)} · ${SITE}`;
 function buildKpis(ctx, F, S) {
   const tiles = [];
   const M = lastMonths(F, 24);
@@ -777,6 +779,8 @@ function buildKpis(ctx, F, S) {
           d: fin(S.malYtd) && S.malYtd ? `plus ${num.format(S.malYtd)} malicious packages` : `${F.year} YTD` }
       : { k: "Malicious packages", v: num.format(S.malYtd), d: `${F.year} YTD, OSV MAL advisories` });
   }
+  const SRC = [tileSrc(ctx, "CVE List"), tileSrc(ctx, "CISA KEV"), tileSrc(ctx, "CISA KEV"), tileSrc(ctx, "CVE List + OSV")];
+  tiles.forEach((t, i) => { t.src = t.src || SRC[i] || tileSrc(ctx, "CVE List"); });
   kpiTiles($("#kpis"), tiles, "Key indicators are not available for this data build.");
 }
 
@@ -857,7 +861,7 @@ function buildThreats(ctx, F, S) {
     const cur = kevAll.filter((e) => String(e.added).startsWith(F.year));
     const prev = kevAll.filter((e) => String(e.added).startsWith(F.prevYear));
     const sc = (arr) => arr.filter((e) => e.origin === "supplychain").length;
-    if (cur.length) cards.push({ id: "supply", name: "Software supply chain", signal: "strong", href: "#supply",
+    if (cur.length) cards.push({ id: "supply", name: "Software supply chain", signal: "strong", href: "#supply", src: "Source: CISA KEV + CVE List + OSV",
       v: pct(sc(cur) / cur.length, 1), unit: `of ${F.year}'s exploited vulnerabilities are open source (${num.format(sc(cur))} of ${num.format(cur.length)})`,
       delta: prev.length ? { up: sc(cur) / cur.length >= sc(prev) / prev.length, text: `from ${pct(sc(prev) / prev.length, 1)}`, title: `share of KEV additions, all of ${F.prevYear}` } : null,
       spark: { vals: countByMonth(M, kevAll.filter((e) => e.origin === "supplychain"), (e) => e.added), title: "open-source vulnerabilities added to CISA KEV per month, last 24 complete months" },
@@ -877,7 +881,7 @@ function buildThreats(ctx, F, S) {
     }
   } catch (e) { /* skip */ }
   // 4. Deepfakes: outside what vulnerability data can measure
-  cards.push({ id: "deepfake", name: "Deepfake identity impersonation", signal: "none", href: null,
+  cards.push({ id: "deepfake", name: "Deepfake identity impersonation", signal: "none", href: null, src: "Source: no CVE signal",
     statement: "Not a software flaw",
     foot: "No CVE describes it, so this dashboard cannot measure it. Defend with process: call-back verification and strong authentication for payments, helpdesk resets and hiring." });
 
@@ -886,6 +890,7 @@ function buildThreats(ctx, F, S) {
     const delta = c.delta ? h("span", { class: "delta" + (c.delta.up ? " up" : " down"), text: (c.delta.up ? "▲ " : "▼ ") + c.delta.text, title: c.delta.title || null }) : null;
     const spark = c.spark && c.spark.vals.some((v) => v > 0) ? h("div", { class: "kspark", title: c.spark.title }, sparkline(c.spark.vals, c.id === "app" ? "ai" : "")) : null;
     const body = [
+      h("div", { class: "th-eyebrow", text: "Gartner critical threat · 2026–27" }),
       h("div", { class: "th-head" }, h("span", { class: "th-name", text: c.name }), h("span", { class: "th-sig " + c.signal, text: SIG[c.signal] })),
       c.statement ? h("div", { class: "th-statement", text: c.statement })
         : h("div", { class: "vrow" }, h("span", { class: "v", text: c.v }), delta),
@@ -893,6 +898,7 @@ function buildThreats(ctx, F, S) {
       spark,
       h("p", { class: "th-foot", text: c.foot.trim() }),
       c.href ? h("a", { class: "th-link", href: c.href, text: "Evidence →" }) : null,
+      h("div", { class: "ksrc", text: `${c.src || "Source: CVE List + CISA KEV"} · ${String((core && core.generatedAt) || "").slice(0, 10)} · ${SITE} · mapping not by Gartner` }),
     ];
     wrap.append(h("article", { class: "threat " + c.id }, ...body));
   }
@@ -1394,6 +1400,8 @@ function buildAiKpis(ctx, F, S) {
     tiles.push({ k: `Found by AI ${F.year} (any software)`, v: num.format(fy.cur),
       d: `discovery, not AI risk · ${num.format(fy.prev)} in all of ${F.prevYear}` + (fk ? ` · ${num.format(fk)} later exploited` : "") });
   }
+  const SRC = [tileSrc(ctx, "CVE List"), tileSrc(ctx, "CVE List"), tileSrc(ctx, "CISA KEV"), tileSrc(ctx, "CVE List")];
+  tiles.forEach((t, i) => { t.src = t.src || SRC[i] || tileSrc(ctx, "CVE List"); });
   kpiTiles($("#ai-kpis"), tiles, "AI indicators are not available for this data build.");
 }
 function buildRelations(ctx, F) {
@@ -2044,6 +2052,7 @@ function fig(host, o) {
   if (src) foot.append(h("p", { class: "src", text: src }));
   if (foot.childNodes.length) anchor.after(foot);
 }
+const SITE = "cve.turrican.dk";
 function srcLine(ctx, names) {
   const d = (x) => (x ? String(x).slice(0, 10) : null);
   const map = {
@@ -2057,7 +2066,7 @@ function srcLine(ctx, names) {
   };
   const parts = names.map((n) => map[n]).filter(Boolean);
   const dates = parts.map((p) => p[1]).filter(Boolean).sort();
-  return "Source: " + parts.map((p) => p[0]).join(" + ") + (dates.length ? ` · data as of ${dates[dates.length - 1]}` : "");
+  return "Source: " + parts.map((p) => p[0]).join(" + ") + (dates.length ? ` · data as of ${dates[dates.length - 1]}` : "") + ` · ${SITE}`;
 }
 /* like-for-like: complete months Jan..(M-1) of this year vs the same months last year */
 function ytdMonths(core, arr, F) {
@@ -2622,6 +2631,29 @@ function clipTables() {
   }
 }
 
+/* ================= slide cards =================
+ * Every chart or table is one self-contained card (takeaway title, visual,
+ * "So what", visible source + date + site), so a screenshot can go straight
+ * onto a slide. Panels holding several charts become a group of cards. */
+function slideify() {
+  const units = [];
+  for (const p of document.querySelectorAll("main section.panel, main section.context, main .sumgrid > .panel")) {
+    if (p.closest("#method")) continue;
+    const subs = p.querySelectorAll(":scope > .sub, :scope > .duo > .sub, :scope > .duo > .panel");
+    if (subs.length) { p.classList.add("slide-group"); units.push(...subs); } else units.push(p);
+  }
+  for (const u of units) {
+    u.classList.add("slide");
+    if (u.querySelector(".src")) continue;
+    // borrow the group's source line, else a generic one
+    const g = u.closest(".slide-group");
+    const src = g && g.querySelector(".src");
+    let foot = u.querySelector(":scope > .figfoot");
+    if (!foot) { foot = h("div", { class: "figfoot" }); u.append(foot); }
+    foot.append(h("p", { class: "src", text: src ? src.textContent : `Source: ${SITE}` }));
+  }
+}
+
 /* ================= quiet layout: details behind an ⓘ =================
  * Each chart/table keeps its takeaway title, the visual and the "So what"
  * line. Subtitle, notes, "How to read" and the source line move into a panel
@@ -2634,7 +2666,7 @@ function infoize() {
     const BLOCK = ".sub, .panel, section, .tier";
     const block = t.parentElement.closest(BLOCK) || t.parentElement;
     // lines that belong to this title's block, not to a nested sub-panel
-    const items = [...block.querySelectorAll("p.hint, p.subhead, p.note, .figfoot > p.how, .figfoot > p.src")]
+    const items = [...block.querySelectorAll("p.hint, p.subhead, p.note, .figfoot > p.how")]
       .filter((el) => el.parentElement.closest(BLOCK) === block && !el.closest(".info-body") && el.textContent.trim() && !el.classList.contains("toplegend"));
     // a headline's info is only its own subhead
     const pick = t.matches("p.headline") ? items.filter((el) => el.matches(".subhead")) : items.filter((el) => !el.matches(".subhead"));
@@ -2753,6 +2785,7 @@ function infoize() {
       document.querySelector("main").prepend(h("p", { class: "err", text: `render error (${name}): ${err.message}` }));
     }
   }
+  try { slideify(); } catch (err) { /* panels keep the plain layout */ }
   try { buildNavMenus(); } catch (err) { /* plain nav links still work */ }
   try { clipTables(); } catch (err) { /* tables simply stay full length */ }
   try { infoize(); } catch (err) { /* details simply stay inline */ }
