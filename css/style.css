@@ -137,7 +137,7 @@ a:hover { color: var(--accent); text-decoration-color: currentColor; }
 
 /* ---------------- header ---------------- */
 header { display: flex; gap: 16px; align-items: flex-start; margin-top: 40px; }
-.logo { flex: none; height: 48px; width: auto; image-rendering: pixelated; }
+.eyebrow { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
 header h1 { font-size: 20px; line-height: 1.3; font-weight: 600; letter-spacing: -0.01em; margin: 2px 0 6px; }
 header h1 .x { color: var(--muted); font-weight: 400; }
 .tag { color: var(--ink-2); font-size: 14px; margin: 0; max-width: 70ch; }
@@ -497,7 +497,6 @@ footer a { color: var(--ink-2); }
   .topnav::-webkit-scrollbar { display: none; }
   .topnav a { flex: none; }
   header { margin-top: 28px; gap: 12px; }
-  .logo { height: 38px; }
   header h1 { font-size: 18px; }
   .tag { font-size: 13.5px; }
   .tier { margin-top: 72px; }

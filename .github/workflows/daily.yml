@@ -67,7 +67,7 @@ jobs:
         id: assemble
         run: |
           mkdir -p dist/vendor
-          cp index.html logo.svg dist/
+          cp index.html favicon.svg dist/
           cp -r css js data dist/
           rm -f dist/data/cache.json dist/data/last_head.txt
           cp vendor/uPlot.iife.min.js vendor/uPlot.min.css dist/vendor/
