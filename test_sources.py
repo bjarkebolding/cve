@@ -165,6 +165,23 @@ def test_epss():
     scores, day = sources.parse_epss_csv(text, {"CVE-2025-3248"})
     check("csv: wanted only + modelDate",
           scores == {"CVE-2025-3248": {"epss": 0.99993, "pct": 0.99987}} and day == "2026-10-25")
+    check("csv: wanted None -> all rows", len(sources.parse_epss_csv(text, None)[0]) == 2)
+
+    print("sources.epss_rank")
+    scores = {"A": {"epss": 0.9, "pct": 0.99}, "B": {"epss": 0.6, "pct": 0.98},
+              "C": {"epss": 0.2, "pct": 0.9}, "D": {"epss": 0.95, "pct": 0.99},
+              "E": {"epss": 0.99, "pct": 1.0}}
+    records = {"A": {"d": "2026-05-01", "product": "a", "origin": "edge", "rels": []},
+               "B": {"d": "2026-06-01", "product": "b", "origin": "other", "rels": ["agent"]},
+               "C": {"d": "2026-06-01", "product": "c", "origin": "other", "rels": ["found"]},
+               "D": {"d": "2024-01-01", "product": "d", "origin": "other", "rels": []},
+               "E": {"d": "2026-07-01", "product": "e", "origin": "edge", "rels": []}}
+    top, dist = sources.epss_rank(scores, records, kev_ids={"E"}, since="2025-10-27")
+    check("top all: recent, not in KEV, by EPSS", [r["cve"] for r in top["all"]] == ["A", "B", "C"])
+    check("top ai: AI-related only", [r["cve"] for r in top["ai"]] == ["B", "C"]
+          and top["ai"][0]["rels"] == ["agent"])
+    check("dist counts recent incl. KEV", dist["all"] == {"n": 4, "ge10": 4, "ge50": 3}
+          and dist["ai"] == {"n": 2, "ge10": 2, "ge50": 1})
 
 
 def test_severity():
@@ -223,7 +240,8 @@ def test_datadir():
                 {"cve": "CVE-2025-2", "ai": True}, {"cve": "CVE-2025-3", "ai": False}]})
             check("write -> read under DATADIR",
                   json.load(open(os.path.join(tmp, "ai_meta.json")))["ids"]["CVE-2025-1"]["d"] == "2025-01-01")
-            check("epss_wanted = ai_meta + AI KEV", sources.epss_wanted() == ["CVE-2025-1", "CVE-2025-2"])
+            check("epss_wanted = ai_meta + every KEV entry",
+                  sources.epss_wanted() == ["CVE-2025-1", "CVE-2025-2", "CVE-2025-3"])
             check("read_json missing -> default", sources.read_json("nope.json", 7) == 7)
         finally:
             sources.DATADIR = old
@@ -246,7 +264,8 @@ def test_kev_origin():
     records = {
         "CVE-2026-1": {"d": "2026-03-01", "origin": "edge"},
         "CVE-2026-2": {"d": "2026-03-01", "origin": "platform"},
-        "CVE-2025-3": {"d": "2025-12-31", "origin": "ai", "layer": "llmapp"},
+        "CVE-2025-3": {"d": "2025-12-31", "origin": "supplychain", "layer": "llmapp",
+                       "rels": ["product"]},
         "CVE-2026-5": {"d": "2026-02-03", "origin": "other"},
     }
     entries, n = sources.kev_entries(
@@ -260,14 +279,20 @@ def test_kev_origin():
     check("zeroDay: 31 days -> false", not by["CVE-2026-2"]["zeroDay"])
     check("added before publication -> zeroDay", by["CVE-2026-5"]["daysToKev"] == -2
           and by["CVE-2026-5"]["zeroDay"])
-    check("lookup AI origin flags ai + layer", n == 1 and by["CVE-2025-3"]["ai"]
-          and by["CVE-2025-3"]["origin"] == "ai" and by["CVE-2025-3"]["layer"] == "llmapp")
+    check("lookup relations flag ai + rels + layer; origin stays non-AI", n == 1
+          and by["CVE-2025-3"]["ai"] and by["CVE-2025-3"]["rels"] == ["product"]
+          and by["CVE-2025-3"]["origin"] == "supplychain" and by["CVE-2025-3"]["layer"] == "llmapp")
+    check("non-AI entries have no rels", by["CVE-2026-1"]["rels"] == [] and not by["CVE-2026-1"]["ai"])
+    known, _ = sources.kev_entries(vulns[:1], {}, records, ai_match=lambda t: True)
+    check("cache-known CVE without relations ignores the KEV text matcher", not known[0]["ai"])
     check("unknown CVE: classify_origin on text, no published",
           by["CVE-2026-4"]["origin"] == "edge" and by["CVE-2026-4"]["published"] is None
           and by["CVE-2026-4"]["zeroDay"] is False)
-    mcp, _ = sources.kev_entries(vulns[:1], {"CVE-2026-1": {"d": "2026-03-01", "layer": "mcp"}},
+    mcp, _ = sources.kev_entries(vulns[:1], {"CVE-2026-1": {"d": "2026-03-01", "layer": "mcp",
+                                                            "rels": ["agent"]}},
                                  records, ai_match=lambda t: False)
-    check("ai_meta mcp layer -> origin mcp", mcp[0]["origin"] == "mcp")
+    check("ai_meta agent -> ai + rels, origin unchanged",
+          mcp[0]["ai"] and mcp[0]["rels"] == ["agent"] and mcp[0]["origin"] == "edge")
     nolookup, _ = sources.kev_entries(vulns[1:2], {}, None, ai_match=lambda t: False,
                                       origin_fn=lambda t: "ai")
     check("text origin 'ai' without AI flag -> other", nolookup[0]["origin"] == "other")
@@ -275,10 +300,11 @@ def test_kev_origin():
     check("byYear added by dateAdded year", list(y) == ["2026"] and y["2026"]["added"] == 5)
     check("byYear zeroDay by publication year", y["2026"]["zeroDay"] == 2)
     late = sources.kev_by_year([{"added": "2026-01-01", "origin": "edge", "zeroDay": True,
-                                 "published": "2025-12-31"}])
-    check("zeroDay year = publication year", late["2025"] == {"added": 0, "zeroDay": 1, "origin": {}}
-          and late["2026"]["zeroDay"] == 0)
-    check("byYear origin", y["2026"]["origin"] == {"edge": 2, "platform": 1, "ai": 1, "other": 1})
+                                 "published": "2025-12-31", "ai": True, "ransomware": True}])
+    check("zeroDay year = publication year", late["2025"] == {"added": 0, "ai": 0, "ransomware": 0,
+                                                              "zeroDay": 1, "aiZeroDay": 1, "origin": {}}
+          and late["2026"]["zeroDay"] == 0 and late["2026"]["ai"] == 1 and late["2026"]["ransomware"] == 1)
+    check("byYear origin", y["2026"]["origin"] == {"edge": 2, "platform": 1, "supplychain": 1, "other": 1})
 
 
 def test_zerodays():
@@ -304,6 +330,10 @@ def test_zerodays():
     check("recent newest first, dated only", [r["cve"] for r in p["recent"]] == ["CVE-2026-96951", "CVE-2025-1"])
     check("origin + inKev", p["recent"][1]["origin"] == "platform" and p["recent"][0]["inKev"]
           and not p["recent"][1]["inKev"])
+    p = sources.zerodays_payload(rows, {"CVE-2025-1": {"origin": "platform", "rels": ["found"]}},
+                                 set(), origin_fn=lambda t: "other", rel_fn=lambda t, v: [])
+    check("AI-related zero-days from relations", p["aiTotal"] == 1 and p["aiByYear"] == {"2025": 1}
+          and [r["cve"] for r in p["recentAi"]] == ["CVE-2025-1"])
 
 
 def test_malicious():

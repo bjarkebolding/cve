@@ -1,20 +1,25 @@
 # The vulnerability surge — and how much of it is AI
 
-A static, self-hosted dashboard for security leaders: how fast published
-CVEs, exploited vulnerabilities and zero-days are growing, and **where they
-come from** — AI software and MCP/agents, the open-source supply chain, web
-CMS plugins, network edge devices, OS/browser platforms, enterprise
-software. Rebuilt daily from public data.
+A static, self-hosted dashboard for security leaders, in two halves.
+**Part 1** gives the complete picture of *all* CVEs: volume, exploitation
+(CISA KEV), zero-days, speed of exploitation, what to patch next, severity,
+weakness classes, vendors, who files, supply chain. **Part 2** answers which
+of those are **AI-related** — and how: AI software, MCP agents, AI features
+in mainstream products, AI-specific weaknesses, AI compute, and bugs found by
+AI. Rebuilt daily from public data.
 
 The page reads top-down from executive summary to analyst detail:
 
-1. **Summary** — one generated headline, four KPI tiles, CVEs per year by
-   origin, and where exploitation actually happens.
-2. **Risk** — exploitation by origin, zero-days, the AI & MCP deep dive
-   (exploited AI software, stack layers, patch-first by EPSS), supply chain.
-3. **Detail** — how AI software breaks vs all CVEs, AI share over time,
-   latest AI CVEs, who reports them, context.
-4. **Method** — definitions, measured accuracy, caveats.
+1. **All CVEs** — headline, four KPI tiles (CVEs, exploited, zero-days,
+   supply chain), CVEs per year by origin, where exploitation happens.
+2. **Exploitation** — KEV by origin, zero-day proxy, days from disclosure to
+   exploitation, latest exploited, recent zero-days, patch next (EPSS).
+3. **Volume** — severity per year; top CWEs, vendors and CNAs (last 12 months
+   vs the 12 before); open-source CVEs and malicious packages.
+4. **AI-related** — the same questions for the AI slice: relations, share of
+   all CVEs, origins, exploited AI-related CVEs, patch next, severity/CWE vs
+   all, vendors, stack layers, latest, who reports, context.
+5. **Method** — definitions, measured accuracy, caveats.
 
 Every chart follows one standard: the title states the takeaway (computed
 from the data), the subtitle says what is plotted (measure, unit, grain,
@@ -34,18 +39,23 @@ copy of [uPlot](https://uplot.org) (vendored in `vendor/`).
 
 | Section | What | Source |
 |---|---|---|
-| Summary: headline + KPIs | CVEs YTD (× same period last year), exploited (KEV) YTD + exploited-at-disclosure, % from AI + MCP, supply chain (OSS CVEs + malicious packages) | all |
-| Summary: CVEs by origin | CVEs per year since 2018, stacked by origin; partial year marked; bulk-disclosure caveat | `cvelistV5` |
-| Summary: where exploitation happens | KEV additions this year by origin (count · share) | CISA KEV |
+| Section | What | Source |
+|---|---|---|
+| **Part 1** headline + KPIs | CVEs YTD (× same period last year), exploited (KEV) YTD, zero-days (KEV proxy + Project Zero), supply chain; HIGH/CRITICAL share; no AI framing | all |
+| CVEs by origin | CVEs per year since 2018, stacked by origin; partial year marked; CNA-surge caveat | `cvelistV5` |
+| Where exploitation happens | KEV additions this year by origin (count · share) | CISA KEV |
 | Exploitation by origin | KEV additions per year by origin (2022+; 2022 backlog quantified) | CISA KEV |
-| Zero-days | Exploited-at-disclosure proxy per year + recent in-the-wild zero-days | KEV, Google Project Zero |
-| AI & MCP deep dive | Exploited AI software, AI CVEs by stack layer, patch-first by EPSS | KEV, `cvelistV5`, EPSS |
+| Zero-days + speed | Exploited-at-disclosure proxy per year; KEV additions by days-to-KEV bucket; recent in-the-wild zero-days | KEV, Google Project Zero |
+| Latest exploited / patch next | 15 newest KEV additions (ransomware, 0-day, EPSS); top EPSS CVEs of the last 12 months not yet in KEV | KEV, EPSS |
+| Severity, CWE, vendors, CNAs | Severity per year; top 10 CWEs / vendors / assigners, last 12 months vs the 12 before | `cvelistV5` |
 | Supply chain | Open-source CVEs per year; malicious packages per year by registry (outlier years clipped + labelled) | `cvelistV5`, OSV |
-| How AI software breaks | AI vs all: severity distribution and top CWEs (last 24 months); AI severity mix over time | `cvelistV5` (+ NVD fallback) |
-| AI share over time | AI % of all CVEs per period (count / cumulative / share modes) | `cvelistV5` |
-| Latest AI CVEs, who reports | Last 30 AI CVEs (filterable); AI CVEs per year by assigning CNA | `cvelistV5` + KEV |
-| Context | AI package advisories (OSV) and npm AI SDK downloads (adoption, not attack surface) | OSV, npm |
-| Method | Origin + layer definitions, zero-day proxy, measured precision/recall, severity rule, caveats | `data.json` |
+| **Part 2** headline + KPIs | AI-related CVEs YTD (share, ×), MCP & agent CVEs, exploited AI-related, found by AI | all |
+| How CVEs relate to AI | AI-related CVEs this year per relation; per year (lines — tags overlap) | `cvelistV5` |
+| AI share, AI by origin | AI % of all CVEs per period; AI-related CVEs per year by Part 1 origin | `cvelistV5` |
+| Exploited / patch next (AI) | AI-related KEV entries with relation, days-to-KEV, EPSS; top EPSS AI-related CVEs not in KEV | KEV, EPSS |
+| AI vs all, vendors, layers | Severity + CWE vs all CVEs; top AI vendors; AI severity per year; stack layers per month | `cvelistV5` |
+| Latest, who reports, context | Last 30 AI-related CVEs (filterable); AI CVEs per CNA; OSV AI package advisories; npm downloads | `cvelistV5`, KEV, OSV, npm |
+| Method | Origins, AI relations, layers, zero-day proxy, measured precision/recall, severity rule, caveats | `data.json` |
 
 ## Data sources (all public, keyless)
 
@@ -61,9 +71,10 @@ copy of [uPlot](https://uplot.org) (vendored in `vendor/`).
 3. **Google Project Zero "0day In the Wild"** — public tracker of confirmed
    in-the-wild zero-days (keyless CSV export of the published sheet's "All"
    tab; skipped gracefully if its columns change).
-4. **FIRST EPSS** — daily exploitation-probability scores
-   (`api.first.org/data/v1/epss`, 100 CVEs per request; falls back to the
-   daily bulk CSV) for every AI CVE.
+4. **FIRST EPSS** — the daily bulk CSV of scores for every CVE (~3 MB gz):
+   scores for every AI-related CVE and KEV entry, plus "patch next"
+   rankings over all CVEs of the last 12 months that are not in KEV (falls
+   back to `api.first.org` for the AI + KEV scores only).
 5. **OSV.dev** — (a) package advisories for ~74 AI packages across PyPI, npm
    and Go, with `PYSEC-*`/`GHSA-*` duplicates merged; (b) **malicious
    packages**: `MAL-*` ids counted per ecosystem from the per-ecosystem
@@ -76,13 +87,12 @@ copy of [uPlot](https://uplot.org) (vendored in `vendor/`).
 
 ## Origins — where a CVE comes from
 
-Each published CVE gets exactly one origin (`build.py` → `ORIGINS`), first
-match wins:
+Each published CVE gets exactly one origin (`build.py` → `ORIGINS`) — what
+kind of software it is, **regardless of AI** (an AI tool on PyPI is supply
+chain; Copilot is a core platform). First match wins:
 
 | id | Origin | Rule (summary) |
 |---|---|---|
-| `mcp` | MCP servers & AI agents | AI stack layer = mcp (below) |
-| `ai` | Other AI software | any other AI layer |
 | `plugin` | Web CMS plugins & themes | WordPress/Joomla/Drupal plugin/theme/extension (Wordfence, Patchstack, WPScan CNAs; wordpress.org/drupal.org collection URLs; `pkg:wordpress-*`) |
 | `supplychain` | Open-source projects & packages | registry packageURL/collectionURL (npm, PyPI, Maven, Go, Cargo, Composer, RubyGems, NuGet, …) or OSS CNAs (GitHub, PSF, Go, OpenJS, EEF, CPANSec) |
 | `edge` | Network & security edge devices | firewalls, VPN/SSL gateways, routers, load balancers (Fortinet, Ivanti Connect Secure, Citrix ADC/Gateway, PAN-OS, Cisco ASA/FTD/IOS, SonicWall, Juniper, F5 BIG-IP, …) |
@@ -100,9 +110,27 @@ publication year. It misses exploitation CISA confirms later, so recent years
 fill in over time. Project Zero's tracker is shown alongside as a stricter,
 smaller count of confirmed in-the-wild zero-days.
 
-## “AI-related” — methodology (the AI and MCP origins)
+## “AI-related” — methodology (Part 2)
 
-`build.py` parses each record as full JSON and matches, case-insensitively:
+A CVE is AI-related when at least one **AI relation** applies
+(`build.py` → `AI_RELATIONS`; multi-label tags, not exclusive buckets):
+
+| id | Relation | Rule (summary) |
+|---|---|---|
+| `agent` | MCP servers & AI agents | AI stack layer = `mcp` (below) |
+| `product` | AI software & ML libraries | any other AI layer (or an AI-cloud match from a non-mainstream vendor) |
+| `feature` | AI assistants in mainstream software | AI-cloud layer from Microsoft/Google/Amazon/Apple/…, or a named built-in assistant (Copilot, Gemini, Apple Intelligence, Einstein, Now Assist, GitLab Duo, …) |
+| `weakness` | AI-specific weakness | CWE-1426/1427, or prompt injection, LLM/model jailbreak, system-prompt leak, model poisoning, unsafe ML-model loading, unhandled LLM output |
+| `compute` | AI compute: GPU & accelerator stack | NVIDIA GPU driver/CUDA/vGPU/DGX/HGX/Container Toolkit/BlueField, AMD Instinct/ROCm, Intel Gaudi (includes consumer GPU drivers: one driver branch) |
+| `found` | Found by AI tools or AI labs | the record's credits name an AI tool/model/lab (Big Sleep, XBOW, depthfirst, ZeroPath, Claude/Anthropic, OpenAI …) or the description says an AI found it; "Claude" alone needs model/lab context (it is also a first name) |
+
+Linux kernel records only take `found` (their commit text names unrelated
+drivers). KEV and Project Zero entries take their relations from the parse
+cache (`lookup_records`); only CVEs missing from the CVE list fall back to
+matching CISA's text.
+
+The AI-software matcher behind `agent`, `product` and `feature` parses each
+record as full JSON and matches, case-insensitively:
 
 - a curated **product/vendor list** of the AI stack against affected
   vendor/product/packageURL (CNA entries of the record's own vendor plus
@@ -117,7 +145,7 @@ smaller count of confirmed in-the-wild zero-days.
 Generic framework package names (`jax`, `torch`, `accelerate`, …) only
 count in package URLs or with AI context, so "Jax Guestbook" or BlackBerry
 "Torch" no longer match; Linux kernel records are never AI.
-Each AI CVE gets one **stack layer** (first match in priority order):
+Each CVE the matcher flags gets one **stack layer** (first match in priority order):
 
 | id | Layer |
 |---|---|
@@ -135,7 +163,8 @@ Each AI CVE gets one **stack layer** (first match in priority order):
 sample (290 records: flagged / AI-looking-but-unflagged / random);
 `python3 tools/eval_ai.py` scores the current matcher against it, and the
 result is published in `data.json` → `evaluation` and on the page. Precision
-is ~99%. Population-weighted recall is ~50% but highly uncertain (it hinges
+is ~99% (for the AI-software matcher; the weakness, compute and found-by-AI
+rules are audited by sampling, not part of this set). Population-weighted recall is ~50% but highly uncertain (it hinges
 on a single miss in the 383k-record random stratum), so treat every AI count
 as a **lower bound**. Re-label and re-run when the matcher changes.
 
@@ -152,7 +181,9 @@ it with KEV and EPSS.
 ## Pipeline
 
 ```
-build.py     cvelistV5 (git) → data/data.json, data/ai_meta.json   (+ data/cache.json)
+build.py     cvelistV5 (git) → data/data.json (incl. `landscape.all` / `landscape.ai`:
+               the same aggregates for every CVE and for the AI-related slice),
+               data/ai_meta.json   (+ data/cache.json)
 sources.py   KEV, Project Zero, OSV (advisories + malicious), EPSS, npm/pypistats, NVD fallback
                → data/{kev,zerodays,malicious,epss,ai_packages,downloads,severity}.json
                  (+ data/cvss.json cache)

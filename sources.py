@@ -301,6 +301,16 @@ def origin_of_text(text):
         return "other"
 
 
+def relations_of_text(text, vendor=""):
+    """build.ai_relations on free text (KEV/0day rows: no credits/CWE), else []."""
+    b = _build()
+    try:
+        layer = b.ai_layer(text or "")
+        return b.ai_relations(layer, text or "", text or "", "", set(), vendor=vendor)
+    except Exception:
+        return []
+
+
 def lookup_records(cve_ids):
     """build.lookup_records over the parse cache, else {} (A not landed)."""
     b = _build()
@@ -350,12 +360,13 @@ KEV_NOTES = ("added/origin: bucketed by KEV dateAdded year. zeroDay: bucketed by
 
 
 def kev_entries(vulns, meta, records=None, ai_match=is_ai_text,
-                layer_fn=layer_of_text, origin_fn=origin_of_text):
+                layer_fn=layer_of_text, origin_fn=origin_of_text, rel_fn=relations_of_text):
     """KEV catalog rows -> (entries newest first, aiCount).
 
-    AI = CVE in ai_meta (authoritative CVE-list set) OR build's matcher on
-    CISA's vendor/product/name/description text. origin/published come from
-    the CVE-list parse cache (records), else KEV text / ai_meta.
+    AI-related = CVE in ai_meta / with relations in the parse cache (the
+    authoritative CVE-list tagging) OR build's matcher on CISA's
+    vendor/product/name/description text. origin/published come from the
+    parse cache (records), else KEV text / ai_meta. Origins ignore AI.
     """
     records = records or {}
     entries = []
@@ -366,18 +377,18 @@ def kev_entries(vulns, meta, records=None, ai_match=is_ai_text,
                          v.get("shortDescription", "")])
         m = meta.get(cve)
         r = records.get(cve) or {}
-        flag = (m is not None or r.get("origin") in ("mcp", "ai")
-                or ai_match(text))
+        rels = list((m or {}).get("rels") or r.get("rels") or [])
+        # KEV text is only consulted for CVEs the parse cache doesn't know
+        flag = bool(m is not None or rels or (not r and ai_match(text)))
         added = (v.get("dateAdded") or "")[:10]
         pub = (m or {}).get("d") or r.get("d")
         layer = None
         if flag:
             layer = (m or {}).get("layer") or r.get("layer") or layer_fn(text)
-            origin = "mcp" if layer == "mcp" else "ai"  # consistent with `ai`
-        else:
-            origin = r.get("origin") or origin_fn(vp)
-            if origin in ("mcp", "ai"):  # AI origins only via the AI flag
-                origin = "other"
+            rels = rels or rel_fn(text, v.get("vendorProject", "")) or ["product"]
+        origin = r.get("origin") or origin_fn(vp)
+        if origin in ("mcp", "ai"):  # parse cache from before origins ignored AI
+            origin = "other"
         days = days_between(pub, added) if pub else None
         entries.append({
             "cve": cve,
@@ -386,7 +397,9 @@ def kev_entries(vulns, meta, records=None, ai_match=is_ai_text,
             "desc": (v.get("shortDescription") or "")[:200],
             "ransomware": v.get("knownRansomwareCampaignUse") == "Known",
             "ai": flag,
+            "rels": rels if flag else [],
             "layer": layer,
+            "vendor": (v.get("vendorProject") or "").strip(),
             "origin": origin,
             "published": pub,
             "daysToKev": days,
@@ -397,20 +410,26 @@ def kev_entries(vulns, meta, records=None, ai_match=is_ai_text,
 
 
 def kev_by_year(entries):
-    """{year: {"added", "zeroDay", "origin": {id: n}}} (see KEV_NOTES)."""
+    """{year: {"added", "ai", "ransomware", "zeroDay", "aiZeroDay", "origin": {id: n}}}
+    (see KEV_NOTES)."""
     out = {}
 
     def row(y):
-        return out.setdefault(y, {"added": 0, "zeroDay": 0, "origin": {}})
+        return out.setdefault(y, {"added": 0, "ai": 0, "ransomware": 0, "zeroDay": 0,
+                                  "aiZeroDay": 0, "origin": {}})
 
     for e in entries:
         y = e["added"][:4]
         if y:
             r = row(y)
             r["added"] += 1
+            r["ai"] += 1 if e.get("ai") else 0
+            r["ransomware"] += 1 if e.get("ransomware") else 0
             r["origin"][e["origin"]] = r["origin"].get(e["origin"], 0) + 1
         if e["zeroDay"] and e["published"]:
-            row(e["published"][:4])["zeroDay"] += 1
+            r = row(e["published"][:4])
+            r["zeroDay"] += 1
+            r["aiZeroDay"] += 1 if e.get("ai") else 0
     return dict(sorted(out.items()))
 
 
@@ -464,16 +483,24 @@ def parse_zerodays(text):
     return out
 
 
-def zerodays_payload(rows, records=None, kev_ids=(), origin_fn=origin_of_text):
+def zerodays_payload(rows, records=None, kev_ids=(), origin_fn=origin_of_text,
+                     rel_fn=relations_of_text):
     records = records or {}
     kev_ids = set(kev_ids)
-    by_year = {}
+    by_year, ai_year = {}, {}
     for r in rows:
         rec = records.get(r["cve"]) or {}
-        r["origin"] = rec.get("origin") or origin_fn(f'{r["vendor"]} {r["product"]}')
+        text = f'{r["vendor"]} {r["product"]}'
+        r["origin"] = rec.get("origin") or origin_fn(text)
+        if r["origin"] in ("mcp", "ai"):
+            r["origin"] = "other"
+        r["rels"] = list(rec.get("rels") or ([] if rec else rel_fn(text, r["vendor"])))
+        r["ai"] = bool(r["rels"])
         r["inKev"] = r["cve"] in kev_ids
         if r["date"]:
             by_year[r["date"][:4]] = by_year.get(r["date"][:4], 0) + 1
+            if r["ai"]:
+                ai_year[r["date"][:4]] = ai_year.get(r["date"][:4], 0) + 1
     recent = sorted((r for r in rows if r["date"]), key=lambda r: r["date"], reverse=True)
     return {
         "generatedAt": now_iso(),
@@ -482,7 +509,10 @@ def zerodays_payload(rows, records=None, kev_ids=(), origin_fn=origin_of_text):
         "method": "unique CVEs in the sheet's All tab, bucketed by Date Patched year",
         "total": len(rows),
         "byYear": dict(sorted(by_year.items())),
+        "aiByYear": dict(sorted(ai_year.items())),
+        "aiTotal": sum(1 for r in rows if r["ai"]),
         "recent": recent[:20],
+        "recentAi": [r for r in recent if r["ai"]][:20],
     }
 
 
@@ -562,7 +592,8 @@ def parse_epss_api(d):
 
 
 def parse_epss_csv(text, wanted):
-    """Bulk CSV ("#model_version:..,score_date:..." + cve,epss,percentile)."""
+    """Bulk CSV ("#model_version:..,score_date:..." + cve,epss,percentile);
+    wanted None = every row."""
     scores, day = {}, None
     lines = text.splitlines()
     if lines and lines[0].startswith("#"):
@@ -571,7 +602,7 @@ def parse_epss_csv(text, wanted):
         lines = lines[1:]
     for r in csv.DictReader(lines):
         cve = r.get("cve")
-        if cve in wanted:
+        if wanted is None or cve in wanted:
             try:
                 scores[cve] = {"epss": float(r["epss"]),
                                "pct": float(r["percentile"])}
@@ -581,41 +612,86 @@ def parse_epss_csv(text, wanted):
 
 
 def epss_wanted():
+    """CVEs whose score is shown next to them: every AI-related CVE + every KEV entry."""
     meta, _ = load_meta()
     ids = set(meta or {})
     kev = read_json("kev.json", {}) or {}
-    ids |= {e["cve"] for e in kev.get("entries") or [] if e.get("ai")}
+    ids |= {e["cve"] for e in kev.get("entries") or []}
     return sorted(i for i in ids if i.startswith("CVE-"))
 
 
+EPSS_TOP = 15
+EPSS_RECENT_DAYS = 365
+
+
+def epss_rank(scores, records, kev_ids, since, n=EPSS_TOP):
+    """Patch-next lists from all EPSS scores: CVEs published on/after `since`
+    that are NOT in KEV yet, highest EPSS first, for all and for AI-related
+    CVEs; plus how many recent CVEs clear 10% / 50%.
+    scores {cve: {"epss", "pct"}}, records = lookup_records() rows."""
+    top = {"all": [], "ai": []}
+    dist = {k: {"n": 0, "ge10": 0, "ge50": 0} for k in ("all", "ai")}
+    for cve, sc in scores.items():
+        r = records.get(cve)
+        if not r or not r.get("d") or r["d"] < since:
+            continue
+        keys = ("all", "ai") if r.get("rels") else ("all",)
+        for k in keys:
+            dist[k]["n"] += 1
+            dist[k]["ge10"] += sc["epss"] >= 0.1
+            dist[k]["ge50"] += sc["epss"] >= 0.5
+            if cve not in kev_ids:
+                top[k].append((sc["epss"], cve))
+    out = {}
+    for k, rows in top.items():
+        rows.sort(key=lambda t: (-t[0], t[1]))
+        out[k] = [{"cve": c, "epss": scores[c]["epss"], "pct": scores[c]["pct"],
+                   "published": records[c]["d"], "product": records[c].get("product"),
+                   "origin": records[c].get("origin"), "rels": records[c].get("rels") or []}
+                  for _, c in rows[:n]]
+    return out, dist
+
+
 def fetch_epss():
-    """API in batches of 100 CVEs (~25 requests, limit 1000/min); on any API
-    error fall back to the daily bulk CSV (~3 MB gz, all CVEs)."""
+    """Daily bulk CSV (~3 MB gz, every scored CVE): scores for the AI + KEV
+    CVEs plus patch-next rankings over all recent CVEs. If the CSV fails,
+    the API (batches of 100) scores just the AI + KEV CVEs (no rankings)."""
     ids = epss_wanted()
-    if not ids:
-        print("EPSS: no CVEs to score (ai_meta.json missing?)", file=sys.stderr)
-        return
-    scores, day, src = {}, None, "FIRST EPSS"
+    wanted = set(ids)
+    top, dist = None, None
     try:
+        text = gzip.decompress(get(EPSS_CSV, timeout=120)).decode()
+        allscores, day = parse_epss_csv(text, None)
+        src = "FIRST EPSS (bulk CSV)"
+        kev = read_json("kev.json", {}) or {}
+        kev_ids = {e["cve"] for e in kev.get("entries") or []}
+        since = (dt.date.today() - dt.timedelta(days=EPSS_RECENT_DAYS)).isoformat()
+        records = lookup_records(allscores)
+        if records:
+            top, dist = epss_rank(allscores, records, kev_ids, since)
+        scores = {c: v for c, v in allscores.items() if c in wanted}
+    except (urllib.error.URLError, OSError, ValueError) as err:
+        print(f"EPSS CSV: {err}; falling back to the API", file=sys.stderr)
+        scores, day, src = {}, None, "FIRST EPSS"
         for i in range(0, len(ids), EPSS_BATCH):
             batch = ids[i:i + EPSS_BATCH]
-            url = (f"{EPSS_API}?cve={','.join(batch)}"
-                   f"&limit={EPSS_BATCH}")
+            url = f"{EPSS_API}?cve={','.join(batch)}&limit={EPSS_BATCH}"
             s, d = parse_epss_api(json.loads(get(url, timeout=60)))
             scores.update(s)
             day = max(day or "", d or "") or None
             time.sleep(0.5)
-    except (urllib.error.URLError, json.JSONDecodeError, OSError) as err:
-        print(f"EPSS API: {err}; falling back to bulk CSV", file=sys.stderr)
-        text = gzip.decompress(get(EPSS_CSV, timeout=120)).decode()
-        scores, day = parse_epss_csv(text, set(ids))
-        src = "FIRST EPSS (bulk CSV)"
     write_json("epss.json", {
         "generatedAt": now_iso(),
         "source": src,
         "modelDate": day,
         "requested": len(ids),
         "scores": dict(sorted(scores.items())),
+        "recentDays": EPSS_RECENT_DAYS,
+        "top": top,
+        "dist": dist,
+        "notes": ("top: CVEs published in the last recentDays days, not in CISA KEV, "
+                  "highest EPSS first; dist: how many of those recent CVEs score "
+                  ">= 10% / >= 50%"),
     })
 
 

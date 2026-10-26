@@ -1,7 +1,7 @@
 #!/bin/bash
 # Smoke test: data files valid + page renders headlessly at desktop and phone
 # width (no JS errors, every chart whose data exists draws ink, no horizontal
-# overflow, no NaN/undefined text, removed panels stay removed, three tiers
+# overflow, no NaN/undefined text, removed panels stay removed, Part 1 / Part 2
 # + method in order, headline + KPI tiles present).
 # Requires Chrome (set CHROME env). Runs against the repo root.
 set -u
@@ -73,8 +73,12 @@ for label, mobile in (("desktop", None), ("phone 390px", True)):
     if d["rows"] < 5: problems.append("latest-AI table < 5 rows")
     if len(d["headline"]) < 20: problems.append("no headline statement")
     if d["kpis"] < 2: problems.append(f"only {d['kpis']} KPI tiles")
-    if d["tiers"] != 4 or not d["tierOrder"]: problems.append("tier structure (summary/risk/detail/method) missing or out of order")
-    if d["navLinks"] != 4: problems.append("top nav links broken")
+    if d["tiers"] != 5 or not d["tierOrder"]: problems.append("section structure (summary/exploit/volume/ai/method) missing or out of order")
+    if d["navLinks"] != 5: problems.append("top nav links broken")
+    if d.get("aiKpis", 0) < 2: problems.append("Part 2 KPI tiles missing")
+    if d.get("kevAllRows", 0) < 5: problems.append("latest-exploited table < 5 rows")
+    if d.get("topRows", 0) < 15: problems.append("top CWE/vendor/CNA lists missing")
+    if d.get("part1Ai"): problems.append("Part 1 summary mentions AI")
     if d["err"] != "no": problems.append("render error: " + d["err"])
     if d["badText"]: problems.append(f"bad text {d['badText']}")
     if d["badLinks"]: problems.append(f"{d['badLinks']} external links without target=_blank rel=noopener")

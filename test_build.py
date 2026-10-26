@@ -337,62 +337,62 @@ def test_origins():
     print("origins")
     O = build.origin_of
     check("origin ids", [x["id"] for x in build.ORIGINS] ==
-          ["mcp", "ai", "supplychain", "plugin", "edge", "platform", "other"])
-    check("mcp layer -> mcp", O("mcp", "GitHub_M", "", [("x", "mcp-server-git", "", "")]) == "mcp")
-    check("AI PyPI package stays ai", O("inference", "GitHub_M", "", [("vllm", "vllm", "pkg:pypi/vllm", "")]) == "ai")
-    check("WordPress plugin with packageURL -> plugin", O(None, "GitHub_M", "",
+          ["supplychain", "plugin", "edge", "platform", "other"])
+    check("AI PyPI package -> supplychain (origins ignore AI)",
+          O("GitHub_M", "", [("vllm", "vllm", "pkg:pypi/vllm", "")]) == "supplychain")
+    check("WordPress plugin with packageURL -> plugin", O("GitHub_M", "",
           [("acme", "acme-forms", "pkg:wordpress-plugin/acme-forms", "")]) == "plugin")
-    check("wordpress.org collection -> plugin", O(None, "Patchstack", "XSS in Foo",
+    check("wordpress.org collection -> plugin", O("Patchstack", "XSS in Foo",
           [("foo", "Foo", "", "https://wordpress.org/plugins")]) == "plugin")
-    check("old-style plugin description -> plugin", O(None, "mitre",
+    check("old-style plugin description -> plugin", O("mitre",
           "The Foo plugin before 1.2 for WordPress has XSS.", [("n/a", "n/a", "", "")]) == "plugin")
-    check("Joomla extension -> plugin", O(None, "Joomla", "Joomla Extension - x",
+    check("Joomla extension -> plugin", O("Joomla", "Joomla Extension - x",
           [("balbooa", "Balbooa Forms extension for Joomla", "", "")]) == "plugin")
-    check("npm purl -> supplychain", O(None, "VulnCheck", "", [("hono", "hono", "pkg:npm/hono", "")])
+    check("npm purl -> supplychain", O("VulnCheck", "", [("hono", "hono", "pkg:npm/hono", "")])
           == "supplychain")
-    check("maven collection -> supplychain", O(None, "apache", "",
+    check("maven collection -> supplychain", O("apache", "",
           [("Apache", "Commons", "", "https://repo.maven.apache.org/maven2")]) == "supplychain")
-    check("GitHub_M repo -> supplychain", O(None, "GitHub_M", "", [("systemd", "systemd", "", "")])
+    check("GitHub_M repo -> supplychain", O("GitHub_M", "", [("systemd", "systemd", "", "")])
           == "supplychain")
-    check("FortiOS -> edge", O(None, "fortinet", "", [("Fortinet", "FortiOS", "", "")]) == "edge")
-    check("FortiClient not edge", O(None, "fortinet", "", [("Fortinet", "FortiClientWindows", "", "")])
+    check("FortiOS -> edge", O("fortinet", "", [("Fortinet", "FortiOS", "", "")]) == "edge")
+    check("FortiClient not edge", O("fortinet", "", [("Fortinet", "FortiClientWindows", "", "")])
           == "other")
-    check("Cisco ASA -> edge", O(None, "cisco", "",
+    check("Cisco ASA -> edge", O("cisco", "",
           [("Cisco", "Cisco Adaptive Security Appliance (ASA) Software", "", "")]) == "edge")
-    check("Cisco Webex not edge", O(None, "cisco", "", [("Cisco", "Cisco Webex Meetings", "", "")])
+    check("Cisco Webex not edge", O("cisco", "", [("Cisco", "Cisco Webex Meetings", "", "")])
           == "other")
-    check("Ivanti Connect Secure -> edge", O(None, "ivanti", "", [("Ivanti", "Connect Secure", "", "")])
+    check("Ivanti Connect Secure -> edge", O("ivanti", "", [("Ivanti", "Connect Secure", "", "")])
           == "edge")
-    check("Ivanti Endpoint Manager not edge", O(None, "ivanti", "", [("Ivanti", "Endpoint Manager", "", "")])
+    check("Ivanti Endpoint Manager not edge", O("ivanti", "", [("Ivanti", "Endpoint Manager", "", "")])
           == "other")
-    check("NGINX not edge", O(None, "f5", "", [("F5", "NGINX Plus", "", "")]) == "other")
-    check("D-Link NAS not edge", O(None, "VulDB", "", [("D-Link", "DNS-320", "", "")]) == "other")
-    check("UniFi camera not edge", O(None, "hackerone", "", [("Ubiquiti Inc", "UniFi Protect Cameras", "", "")])
+    check("NGINX not edge", O("f5", "", [("F5", "NGINX Plus", "", "")]) == "other")
+    check("D-Link NAS not edge", O("VulDB", "", [("D-Link", "DNS-320", "", "")]) == "other")
+    check("UniFi camera not edge", O("hackerone", "", [("Ubiquiti Inc", "UniFi Protect Cameras", "", "")])
           == "other")
-    check("old router description -> edge", O(None, "mitre",
+    check("old router description -> edge", O("mitre",
           "TOTOLINK A3300R was discovered to contain a command injection", [("n/a", "n/a", "", "")]) == "edge")
-    check("Windows -> platform", O(None, "microsoft", "", [("Microsoft", "Windows 10 Version 1809", "", "")])
+    check("Windows -> platform", O("microsoft", "", [("Microsoft", "Windows 10 Version 1809", "", "")])
           == "platform")
-    check("Linux kernel -> platform", O(None, "Linux", "In the Linux kernel, ...", [("Linux", "Linux", "", "")])
+    check("Linux kernel -> platform", O("Linux", "In the Linux kernel, ...", [("Linux", "Linux", "", "")])
           == "platform")
-    check("HarmonyOS -> platform", O(None, "huawei", "", [("Huawei", "HarmonyOS", "", "")]) == "platform")
-    check("Android app (desc only) not platform", O(None, "mitre",
+    check("HarmonyOS -> platform", O("huawei", "", [("Huawei", "HarmonyOS", "", "")]) == "platform")
+    check("Android app (desc only) not platform", O("mitre",
           "SunGrow iSolarCloud Android application contains hardcoded credentials",
           [("n/a", "n/a", "", "")]) == "other")
-    check("downstream Red Hat rows ignored", O(None, "redhat", "A flaw in libfoo",
+    check("downstream Red Hat rows ignored", O("redhat", "A flaw in libfoo",
           [("Red Hat", "Red Hat Enterprise Linux 9", "", "")]) == "other")
-    check("Oracle -> other", O(None, "oracle", "", [("Oracle Corporation", "PeopleSoft", "", "")]) == "other")
+    check("Oracle -> other", O("oracle", "", [("Oracle Corporation", "PeopleSoft", "", "")]) == "other")
 
     C = build.classify_origin
-    check("text: Langflow -> ai", C("Langflow Langflow code injection") == "ai")
+    check("text: Langflow -> other (no AI origin)", C("Langflow Langflow code injection") == "other")
     check("text: Fortinet FortiOS -> edge", C("Fortinet FortiOS") == "edge")
     check("text: Microsoft Windows -> platform", C("Microsoft Windows SMB") == "platform")
     check("text: Cisco Webex -> other", C("Cisco Webex Meetings") == "other")
     check("text: Oracle E-Business -> other", C("Oracle E-Business Suite") == "other")
 
-    oy = build.origin_years({"ai": {"2017-01": 3, "2024-02": 2, "2024-05": 1}, "edge": {"2025-01": 4}})
+    oy = build.origin_years({"plugin": {"2017-01": 3, "2024-02": 2, "2024-05": 1}, "edge": {"2025-01": 4}})
     check("originYears since 2018, all origins/years",
-          oy["ai"] == {"2024": 3, "2025": 0} and oy["edge"] == {"2024": 0, "2025": 4}
+          oy["plugin"] == {"2024": 3, "2025": 0} and oy["edge"] == {"2024": 0, "2025": 4}
           and oy["other"] == {"2024": 0, "2025": 0})
 
     with tempfile.TemporaryDirectory() as d:
@@ -407,14 +407,71 @@ def test_origins():
         got = build.lookup_records(["CVE-2026-11", "CVE-1-1"], data_dir=d)
         check("lookup_records", got == {"CVE-2026-11": {"d": "2026-05-01", "origin": "edge",
                                                         "layer": None, "product": "Tenda AC18",
-                                                        "cna": "VulDB"}})
+                                                        "cna": "VulDB", "vendor": "Tenda",
+                                                        "rels": []}})
         with open(os.path.join(d, "cache.json"), "w") as f:
             json.dump({"version": -1, "records": {cid: row}}, f)
         check("lookup_records ignores stale cache", build.lookup_records([cid], data_dir=d) == {})
     check("lookup_records missing cache", build.lookup_records(["x"], data_dir="/nonexistent") == {})
 
 
+def test_relations():
+    print("AI relations")
+    R = build.ai_relations
+    check("relation ids", build.RELATION_IDS ==
+          ["agent", "product", "feature", "weakness", "compute", "found"])
+    check("mcp layer -> agent", R("mcp", "an MCP server", "", "", set()) == ["agent"])
+    check("llmapp layer -> product", R("llmapp", "Langflow", "langflow", "", set()) == ["product"])
+    check("cloud layer, Microsoft -> feature",
+          R("cloud", "M365 Copilot", "m365 copilot", "", set(), vendor="Microsoft") == ["feature"])
+    check("cloud layer, hobby repo -> product",
+          R("cloud", "chatgpt-on-wechat", "", "", set(), vendor="zhayujie") == ["product"])
+    check("Copilot named in a Microsoft product -> feature",
+          R(None, "x", "Microsoft 365 Copilot Chat info disclosure", "", set()) == ["feature"])
+    check("prompt injection -> weakness",
+          R(None, "Indirect prompt injection in the summary feature", "", "", set()) == ["weakness"])
+    check("CWE-1427 -> weakness", R(None, "x", "", "", {"CWE-1427"}) == ["weakness"])
+    for text in ("demonstrated by JailbreakMe", "requires user interaction with a system prompt asking for permission",
+                 "Integer overflow during glTF model loading", "allowing for potential data poisoning"):
+        check(f"not a weakness: {text[:30]}", R(None, text, text, "", set()) == [])
+    check("NVIDIA GPU driver -> compute",
+          R(None, "NVIDIA GPU Display Driver for Linux", "nvidia gpu display driver", "", set()) == ["compute"])
+    check("CUDA toolkit -> compute", R(None, "x", "nvidia cuda toolkit", "", set()) == ["compute"])
+    for credits in ("Google Big Sleep", "Alex Gaynor using Claude from Anthropic", "iglocska | Claude Opus 5",
+                    "Zhenpeng Lin of depthfirst", "XBOW", "Claude"):
+        check(f"found: {credits}", R(None, "x", "", credits, set()) == ["found"])
+    check("Claude the person is not found-by-AI", R(None, "x", "", "Claude Ndanda (TrixX)", set()) == [])
+    check("description 'reported by Claude Mythos' -> found",
+          R(None, "This issue was reported by Claude Mythos.", "", "", set()) == ["found"])
+    check("kernel records only take found",
+          R(None, "nvidia gpu, prompt injection", "nvidia gpu", "Big Sleep", set(), kernel=True) == ["found"])
+    check("multi-label", R("mcp", "prompt injection in an MCP server", "", "XBOW", set()) ==
+          ["agent", "weakness", "found"])
+
+
+def test_landscape():
+    print("landscape")
+    import datetime as dt
+    today = dt.date(2026, 10, 26)
+    rows = [("2026-10-01", "HIGH", "CWE-79", "GitHub_M", "Acme", "other", ["agent"]),
+            ("2026-01-05", None, "CWE-79", "GitHub_M", "acme", "plugin", None),
+            ("2025-06-01", "LOW", "CWE-22", "mitre", "Foo", "edge", ["found", "product"]),
+            ("2017-03-01", "LOW", None, "mitre", None, "other", None)]
+    L = build.landscape(rows, ["2017-03", "2025-06", "2026-01", "2026-10"], today)
+    check("total + months", L["total"] == 4 and L["months"] == [1, 1, 1, 1])
+    check("years since 2018", L["years"] == {"2025": 1, "2026": 2})
+    check("sevYears with UNRATED", L["sevYears"]["2026"]["HIGH"] == 1 and L["sevYears"]["2026"]["UNRATED"] == 1)
+    check("originYears", L["originYears"]["plugin"] == {"2025": 0, "2026": 1})
+    check("relYears", L["relYears"]["found"] == {"2025": 1, "2026": 0} and L["relYears"]["agent"]["2026"] == 1)
+    check("window last 365d vs prior", L["window"]["cur"] == ["2025-10-27", "2026-10-26"]
+          and L["window"]["n"] == 2 and L["window"]["prevN"] == 1)
+    check("cweTop: current-window keys with prev counts", L["cweTop"] == [{"id": "CWE-79", "n": 2, "prev": 0}])
+    check("vendorTop case-folded, display name", L["vendorTop"][0]["n"] == 2 and L["vendorTop"][0]["name"] in ("Acme", "acme"))
+
+
 def main():
+    test_relations()
+    test_landscape()
     test_is_ai_blob()
     test_parse_file()
     test_severity()

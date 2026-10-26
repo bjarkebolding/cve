@@ -55,9 +55,9 @@ LABELS = os.path.join(BASE, "tools", "ai_labels.json")
 
 # Bump when parse_file()'s output changes meaning: cached rows from an older
 # parser are discarded and every record is re-parsed.
-PARSER_VERSION = 4
+PARSER_VERSION = 5
 # Bump when the AI definition (layers / patterns) changes meaning.
-DEFINITION_VERSION = 3
+DEFINITION_VERSION = 4
 HOURS_KEEP = 40 * 24     # keep hourly buckets for the last N hours
 COMPARE_MONTHS = 24      # severity/CWE comparison window (incl. current month)
 
@@ -477,10 +477,133 @@ def record_product(containers):
     return None
 
 
+def record_vendor(containers):
+    """First affected vendor (CNA, then ADP), <= 60 chars, or None."""
+    for c in [containers.get("cna") or {}] + list(containers.get("adp") or []):
+        for a in (c.get("affected") or []) if isinstance(c, dict) else []:
+            v = _str(a.get("vendor")).strip() if isinstance(a, dict) else ""
+            if v and v.lower() not in _NA and not REDISTRIBUTOR_RE.match(v):
+                return v[:60]
+    return None
+
+
+# --- AI relations: how a CVE relates to AI (multi-label, any number) ----------
+# "AI-related" = at least one relation. product/agent/feature come from the
+# AI layer matcher above; the others are separate signals that also reach
+# CVEs in non-AI software (a GPU driver, a bug an AI tool found).
+AI_RELATIONS = [
+    {"id": "agent", "label": "MCP servers & AI agents"},
+    {"id": "product", "label": "AI software & ML libraries"},
+    {"id": "feature", "label": "AI assistants in mainstream software"},
+    {"id": "weakness", "label": "AI-specific weakness"},
+    {"id": "compute", "label": "AI compute: GPU & accelerator stack"},
+    {"id": "found", "label": "Found by AI tools or AI labs"},
+]
+RELATION_IDS = [x["id"] for x in AI_RELATIONS]
+
+# Copilot, Gemini & co. built into mainstream products (cloud layer included)
+FEATURE_RE = re.compile(
+    r"\b(?:microsoft|m365|office|word|excel|outlook|teams|windows|edge|bing|github|"
+    r"dynamics(?: 365)?|power (?:platform|apps|automate)|365)[\s's]+copilot\b|"
+    r"\bcopilot\b(?=.*\b(?:microsoft|github|windows|office|m365)\b)|"
+    r"\bgemini\b(?=.*\b(?:google|chrome|workspace|android|gmail)\b)|\bapple intelligence\b|"
+    r"\beinstein (?:gpt|copilot|bots?|ai)\b|\bnow assist\b|\bjoule\b(?=.*\bsap\b)|\bamazon q\b|"
+    r"\bduet ai\b|\batlassian intelligence\b|\brovo\b(?=.*atlassian)|\bzoom ai companion\b|"
+    r"\bgitlab duo\b|\bjetbrains ai\b|\bjupyter[- ]ai\b|\bslack ai\b|\bnotion ai\b|"
+    r"\bgrafana (?:llm|assistant)\b|\bai (?:assistant|chatbot|sidebar) (?:in|of|for) (?:firefox|chrome|edge|safari)\b")
+# a cloud-layer match (ChatGPT, Gemini, Copilot ...) is an AI feature only when a
+# mainstream vendor ships it; "chatgpt-on-wechat" is AI software
+MAINSTREAM_RE = re.compile(
+    r"^\s*(?:microsoft|github|google|amazon|aws|apple|ibm|samsung|salesforce|sap\b|oracle|"
+    r"atlassian|adobe|zoom|slack|meta\b|servicenow|cisco|mozilla|gitlab|jetbrains|notion|grafana)")
+# weakness classes that only exist because of a model in the loop
+AI_CWES = {"CWE-1426", "CWE-1427"}  # generative-AI output / LLM prompt neutralization
+WEAKNESS_RE = re.compile(
+    r"prompt[- ]injection|\b(?:llm|model|ai|prompt) jailbreak|\bjailbreak (?:prompts?|the (?:llm|model))|"
+    r"\b(?:llm|model|agent|assistant|chatbot)(?:'s)? system prompts?\b|"
+    r"\bsystem prompts?(?: (?:leak|extraction|disclosure|override))|\bmodel poisoning\b|"
+    r"\btraining[- ]data (?:poisoning|extraction|leak)|"
+    r"\b(?:llm|model|ai)[- ]generated (?:output|content|code|responses?)\b|"
+    r"\b(?:untrusted|malicious|crafted) (?:ml|ai|machine learning|pytorch|keras|onnx|hugging ?face|"
+    r"pickled?) models?\b|\b(?:ml|ai|pytorch|keras|onnx|tensorflow) model (?:loading|deserialization)\b|"
+    r"torch\.load|\bhallucinat|excessive agency|insecure output handling|"
+    r"\b(?:llm|language model|ai model|model)'s output\b|\bllm output\b")
+# the GPU/accelerator stack AI clusters run on (includes consumer GPU drivers:
+# NVIDIA ships one driver branch for GeForce and data-center GPUs)
+COMPUTE_RE = re.compile(
+    r"\bnvidia (?:gpu|cuda|container toolkit|dgx|hgx|vgpu|virtual gpu|bluefield|nvlink|"
+    r"base command|ai enterprise|data center gpu|fabric manager|dcgm|nccl|cudnn|mig\b)|"
+    r"\bcuda(?: toolkit)?\b|\brocm\b|\bamd instinct\b|\bgaudi\b|\bhabana\b|\bcloud tpu\b")
+# credits / description naming an AI discovery tool or AI lab. "Claude" alone
+# is a first name, so it needs model/lab context.
+FOUND_RE = re.compile(
+    r"\bbig ?sleep\b|\bxbow\b|\baardvark\b|\bcodemender\b|\bdepthfirst\b|\bzeropath\b|"
+    r"\bvulnhuntr\b|\banthropic\b|\bopenai\b|\bgpt-?\d|\bopenai codex\b|"
+    r"\bclaude(?: code| security| mythos| opus| sonnet| haiku| ai\b|[:-]|\s*$)|"
+    r"\b(?:using|with|by|and|via) claude\b|"
+    r"\bai[- ](?:agent|assisted|powered|driven)\b|\bllm[- ](?:assisted|based|powered|agent)\b|"
+    r"autonomous (?:ai|agent|vulnerability|security)")
+FOUND_DESC_RE = re.compile(
+    r"\b(?:reported|found|discovered|identified|detected|spotted|uncovered) (?:by|with|using|via) "
+    r"(?:\S+ ){0,4}?(?:claude|big ?sleep|gpt-?\d|codex|gemini|an? (?:ai|llm)\b|ai[- ]assisted|"
+    r"llms?\b|xbow|aardvark|depthfirst|zeropath)", re.I)
+
+
+def record_credits(cna):
+    """All credit values of a CNA container as one string."""
+    return " | ".join(_str(c.get("value")) for c in (cna.get("credits") or [])
+                      if isinstance(c, dict))
+
+
+def record_cwes(cna):
+    """Every CWE id in the CNA problemTypes."""
+    out = set()
+    for pt in cna.get("problemTypes") or []:
+        for d in (pt.get("descriptions") or []) if isinstance(pt, dict) else []:
+            for v in (d.get("cweId"), d.get("description")) if isinstance(d, dict) else ():
+                m = CWE_RE.match(v) if isinstance(v, str) else None
+                if m:
+                    out.add(m.group(1).upper())
+    return out
+
+
+def ai_relations(layer, desc, blob, credits, cwes, kernel=False, vendor=None):
+    """Sorted AI_RELATIONS ids for one CVE (empty list = not AI-related).
+    layer = record_layer(); blob = description + affected rows; kernel
+    records only take "found" (their commit text names unrelated drivers)."""
+    rels = set()
+    d = (desc or "").lower()
+    if FOUND_RE.search((credits or "").lower()) or FOUND_DESC_RE.search(desc or ""):
+        rels.add("found")
+    if not kernel:
+        b = (blob or "").lower()
+        if layer == "mcp":
+            rels.add("agent")
+        elif layer == "cloud" and MAINSTREAM_RE.match((vendor or "").lower()):
+            rels.add("feature")
+        elif layer:
+            rels.add("product")
+        if FEATURE_RE.search(b):
+            rels.add("feature")
+        if WEAKNESS_RE.search(d) or (cwes & AI_CWES):
+            rels.add("weakness")
+        if COMPUTE_RE.search(b):
+            rels.add("compute")
+    return [r for r in RELATION_IDS if r in rels]
+
+
+def record_relations(containers, layer):
+    """ai_relations() for a parsed record."""
+    cna = containers.get("cna") or {}
+    desc = en_description(cna)[:800]
+    kernel = desc.lower().startswith(KERNEL_PREFIX)
+    return ai_relations(layer, desc, desc + " " + _affected_blob(containers),
+                        record_credits(cna), record_cwes(cna), kernel, record_vendor(containers))
+
+
+
 # --- origins: where a CVE comes from (one per CVE) -----------------------------
 ORIGINS = [
-    {"id": "mcp", "label": "MCP servers & AI agents"},
-    {"id": "ai", "label": "Other AI software"},
     {"id": "supplychain", "label": "Open-source projects & packages (supply chain)"},
     {"id": "plugin", "label": "Web CMS plugins & themes"},
     {"id": "edge", "label": "Network & security edge devices"},
@@ -491,7 +614,9 @@ ORIGIN_IDS = [x["id"] for x in ORIGINS]
 
 # Evaluation order differs from the list order in one place: plugin is tested
 # before supplychain (WordPress plugins carry packageURLs / wordpress.org
-# collectionURLs). AI layer always wins (a PyPI package of an AI tool is AI).
+# collectionURLs). Origins say what kind of software it is and ignore AI:
+# an AI tool lands in its natural class (a PyPI package -> supplychain); how a
+# CVE relates to AI is the separate, multi-label AI_RELATIONS tagging.
 PLUGIN_CNAS = {"wordfence", "patchstack", "wpscan"}
 PLUGIN_RE = re.compile(
     r"\b(?:plugin|theme|add-?on|extension) for (?:wordpress|joomla!?|drupal)\b|"
@@ -606,11 +731,9 @@ def _rows_all(containers):
     return out
 
 
-def origin_of(layer, assigner, desc, rows):
-    """Origin id from the AI layer, assigner short name, English description and
-    affected rows [(vendor, product, packageURL, collectionURL)]; see ORIGINS."""
-    if layer:
-        return "mcp" if layer == "mcp" else "ai"
+def origin_of(assigner, desc, rows):
+    """Origin id from the assigner short name, English description and affected
+    rows [(vendor, product, packageURL, collectionURL)]; see ORIGINS."""
     asg = (assigner or "").lower()
     d = (desc or "")[:400].lower()
     named = [(v.lower().replace("_", " "), p.lower().replace("_", " "), u, c.lower())
@@ -641,19 +764,16 @@ def origin_of(layer, assigner, desc, rows):
     return "other"
 
 
-def record_origin(containers, assigner, layer):
+def record_origin(containers, assigner):
     """origin_of() for a parsed record."""
     cna = containers.get("cna") or {}
-    return origin_of(layer, assigner, en_description(cna), _rows_all(containers))
+    return origin_of(assigner, en_description(cna), _rows_all(containers))
 
 
 def classify_origin(text):
     """Origin id for free text such as KEV "vendorProject product name" strings
     (no assigner / packageURL available)."""
     t = (text or "").lower()
-    layer = ai_layer(t)
-    if layer:
-        return "mcp" if layer == "mcp" else "ai"
     if PLUGIN_RE.search(t):
         return "plugin"
     if re.search(r"pkg:[a-z]+/", t):
@@ -667,7 +787,8 @@ def classify_origin(text):
 
 def parse_file(path):
     """(cve_id, row) for one CVE record, or None. row = [state, pubISO, resISO,
-    layer|None, sev, score, cvssV, sevSrc, cwe, cna, product, origin]
+    layer|None, sev, score, cvssV, sevSrc, cwe, cna, product, origin, vendor,
+    relations|None]
     (indexes are private: other modules use lookup_records())."""
     rec = load_record(path)
     meta = rec and rec.get("cveMetadata")
@@ -687,12 +808,15 @@ def parse_file(path):
          record_cwe(containers.get("cna") or {}),
          meta.get("assignerShortName") or None,
          record_product(containers),
-         record_origin(containers, meta.get("assignerShortName"), layer)],
+         record_origin(containers, meta.get("assignerShortName")),
+         record_vendor(containers),
+         record_relations(containers, layer) or None],
     )
 
 
 def lookup_records(cve_ids, data_dir=None):
-    """{cve: {"d": publishedDay|None, "origin", "layer", "product", "cna"}} for
+    """{cve: {"d": publishedDay|None, "origin", "layer", "product", "cna",
+    "vendor", "rels"}} for
     the ids found in the parse cache (<data_dir or DATADIR>/cache.json)."""
     path = os.path.join(data_dir or DATADIR, "cache.json")
     try:
@@ -708,7 +832,8 @@ def lookup_records(cve_ids, data_dir=None):
         r = recs.get(cid)
         if r:
             out[cid] = {"d": (r[1] or "")[:10] or None if r[0] == "PUBLISHED" else None,
-                        "origin": r[11], "layer": r[3], "product": r[10], "cna": r[9]}
+                        "origin": r[11], "layer": r[3], "product": r[10], "cna": r[9],
+                        "vendor": r[12], "rels": r[13] or []}
     return out
 
 
@@ -792,6 +917,73 @@ def origin_years(origin_month, since="2018"):
             c[m[:4]] += n
         out[o] = {y: c.get(y, 0) for y in years}
     return out
+
+
+def _windowed_top(cur, prev, n, names=None):
+    """[{"id", "n", "prev"[, "name"]}] for the n largest keys of cur."""
+    out = []
+    for k, v in sorted(cur.items(), key=lambda kv: (-kv[1], kv[0]))[:n]:
+        row = {"id": k, "n": v, "prev": prev.get(k, 0)}
+        if names:
+            row["name"] = names[k].most_common(1)[0][0]
+        out.append(row)
+    return out
+
+
+def landscape(rows, months, today, since="2018", top=12):
+    """The same set of aggregates for any slice of CVEs (all, AI-related).
+    rows: (pubDay, sev, cwe, cna, vendor, origin, rels) per PUBLISHED CVE.
+    Windows: the last 365 days (`cur`, ending today) vs the 365 before (`prev`)."""
+    cur_from = (today - dt.timedelta(days=364)).isoformat()
+    prev_from = (today - dt.timedelta(days=729)).isoformat()
+    month_n, years = Counter(), Counter()
+    sev_years = defaultdict(Counter)
+    origin_y = defaultdict(Counter)
+    rel_y = defaultdict(Counter)
+    cwe = (Counter(), Counter())
+    vendor = (Counter(), Counter())
+    cna = (Counter(), Counter())
+    sev_w = []
+    names = defaultdict(Counter)
+    total = 0
+    for day, sev, cw, asg, vend, origin, rels in rows:
+        total += 1
+        month_n[day[:7]] += 1
+        y = day[:4]
+        if y >= since:
+            years[y] += 1
+            sev_years[y][sev if sev in SEVERITIES else "UNRATED"] += 1
+            origin_y[origin or "other"][y] += 1
+            for r in rels or ():
+                rel_y[r][y] += 1
+        w = 0 if day >= cur_from else 1 if day >= prev_from else None
+        if w is None:
+            continue
+        if w == 0:
+            sev_w.append(sev)
+        if cw:
+            cwe[w][cw] += 1
+        if vend:
+            key = vend.strip().lower()
+            vendor[w][key] += 1
+            names[key][vend.strip()] += 1
+        cna[w][asg or "unknown"] += 1
+    ys = sorted(years)
+    return {
+        "total": total,
+        "months": [month_n.get(m, 0) for m in months],
+        "years": {y: years[y] for y in ys},
+        "sevYears": {y: {k: sev_years[y].get(k, 0) for k in SEVERITIES + ("UNRATED",)} for y in ys},
+        "originYears": {o: {y: origin_y[o].get(y, 0) for y in ys} for o in ORIGIN_IDS},
+        "relYears": {r: {y: rel_y[r].get(y, 0) for y in ys} for r in RELATION_IDS},
+        "window": {"cur": [cur_from, today.isoformat()],
+                   "prev": [prev_from, (today - dt.timedelta(days=365)).isoformat()],
+                   "n": sum(cna[0].values()), "prevN": sum(cna[1].values())},
+        "sevWindow": sev_mix(sev_w),
+        "cweTop": _windowed_top(cwe[0], cwe[1], top),
+        "vendorTop": _windowed_top(vendor[0], vendor[1], top, names),
+        "cnaTop": _windowed_top(cna[0], cna[1], top),
+    }
 
 
 def window_months(months, n=COMPARE_MONTHS):
@@ -928,24 +1120,32 @@ def main():
     published_total = ai_total = rejected_total = 0
     recent_ai = []     # (published_iso, id)
 
+    land_all, land_ai = [], []
+
     for cid, row in records.items():
         state, pub, _res, layer = row[0], row[1], row[2], row[3]
+        rels = row[13]
         if state == "PUBLISHED" and pub:
             day = pub[:10]
             pub_days[day] += 1
             published_total += 1
             origin_month[row[11] or "other"][day[:7]] += 1
+            lrow = (day, row[4], row[8], row[9], row[12], row[11], rels)
+            land_all.append(lrow)
             if day >= hours_keep_from.isoformat():
                 hours[pub[:13]] += 1  # "YYYY-MM-DDTHH"
             if layer:
+                layer_month[layer][day[:7]] += 1
+            if rels:
+                land_ai.append(lrow)
                 ai_days[day] += 1
                 ai_total += 1
-                layer_month[layer][day[:7]] += 1
                 ai_cna.append((day, row[9]))
                 ai_products.append((day, row[10], row[9]))
-                ai_meta[cid] = {"d": day, "layer": layer, "sev": row[4], "score": row[5],
-                                "cvssV": row[6], "sevSrc": row[7], "cwe": row[8],
-                                "cna": row[9], "product": row[10]}
+                ai_meta[cid] = {"d": day, "layer": layer, "rels": rels, "sev": row[4],
+                                "score": row[5], "cvssV": row[6], "sevSrc": row[7],
+                                "cwe": row[8], "cna": row[9], "product": row[10],
+                                "vendor": row[12], "origin": row[11]}
                 if day >= hours_keep_from.isoformat():
                     ai_hours[pub[:13]] += 1
                 if day >= (today - dt.timedelta(days=30)).isoformat():
@@ -971,6 +1171,8 @@ def main():
             "cna": m["cna"] or "",
             "cnaName": m["cna"] or "",
             "layer": m["layer"],
+            "rels": m["rels"],
+            "origin": m["origin"],
             "product": m["product"],
             "cvss": ({"sev": m["sev"], "score": m["score"], "v": m["cvssV"], "src": m["sevSrc"]}
                      if m["sev"] or m["score"] is not None else None),
@@ -1050,7 +1252,7 @@ def main():
             sev_all.append(row[4])
             if row[8]:
                 cwe_all[row[8]] += 1
-            if row[3]:
+            if row[13]:
                 sev_ai.append(row[4])
                 if row[8]:
                     cwe_ai[row[8]] += 1
@@ -1072,6 +1274,9 @@ def main():
         "counts": counts,
         "aiMonths": [ai_month_counts.get(m, 0) for m in months],
         "layerMonths": {lid: [layer_month[lid].get(m, 0) for m in months] for lid in LAYER_IDS},
+        "relations": AI_RELATIONS,
+        "landscape": {"all": landscape(land_all, months, today),
+                      "ai": landscape(land_ai, months, today)},
         "origins": ORIGINS,
         "originMonths": {o: [origin_month[o].get(m, 0) for m in months] for o in ORIGIN_IDS},
         "originYears": origin_years(origin_month),
@@ -1099,7 +1304,7 @@ def main():
         json.dump({"version": PARSER_VERSION, "records": records}, f)
     with open(AI_META, "w") as f:
         json.dump({"generatedAt": payload["generatedAt"], "definitionVersion": DEFINITION_VERSION,
-                   "layers": AI_LAYERS, "ids": dict(sorted(ai_meta.items()))}, f)
+                   "layers": AI_LAYERS, "relations": AI_RELATIONS, "ids": dict(sorted(ai_meta.items()))}, f)
 
     print(f"wrote {OUT}", file=sys.stderr)
     print(f"  {published_total} published ({ai_total} AI-related), "

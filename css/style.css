@@ -436,3 +436,17 @@ html { scroll-behavior: smooth; }
 #chart-cves .u-legend tr.u-series:first-child { display: none; }
 #chart-cves .u-inline .u-series th::after { content: none; }
 #chart-cves .u-legend .u-value { padding-left: 4px; }
+
+/* ---- Part 2 (AI-related) + ranked lists ---- */
+.tier-ai .tier-label span { background: var(--c64-blue, #4466ff); color: #fff; }
+.tier-ai > .headline { margin-top: 6px; }
+.toplist .hb-bar { position: relative; overflow: visible; }
+.toplist .hb-row { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 96px; }
+.hb-prev { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #ffffff; opacity: .85; }
+.toplegend { margin: 0 0 8px; }
+.reltags { display: inline-flex; flex-wrap: wrap; gap: 2px 8px; }
+.reltag { white-space: nowrap; }
+td.stack .reltags { margin-bottom: 2px; }
+@media (max-width: 600px) {
+  .toplist .hb-row { grid-template-columns: minmax(0, 1fr) 90px; }
+}

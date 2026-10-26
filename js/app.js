@@ -1,4 +1,5 @@
-/* Security of AI software — dashboard
+/* The vulnerability surge — and how much of it is AI — dashboard
+ * Part 1 covers every CVE (no AI framing); Part 2 the AI-related slice.
  * Static, CSP-locked: all text below is inserted via textContent (no
  * innerHTML with data), charts are self-hosted uPlot, data is same-origin.
  * Every panel renders independently and degrades to a short note when its
@@ -208,6 +209,13 @@ function stackCell(layer, product, label) {
   if (product) td.append(h("div", { class: "prod", text: product }));
   return td;
 }
+/* relation tags with the product on a second, muted line */
+function relCell(rels, product, RL) {
+  const td = h("td", { class: "stack" });
+  td.append(rels && rels.length ? relTags(rels, RL) : h("div", { text: "—" }));
+  if (product) td.append(h("div", { class: "prod", text: product }));
+  return td;
+}
 function epssText(s) { return s && fin(s.epss) ? pct(s.epss, s.epss < 0.1 ? 1 : 0) : "—"; }
 
 /* ---------- chart plumbing ---------- */
@@ -371,7 +379,7 @@ function computeFacts(ctx) {
         const published = e.published || m.d || null;
         let dtk = fin(e.daysToKev) ? e.daysToKev : null;
         if (dtk == null && published && e.added) dtk = daysBetween(published, e.added);
-        return { ...e, published, daysToKev: dtk, layer: e.layer || m.layer || null };
+        return { ...e, published, daysToKev: dtk, layer: e.layer || m.layer || null, rels: e.rels && e.rels.length ? e.rels : m.rels || null };
       });
       rows.sort((a, b) => String(b.added).localeCompare(String(a.added)));
       F.kevAi = rows;
@@ -405,8 +413,6 @@ function computeFacts(ctx) {
 
 /* ================= origins (contract v2) ================= */
 const ORIGIN_COLORS = {
-  mcp: "#ffff44",          /* yellow */
-  ai: "#4466ff",           /* visor blue */
   supplychain: "#44eeee",  /* cyan */
   plugin: "#ee66dd",       /* magenta */
   edge: "#ff9933",         /* orange */
@@ -414,21 +420,18 @@ const ORIGIN_COLORS = {
   other: "#555588",        /* muted blue-gray: the large remainder */
 };
 const ORIGIN_FALLBACK = {
-  mcp: "MCP servers & AI agents", ai: "Other AI software", supplychain: "Open-source projects & packages (supply chain)",
+  supplychain: "Open-source projects & packages (supply chain)",
   plugin: "Web CMS plugins & themes", edge: "Network & security edge devices",
   platform: "OS, browsers & core platforms", other: "Enterprise & other software",
 };
 const ORIGIN_RULES = {
-  mcp: "AI stack layer = MCP servers & agent tools.",
-  ai: "any other AI stack layer (see below).",
   supplychain: "affected product identified by a package URL or registry (npm, PyPI, Maven, Go, crates.io, RubyGems, NuGet, Packagist, …), plus all GitHub-assigned (GitHub_M) records — open-source apps such as systemd or ImageMagick, not only registry packages.",
   plugin: "WordPress / Joomla / Drupal plugins and themes.",
   edge: "firewalls, VPN/SSL gateways, routers, load balancers, mail gateways (Fortinet, Ivanti, Citrix, Palo Alto, Cisco, SonicWall, Juniper, F5, …).",
   platform: "Microsoft Windows/Office/Exchange, Apple OSes/Safari, Android/Chrome, Linux kernel, Mozilla, …",
   other: "everything else — mostly enterprise software (Oracle, Adobe, IBM, SAP, Atlassian, SolarWinds, Apache) plus many small PHP web apps (VulDB-assigned).",
 };
-const AI_ORIGINS = new Set(["mcp", "ai"]);
-const ORIGIN_SHORT = { mcp: "MCP & agents", ai: "other AI software", supplychain: "open-source projects", plugin: "CMS plugins", edge: "edge devices", platform: "platforms", other: "enterprise & other software" };
+const ORIGIN_SHORT = { supplychain: "open-source projects", plugin: "CMS plugins", edge: "edge devices", platform: "platforms", other: "enterprise & other software" };
 const oShort = (id, OL) => ORIGIN_SHORT[id] || lcFirst(OL(id));
 function originList(core) {
   const l = core && Array.isArray(core.origins) ? core.origins.filter((o) => o && o.id) : null;
@@ -439,6 +442,58 @@ const originLabel = (core) => {
   for (const o of originList(core) || []) m[o.id] = o.label || o.id;
   return (id) => m[id] || ORIGIN_FALLBACK[id] || id;
 };
+/* AI relations (multi-label tags; Part 2). Ids fixed by build.py AI_RELATIONS. */
+const REL_COLORS = {
+  agent: "#ffff44",     /* yellow */
+  product: "#4466ff",   /* visor blue */
+  feature: "#ffffff",   /* white */
+  weakness: "#ee66dd",  /* magenta */
+  compute: "#aaee22",   /* lime */
+  found: "#44eeee",     /* cyan */
+};
+const REL_FALLBACK = {
+  agent: "MCP servers & AI agents", product: "AI software & ML libraries",
+  feature: "AI assistants in mainstream software", weakness: "AI-specific weakness",
+  compute: "AI compute: GPU & accelerator stack", found: "Found by AI tools or AI labs",
+};
+const REL_SHORT = { agent: "MCP & agents", product: "AI software", feature: "AI feature", weakness: "AI weakness", compute: "AI compute", found: "found by AI" };
+const REL_RULES = {
+  agent: "MCP servers and clients, agent frameworks and coding agents (OpenClaw, Claude Code, Cline, CrewAI …).",
+  product: "AI applications, LLM gateways, inference servers, MLOps platforms, model-file tooling and ML libraries (Langflow, LiteLLM, vLLM, MLflow, TensorFlow …).",
+  feature: "AI assistants shipped inside mainstream products — Microsoft/GitHub Copilot, Gemini in Google products, Apple Intelligence, Einstein, Now Assist, GitLab Duo …",
+  weakness: "a weakness that only exists because a model is in the loop: prompt injection, jailbreaks, system-prompt leaks, model poisoning, unsafe model loading, unhandled LLM output (CWE-1426/1427).",
+  compute: "the GPU / accelerator stack AI runs on: NVIDIA GPU drivers, CUDA, vGPU, DGX/HGX, Container Toolkit, BlueField; AMD Instinct/ROCm; Intel Gaudi.",
+  found: "the CVE record credits an AI discovery tool, model or lab (Google Big Sleep, XBOW, depthfirst, ZeroPath, Claude/Anthropic, OpenAI …) or says an AI found it.",
+};
+function relList(core, meta) {
+  const l = (core && Array.isArray(core.relations) && core.relations) || (meta && Array.isArray(meta.relations) && meta.relations) || null;
+  return l ? l.filter((x) => x && x.id) : null;
+}
+function makeRelLabel(rels) {
+  const m = {};
+  for (const r of rels || []) m[r.id] = r.label || r.id;
+  return (id) => m[id] || REL_FALLBACK[id] || id;
+}
+const rShort = (id) => REL_SHORT[id] || id;
+/* relation tags (swatch + short name) for a table cell */
+function relTags(rels, RL) {
+  const wrap = h("span", { class: "reltags" });
+  for (const id of rels || []) {
+    const sw = h("span", { class: "swatch", "aria-hidden": "true" });
+    sw.style.background = REL_COLORS[id] || OTHER_COLOR;
+    wrap.append(h("span", { class: "reltag", title: RL ? RL(id) : id }, sw, document.createTextNode(rShort(id))));
+  }
+  return wrap;
+}
+function originCell(id, OL) {
+  const oc = h("td", { class: "nowrap" });
+  if (!id) { oc.textContent = "—"; return oc; }
+  const sw = h("span", { class: "swatch", "aria-hidden": "true" });
+  sw.style.background = ORIGIN_COLORS[id] || OTHER_COLOR;
+  oc.append(sw, document.createTextNode(oShort(id, OL)));
+  oc.title = OL(id);
+  return oc;
+}
 const sumObj = (o) => Object.values(o || {}).reduce((a, b) => a + (fin(b) ? b : 0), 0);
 
 /* facts for the society-wide story; every field optional */
@@ -497,19 +552,25 @@ function computeSurgeFacts(ctx, F) {
       S.malYtd = n;
     }
   } catch (e) { /* skip */ }
-  // AI share of this year's CVEs: origins if present, else the AI flag
-  if (S.originYtd) {
-    const b = S.originYtd.by;
-    S.aiShare = { n: (b.ai || 0) + (b.mcp || 0), mcp: b.mcp || 0, of: S.originYtd.total };
-    if (fin(b.supplychain)) S.supply = { n: b.supplychain, of: S.originYtd.total };
-  } else if (F.ytd && S.total) {
-    S.aiShare = { n: F.ytd.cur, mcp: fin(F.mcpYtd) ? F.mcpYtd : null, of: S.total.cur };
-  }
+  if (S.originYtd && fin(S.originYtd.by.supplychain)) S.supply = { n: S.originYtd.by.supplychain, of: S.originYtd.total };
+  // AI-related share of this year's CVEs (Part 2)
+  if (F.ytd && S.total) S.aiShare = { n: F.ytd.cur, mcp: fin(F.mcpYtd) ? F.mcpYtd : null, of: S.total.cur };
+  // HIGH/CRITICAL share: this year vs last year (record CVSS, rated only)
+  try {
+    const sy = core.landscape && core.landscape.all && core.landscape.all.sevYears;
+    const share = (o) => { if (!o) return null; const r = SEV_KEYS.reduce((t, k) => t + (o[k] || 0), 0); return r ? ((o.CRITICAL || 0) + (o.HIGH || 0)) / r : null; };
+    if (sy) S.hc = { cur: share(sy[F.year]), prev: share(sy[F.prevYear]), crit: sy[F.year] ? sy[F.year].CRITICAL || 0 : 0 };
+  } catch (e) { /* skip */ }
+  // in-the-wild zero-days (Project Zero) this year
+  try {
+    const z = ctx.zd;
+    if (z && z.byYear) S.p0 = { cur: z.byYear[F.year] || 0, prev: z.byYear[F.prevYear] || 0, total: z.total };
+  } catch (e) { /* skip */ }
   return S;
 }
 
 /* ================= TIER 1: executive summary ================= */
-const fmtX = (x) => (x >= 3 ? String(Math.round(x)) : x.toFixed(1));
+const fmtX = (x) => (x >= 10 ? String(Math.round(x)) : x.toFixed(1));
 /* "IBM Langflow" / "Langflow Langflow" → "Langflow"; "BerriAI LiteLLM" → "LiteLLM" */
 function shortProduct(p) {
   if (!p) return null;
@@ -537,14 +598,12 @@ function buildHeadline(ctx, F, S) {
   let head = null;
   try {
     const t = S.total;
-    const a = S.aiShare;
-    const aiPart = a && a.of ? ` — ${pct(a.n / a.of, a.n / a.of < 0.1 ? 1 : 0)} of them from AI software and MCP agents` : "";
     if (t && t.prev) {
       const r = t.cur / t.prev;
-      head = r >= 1.15 ? `CVE disclosures are up ~${fmtX(r)}× on the same period last year${aiPart}.`
-        : r >= 0.95 ? `CVE disclosures are running level with last year${aiPart}.`
-        : `CVE disclosures are down ${pct(1 - r)} on the same period last year${aiPart}.`;
-    } else if (t) head = `${num.format(t.cur)} CVEs published in ${F.year} so far${aiPart}.`;
+      head = r >= 1.15 ? `CVE disclosures are up ~${fmtX(r)}× on the same period last year: ${num.format(t.cur)} so far in ${F.year}.`
+        : r >= 0.95 ? `CVE disclosures are running level with last year: ${num.format(t.cur)} so far in ${F.year}.`
+        : `CVE disclosures are down ${pct(1 - r)} on the same period last year.`;
+    } else if (t) head = `${num.format(t.cur)} CVEs published in ${F.year} so far.`;
   } catch (e) { head = null; }
   head = clean(head);
   if (head) el.textContent = head; else el.remove();
@@ -554,46 +613,59 @@ function buildHeadline(ctx, F, S) {
   add(() => {
     const k = S.kev;
     if (!k || !k.cur) return null;
-    if (k.origin) {
-      const ranked = Object.entries(k.origin).filter(([id]) => !AI_ORIGINS.has(id)).sort((a, b) => b[1] - a[1]).slice(0, 3);
-      const aiN = (k.origin.ai || 0) + (k.origin.mcp || 0);
-      if (!ranked.length) return null;
-      const lead = ranked.reduce((s, [, n]) => s + n, 0);
-      return `AI drives volume, not exploitation: ${listJoin(ranked.map(([id]) => oShort(id, OL)))} account for ${num.format(lead)} of the ${num.format(k.cur)} vulnerabilities CISA added to its exploited list in ${F.year}; AI software and MCP for ${num.format(aiN)}.`;
-    }
-    return `AI drives volume, not (yet) exploitation: AI software accounts for ${num.format(k.aiCur)} of the ${num.format(k.cur)} vulnerabilities CISA added to its exploited list in ${F.year}.`;
+    const vs = k.prevSame ? ` (${num.format(k.prevSame)} by this date last year)` : "";
+    const zd = fin(k.zd) ? `, ${num.format(k.zd)} of them exploited at disclosure` : "";
+    return `CISA confirmed ${num.format(k.cur)} newly exploited vulnerabilities this year${vs}${zd}.`;
   });
+  add(() => {
+    const k = S.kev;
+    if (!k || !k.cur || !k.origin) return null;
+    const ranked = Object.entries(k.origin).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const lead = ranked.reduce((t, [, n]) => t + n, 0);
+    return `${listJoin(ranked.map(([id]) => oShort(id, OL)))} account for ${num.format(lead)} of them.`.replace(/^./, (c) => c.toUpperCase());
+  });
+  add(() => (S.hc && fin(S.hc.cur) ? `${pct(S.hc.cur)} of this year's rated CVEs are HIGH or CRITICAL${fin(S.hc.prev) ? ` (${pct(S.hc.prev)} in ${F.prevYear})` : ""}.` : null));
   if (parts.length) sub.textContent = parts.join(" "); else sub.remove();
 }
 
-function buildKpis(ctx, F, S) {
-  const wrap = $("#kpis");
-  const tiles = [];
-  const t = S.total;
-  if (t) tiles.push({ k: `CVEs published ${F.year} YTD`, v: num.format(t.cur),
-    d: t.prev ? `×${(t.cur / t.prev).toFixed(1)} vs same period ${F.prevYear} (${num.format(t.prev)})` : `${num.format(t.prevFull)} in all of ${F.prevYear}` });
-  const k = S.kev;
-  if (k) tiles.push({ k: `Exploited (KEV) ${F.year}`, v: num.format(k.cur), cls: "warn",
-    d: [fin(k.zd) ? `${num.format(k.zd)} exploited at disclosure` : null, k.prevSame ? `${num.format(k.prevSame)} same period ${F.prevYear}` : null].filter(Boolean).join(" · ") || "added to CISA KEV this year" });
-  const a = S.aiShare;
-  if (a && a.of) {
-    const yr = F.ytd && F.ytd.prev ? ` · AI ×${(F.ytd.cur / F.ytd.prev).toFixed(1)} vs same period` : "";
-    tiles.push({ k: "From AI + MCP", v: pct(a.n / a.of, a.n / a.of < 0.1 ? 1 : 0), cls: "ai",
-      d: `${num.format(a.n)} AI CVEs` + (fin(a.mcp) ? ` incl. ${num.format(a.mcp)} MCP` : "") + yr });
-  }
-  if (S.supply || fin(S.malYtd)) {
-    tiles.push(S.supply
-      ? { k: "Supply chain", v: num.format(S.supply.n), cls: "sc",
-          d: `open-source CVEs (${pct(S.supply.n / S.supply.of)}; GitHub CNA surge inflates)` + (fin(S.malYtd) && S.malYtd ? ` · ${num.format(S.malYtd)} malicious packages` : "") }
-      : { k: "Malicious packages", v: num.format(S.malYtd), cls: "sc", d: `${F.year} YTD, OSV MAL advisories` });
-  }
-  if (!tiles.length) { note(wrap, "Key indicators are not available for this data build."); return; }
+function kpiTiles(wrap, tiles, emptyMsg) {
+  if (!tiles.length) { note(wrap, emptyMsg); return; }
   for (const x of tiles) {
     wrap.append(h("div", { class: "kpi" },
       h("div", { class: "k", text: x.k }),
       h("div", { class: "v" + (x.cls ? " " + x.cls : ""), text: x.v }),
       x.d ? h("div", { class: "d", text: x.d }) : null));
   }
+}
+function buildKpis(ctx, F, S) {
+  const tiles = [];
+  const t = S.total;
+  if (t) tiles.push({ k: `CVEs published ${F.year} YTD`, v: num.format(t.cur),
+    d: t.prev ? `×${(t.cur / t.prev).toFixed(1)} vs same period ${F.prevYear} (${num.format(t.prev)})` : `${num.format(t.prevFull)} in all of ${F.prevYear}` });
+  const k = S.kev;
+  if (k) tiles.push({ k: `Exploited (KEV) ${F.year}`, v: num.format(k.cur), cls: "warn",
+    d: k.prevSame ? `${num.format(k.prevSame)} by this date in ${F.prevYear}` : "added to CISA KEV this year" });
+  if (k && fin(k.zd)) {
+    tiles.push({ k: `Zero-days ${F.year}`, v: num.format(k.zd), cls: "warn",
+      d: [`exploited at disclosure (KEV ≤1 day)`, fin(k.zdPrevSame) ? `${num.format(k.zdPrevSame)} by this date ${F.prevYear}` : null,
+        S.p0 && S.p0.cur ? `Project Zero: ${num.format(S.p0.cur)} in the wild` : null].filter(Boolean).join(" · ") });
+  }
+  if (S.supply || fin(S.malYtd)) {
+    tiles.push(S.supply
+      ? { k: "Supply chain", v: num.format(S.supply.n), cls: "sc",
+          d: `open-source CVEs (${pct(S.supply.n / S.supply.of)} of all)` + (fin(S.malYtd) && S.malYtd ? ` · ${num.format(S.malYtd)} malicious packages` : "") }
+      : { k: "Malicious packages", v: num.format(S.malYtd), cls: "sc", d: `${F.year} YTD, OSV MAL advisories` });
+  }
+  kpiTiles($("#kpis"), tiles, "Key indicators are not available for this data build.");
+}
+
+/* the CNA whose filings grew most (last 12 months vs the 12 before) — the
+ * honest "who files moves the curve" caveat under the hero chart */
+function cnaSurge(L, min) {
+  const top = (L && L.cnaTop) || [];
+  let best = null;
+  for (const r of top) if (r.n - r.prev > (best ? best.n - best.prev : 0)) best = r;
+  return best && best.n - best.prev >= (min || 1000) ? best : null;
 }
 
 /* hero: all CVEs per year since 2018, stacked by origin (AI/MCP on top) */
@@ -611,18 +683,10 @@ function buildHeroChart(ctx, F) {
     groups = [...origins].reverse().filter((o) => oy[o.id])
       .map((o) => ({ label: OL(o.id), color: ORIGIN_COLORS[o.id] || OTHER_COLOR, data: years.map((y) => oy[o.id][y] || 0) }));
   } else if (Array.isArray(core.months) && Array.isArray(core.counts)) {
-    const all = {}, ai = {};
-    core.months.forEach((m, i) => {
-      const y = m.slice(0, 4);
-      if (y < "2018") return;
-      all[y] = (all[y] || 0) + (core.counts[i] || 0);
-      ai[y] = (ai[y] || 0) + ((core.aiMonths || [])[i] || 0);
-    });
+    const all = {};
+    core.months.forEach((m, i) => { const y = m.slice(0, 4); if (y >= "2018") all[y] = (all[y] || 0) + (core.counts[i] || 0); });
     years = Object.keys(all).sort();
-    groups = [
-      { label: "all other CVEs", color: OTHER_COLOR, data: years.map((y) => all[y] - (ai[y] || 0)) },
-      { label: "AI-related", color: ORIGIN_COLORS.ai, data: years.map((y) => ai[y] || 0) },
-    ];
+    groups = [{ label: "all CVEs", color: OTHER_COLOR, data: years.map((y) => all[y]) }];
   }
   if (!years || !years.length || !groups.length) { note(el, "Yearly CVE counts are not available."); return; }
   const partial = years[years.length - 1] === F.year;
@@ -634,16 +698,11 @@ function buildHeroChart(ctx, F) {
     xValues: tick(yLab), xIncrs: [1, 2, 5], xSpace: 34, xFmt: yLab, barMax: 64,
     draw: partial ? yearNotes({ [F.year]: `${F.year} = ${partialLabel(F)}` }, false) : null,
   });
-  // honest caption: partial year + the orchestrator's bulk-disclosure caveat
+  // honest caption: part of the surge is who files, not more vulnerable code
   const noteEl = $("#hero-note");
-  const parts = [];
-  const c = F.concentration && F.concentration[F.year];
-  const t = c && c.top && c.top[0];
-  if (t && fin(t.n) && fin(t.share)) {
-    parts.push(`Read the ${F.year} curve with care: one product, ${prettyProduct(t.product)}, accounts for ${(100 * t.share).toFixed(0)}% `
-      + `of this year's AI CVEs (${num.format(t.n)}${fin(t.cnaN) && t.cna ? `; ${num.format(t.cnaN)} assigned by ${prettyCna(t.cna)}` : ""}) — a bulk disclosure, not ${num.format(t.n)} independent products.`);
-  }
-  const s = clean(parts.join(" "));
+  const L = core.landscape && core.landscape.all;
+  const b = cnaSurge(L);
+  const s = b ? clean(`Read the surge with care: part of it is who files. ${prettyCna(b.id)} assigned ${num.format(b.n)} CVEs in the last 12 months vs ${num.format(b.prev)} in the 12 before — new filers and bulk assignment raise counts without any change in the software.`) : null;
   if (s) noteEl.textContent = s; else noteEl.remove();
 }
 
@@ -671,16 +730,12 @@ function buildWhere(ctx, F, S) {
   const hint = $("#where-hint");
   if (k.origin) {
     const order = (originList(ctx.core) || Object.keys(ORIGIN_FALLBACK).map((id) => ({ id }))).map((o) => o.id);
-    const rows = order.filter((id) => fin(k.origin[id])).map((id) => ({ label: OL(id), n: k.origin[id], color: ORIGIN_COLORS[id] || OTHER_COLOR, hi: AI_ORIGINS.has(id) }))
+    const rows = order.filter((id) => fin(k.origin[id])).map((id) => ({ label: OL(id), n: k.origin[id], color: ORIGIN_COLORS[id] || OTHER_COLOR }))
       .sort((a, b) => b.n - a.n);
     hbars(el, rows, { of: k.cur });
-    if (hint) hint.textContent = `The ${num.format(k.cur)} vulnerabilities CISA added to its Known Exploited catalog in ${F.year}, by origin. AI rows are highlighted.`;
+    if (hint) hint.textContent = `The ${num.format(k.cur)} vulnerabilities CISA added to its Known Exploited catalog in ${F.year}, by origin.`;
   } else {
-    hbars(el, [
-      { label: "AI software", n: k.aiCur, color: ORIGIN_COLORS.ai, hi: true },
-      { label: "all other (non-AI) software", n: k.cur - k.aiCur, color: OTHER_COLOR },
-    ], { of: k.cur });
-    if (hint) hint.textContent = `The ${num.format(k.cur)} KEV additions in ${F.year}: AI software vs all other software (per-origin breakdown not in this data build).`;
+    note(el, "Per-origin classification of KEV entries is not in this data build.");
   }
 }
 
@@ -709,7 +764,7 @@ function buildKevOrigin(ctx) {
   const order = [...(originList(ctx.core) || []).map((o) => o.id), ...Object.keys(ORIGIN_FALLBACK), "rest"];
   const present = [...new Set(order)].filter((id) => ids.has(id)).reverse();
   const groups = present.map((id) => ({
-    label: id === "rest" ? "all other (non-AI) software" : OL(id), color: ORIGIN_COLORS[id] || OTHER_COLOR,
+    label: id === "rest" ? "unclassified" : OL(id), color: ORIGIN_COLORS[id] || OTHER_COLOR,
     data: years.map((y) => by[y].origin[id] || 0),
   }));
   const cur = String(new Date(ctx.F.asOf + "T00:00:00Z").getUTCFullYear());
@@ -720,7 +775,7 @@ function buildKevOrigin(ctx) {
   });
   if (!kev.byYear || ids.has("rest")) {
     const hint = $("#kev-origin-hint");
-    if (hint) hint.textContent += " Per-origin classification of KEV entries is not in this data build: AI vs all other software only.";
+    if (hint) hint.textContent += " Per-origin classification of KEV entries is not in this data build.";
   }
 }
 function buildZeroDay(ctx) {
@@ -805,12 +860,259 @@ function buildSupply(ctx) {
   if (hint && fin(mal.total)) hint.textContent += ` ${num.format(mal.total)} in total${mal.method ? ` (${mal.method})` : ""}.`;
 }
 
+/* ================= Part 1: speed of exploitation ================= */
+const TTK_BUCKETS = [
+  { id: "d1", label: "≤1 day (at disclosure)", color: "#ee2222", test: (d) => d <= 1 },
+  { id: "w1", label: "2–7 days", color: "#ff9933", test: (d) => d <= 7 },
+  { id: "m1", label: "8–30 days", color: "#ffff44", test: (d) => d <= 30 },
+  { id: "y1", label: "31–365 days", color: "#44eeee", test: (d) => d <= 365 },
+  { id: "old", label: "over a year", color: "#555588", test: () => true },
+];
+function ttkBuckets(entries, fromYear) {
+  const by = {};
+  for (const e of entries || []) {
+    if (!e || !e.added || !fin(e.daysToKev)) continue;
+    const y = e.added.slice(0, 4);
+    if (y < fromYear) continue;
+    const b = TTK_BUCKETS.find((x) => x.test(e.daysToKev));
+    const row = by[y] || (by[y] = Object.fromEntries(TTK_BUCKETS.map((x) => [x.id, 0])));
+    row[b.id] += 1;
+  }
+  return by;
+}
+function buildTtk(ctx) {
+  const el = $("#chart-ttk");
+  const ents = ctx.kev && ctx.kev.entries;
+  if (!ents || !ents.some((e) => fin(e.daysToKev))) { note(el, "Days-to-KEV needs CVE publication dates for KEV entries — not in this data build."); return; }
+  const by = ttkBuckets(ents, "2022");
+  const years = Object.keys(by).sort();
+  const cur = ctx.F.year;
+  const yLab = (v) => String(v) + (String(v) === cur ? "\nYTD" : "");
+  stackedBars(el, {
+    xs: years.map(Number), groups: TTK_BUCKETS.map((b) => ({ label: b.label, color: b.color, data: years.map((y) => by[y][b.id]) })),
+    height: 200, time: false, xLabel: "year added", yLabel: "KEV additions per year",
+    ariaLabel: "CISA KEV additions per year, stacked by days from CVE publication to KEV addition",
+    xValues: tick(yLab), xIncrs: [1, 2, 5], xSpace: 34, xFmt: yLab, barMax: 50,
+  });
+}
+
+/* ================= Part 1: latest exploited + patch next ================= */
+function buildKevAll(ctx) {
+  const tbody = $("#tbl-kevall tbody");
+  const ents = ctx.kev && Array.isArray(ctx.kev.entries) ? ctx.kev.entries : null;
+  if (!ents) { emptyRow(tbody, 6, "CISA KEV data is not available."); return; }
+  const OL = originLabel(ctx.core);
+  const scores = (ctx.epss && ctx.epss.scores) || null;
+  const rows = [...ents].sort((a, b) => String(b.added).localeCompare(String(a.added)) || String(b.cve).localeCompare(String(a.cve))).slice(0, 15);
+  for (const r of rows) {
+    const idCell = h("td", { class: "nowrap" }, cveLink(r.cve));
+    if (r.ransomware) idCell.append(badge("RANSOMWARE", "", "CISA: known use in ransomware campaigns"));
+    if (r.zeroDay) idCell.append(badge("0-DAY", "", "added to KEV within one day of CVE publication"));
+    const sc = scores ? scores[r.cve] : null;
+    tbody.append(h("tr", null, idCell,
+      h("td", { text: r.product || "—", title: r.desc || null }),
+      originCell(r.origin, OL),
+      h("td", { class: "nowrap", text: r.added || "—" }),
+      h("td", { class: "num", text: fin(r.daysToKev) ? num.format(r.daysToKev) : "—" }),
+      h("td", { class: "num", text: scores ? epssText(sc) : "n/a", title: sc && fin(sc.pct) ? `percentile ${(100 * sc.pct).toFixed(1)}` : null })));
+  }
+}
+function epssTopTable(tbody, rows, cols, cell) {
+  if (!rows || !rows.length) { emptyRow(tbody, cols, "No EPSS ranking in this data build (needs the EPSS bulk file)."); return; }
+  for (const r of rows) {
+    tbody.append(h("tr", null,
+      h("td", { class: "nowrap" }, cveLink(r.cve)),
+      h("td", { text: r.product || "—" }),
+      cell(r),
+      h("td", { class: "nowrap", text: r.published || "—" }),
+      h("td", { class: "num", text: epssText(r), title: fin(r.pct) ? `percentile ${(100 * r.pct).toFixed(1)}` : null })));
+  }
+}
+function buildNext(ctx) {
+  const top = ctx.epss && ctx.epss.top;
+  const OL = originLabel(ctx.core);
+  epssTopTable($("#tbl-next tbody"), top && top.all, 5, (r) => originCell(r.origin, OL));
+}
+
+/* ================= Part 1: severity per year (record CVSS) ================= */
+function sevYearsChart(el, sy, cfg) {
+  const years = Object.keys(sy || {}).filter((y) => /^\d{4}$/.test(y) && y >= "2018").sort();
+  if (!years.length) { note(el, "Per-year severity is not in this data build."); return; }
+  const keys = [...SEV_KEYS, "UNRATED"];
+  const cur = cfg.year;
+  const yLab = (v) => String(v) + (String(v) === cur ? "\nYTD" : "");
+  stackedBars(el, {
+    xs: years.map(Number), groups: keys.map((k) => ({ label: k === "UNRATED" ? "unrated" : k, color: SEV_COLORS[k], data: years.map((y) => (sy[y] || {})[k] || 0) })),
+    height: cfg.height || 240, time: false, xLabel: "year", yLabel: cfg.yLabel,
+    ariaLabel: cfg.ariaLabel, xValues: tick(yLab), xIncrs: [1, 2, 5], xSpace: 34, xFmt: yLab, barMax: 60,
+  });
+}
+function buildSevAll(ctx) {
+  const L = ctx.core.landscape && ctx.core.landscape.all;
+  sevYearsChart($("#chart-sevall"), L && L.sevYears, { year: ctx.F.year, yLabel: "CVEs per year",
+    ariaLabel: "Published CVEs per year stacked by CVSS severity, CRITICAL at the bottom, unrated on top" });
+}
+
+/* ================= ranked lists with last-12-months vs prior-12-months ================= */
+const growthText = (n, prev) => (prev > 0 ? (n / prev >= 1.995 ? `×${n / prev >= 10 ? Math.round(n / prev) : (n / prev).toFixed(1)}` : `${n >= prev ? "+" : "−"}${Math.round(Math.abs(100 * (n / prev - 1)))}%`) : "new");
+/* rows [{label, n, prev, title}] → bar (n) with a tick at the previous
+ * period's value and the change as text */
+function topList(el, rows, opts) {
+  if (!rows || !rows.length) { note(el, (opts && opts.empty) || "Not available in this data build."); return; }
+  const max = Math.max(1, ...rows.map((r) => Math.max(r.n, r.prev || 0)));
+  const list = h("div", { class: "hbars toplist", role: "list" });
+  for (const r of rows) {
+    const fill = h("span", { class: "hb-fill" });
+    fill.style.width = ((100 * r.n) / max).toFixed(2) + "%";
+    fill.style.background = opts.color || "#4466ff";
+    const bar = h("span", { class: "hb-bar" }, fill);
+    if (fin(r.prev)) {
+      const mark = h("span", { class: "hb-prev", title: `previous 12 months: ${num.format(r.prev)}` });
+      mark.style.left = `calc(${((100 * r.prev) / max).toFixed(2)}% - 1px)`;
+      bar.append(mark);
+    }
+    list.append(h("div", { class: "hb-row", role: "listitem", "aria-label": `${r.label}: ${r.n}, previous 12 months ${r.prev}` },
+      h("span", { class: "hb-lab", text: r.label, title: r.title || r.label }),
+      bar,
+      h("span", { class: "hb-n", text: `${num.format(r.n)} · ${growthText(r.n, r.prev)}` })));
+  }
+  el.append(list);
+}
+function cweRows(top, names, n) {
+  return (top || []).slice(0, n || 10).map((r) => ({ label: names[r.id] ? `${names[r.id]} (${r.id})` : r.id, title: r.id, n: r.n, prev: r.prev }));
+}
+function vendorRows(top, n) { return (top || []).slice(0, n || 10).map((r) => ({ label: r.name || r.id, n: r.n, prev: r.prev })); }
+function cnaRows(top, n) { return (top || []).slice(0, n || 10).map((r) => ({ label: prettyCna(r.id), title: r.id, n: r.n, prev: r.prev })); }
+/* the row that grew most in absolute terms, among the shown rows */
+const topRiser = (rows) => rows.reduce((b, r) => (r.n - (r.prev || 0) > (b ? b.n - (b.prev || 0) : 0) ? r : b), null);
+function buildTops(ctx) {
+  const L = ctx.core.landscape && ctx.core.landscape.all;
+  const names = (ctx.sev && ctx.sev.cweNames) || {};
+  const legend = h("p", { class: "hint toplegend", text: "Bar = last 12 months; white tick = the 12 months before; text = count · change." });
+  if (!L) { for (const id of ["#cweall", "#vendall", "#cnaall"]) note($(id), "Not in this data build."); return; }
+  topList($("#cweall"), cweRows(L.cweTop, names), { color: "#4466ff" });
+  topList($("#vendall"), vendorRows(L.vendorTop), { color: "#44eeee" });
+  topList($("#cnaall"), cnaRows(L.cnaTop), { color: "#aaee22" });
+  $("#tops").prepend(legend);
+}
+
+/* ================= Part 2: AI-related summary ================= */
+/* CVEs this year that sit in an AI stack layer (AI software, agents, features) */
+function layerYtd(core, F) {
+  const lm = core.layerMonths;
+  if (!lm || !Array.isArray(core.months)) return 0;
+  let n = 0;
+  for (const arr of Object.values(lm)) if (Array.isArray(arr)) core.months.forEach((m, i) => { if (m.startsWith(F.year)) n += arr[i] || 0; });
+  return n;
+}
+function relYtd(core, F) {
+  const ry = core.landscape && core.landscape.ai && core.landscape.ai.relYears;
+  if (!ry) return null;
+  return Object.fromEntries(Object.entries(ry).map(([id, by]) => [id, { cur: (by || {})[F.year] || 0, prev: (by || {})[F.prevYear] || 0 }]));
+}
+function buildAiHeadline(ctx, F, S) {
+  const el = $("#ai-headline"), sub = $("#ai-subhead");
+  let head = null;
+  try {
+    const a = S.aiShare;
+    if (a && a.of) {
+      const r = F.ytd && F.ytd.prev ? F.ytd.cur / F.ytd.prev : null;
+      head = `${num.format(a.n)} of this year's ${num.format(a.of)} CVEs are AI-related (${pct(a.n / a.of, a.n / a.of < 0.1 ? 1 : 0)})`
+        + (r && r >= 1.15 ? ` — ×${fmtX(r)} on the same period last year, against ×${fmtX(S.total.cur / S.total.prev)} for all CVEs.` : ".");
+    }
+  } catch (e) { head = null; }
+  head = clean(head);
+  if (head) el.textContent = head; else el.remove();
+  const parts = [];
+  const add = (fn) => { try { const s = clean(fn()); if (s) parts.push(s); } catch (e) { /* skip */ } };
+  const RL = ctx.relLabel;
+  add(() => {
+    const ry = relYtd(ctx.core, F);
+    if (!ry) return null;
+    const ranked = Object.entries(ry).sort((a, b) => b[1].cur - a[1].cur).filter(([, v]) => v.cur);
+    return ranked.length ? `Most are ${listJoin(ranked.slice(0, 2).map(([id, v]) => `${lcFirst(RL(id))} (${num.format(v.cur)})`))}.` : null;
+  });
+  add(() => {
+    const k = S.kev;
+    if (!k || !k.cur) return null;
+    return `Exploitation is still rare: ${num.format(k.aiCur)} of the ${num.format(k.cur)} vulnerabilities CISA added to KEV in ${F.year} are AI-related.`;
+  });
+  add(() => {
+    const ry = relYtd(ctx.core, F);
+    return ry && ry.found && ry.found.cur ? `AI is also finding bugs: ${num.format(ry.found.cur)} CVEs this year credit an AI tool or AI lab (${num.format(ry.found.prev)} in ${F.prevYear}).` : null;
+  });
+  if (parts.length) sub.textContent = parts.join(" "); else sub.remove();
+}
+function buildAiKpis(ctx, F, S) {
+  const tiles = [];
+  const a = S.aiShare;
+  if (a && a.of) tiles.push({ k: `AI-related CVEs ${F.year} YTD`, v: num.format(a.n), cls: "ai",
+    d: `${pct(a.n / a.of, 1)} of all CVEs` + (F.ytd && F.ytd.prev ? ` · ×${(F.ytd.cur / F.ytd.prev).toFixed(1)} vs same period ${F.prevYear}` : "") });
+  const ry = relYtd(ctx.core, F);
+  if (ry && ry.agent) tiles.push({ k: `MCP & agent CVEs ${F.year}`, v: num.format(ry.agent.cur), cls: "ai",
+    d: `${num.format(ry.agent.prev)} in all of ${F.prevYear}` });
+  const k = S.kev;
+  if (k && F.kevAi) tiles.push({ k: `Exploited AI-related (KEV) ${F.year}`, v: num.format(k.aiCur), cls: "warn",
+    d: `${pct(k.cur ? k.aiCur / k.cur : 0, 1)} of ${F.year} KEV additions · ${num.format(F.kevAi.length)} all time` });
+  if (ry && ry.found) tiles.push({ k: `Found by AI ${F.year}`, v: num.format(ry.found.cur), cls: "sc",
+    d: `CVEs crediting an AI tool or AI lab · ${num.format(ry.found.prev)} in ${F.prevYear}` });
+  kpiTiles($("#ai-kpis"), tiles, "AI indicators are not available for this data build.");
+}
+function buildRelations(ctx, F) {
+  const el = $("#rel-bars");
+  const ry = relYtd(ctx.core, F);
+  const RL = ctx.relLabel;
+  if (!ry) { note(el, "AI relation tags are not in this data build (it predates them)."); note($("#chart-rel"), "Not available."); return; }
+  const ids = (ctx.rels || []).map((r) => r.id).filter((id) => ry[id]);
+  hbars(el, ids.map((id) => ({ label: RL(id), n: ry[id].cur, color: REL_COLORS[id] || OTHER_COLOR })).sort((a, b) => b.n - a.n));
+  // per year, lines (multi-label: never stacked)
+  const all = ctx.core.landscape.ai.relYears;
+  const years = [...new Set(ids.flatMap((id) => Object.keys(all[id] || {})))].filter((y) => y >= "2018").sort();
+  const cel = $("#chart-rel");
+  if (!years.length) { note(cel, "No yearly counts."); return; }
+  const cur = F.year;
+  makeChart(cel, {
+    height: 220,
+    ariaLabel: "AI-related CVEs per year by relation, one line per relation (a CVE can count in several)",
+    scales: { x: { time: false } },
+    axes: [
+      { space: 34, values: tick((v) => String(v) + (String(v) === cur ? " YTD" : "")), incrs: [1, 2, 5] },
+      { space: 36, label: "CVEs per year", values: tick(axisNum), size: 56 },
+    ],
+    series: [
+      { label: "year", value: (u, v) => (v == null ? "" : String(v)) },
+      ...ids.map((id) => ({ label: rShort(id), stroke: REL_COLORS[id] || OTHER_COLOR, width: 2, points: { show: true, size: 5 },
+        value: (u, v) => (v == null ? "" : num.format(v)) })),
+    ],
+    legend: { show: true },
+  }, [years.map(Number), ...ids.map((id) => years.map((y) => (all[id] || {})[y] || 0))]);
+}
+function buildAiOrigin(ctx) {
+  const el = $("#chart-aiorigin");
+  const L = ctx.core.landscape && ctx.core.landscape.ai;
+  const origins = originList(ctx.core);
+  if (!L || !L.originYears || !origins) { note(el, "Not in this data build."); return; }
+  const OL = originLabel(ctx.core);
+  const years = Object.keys(L.years || {}).filter((y) => y >= "2018").sort();
+  const cur = ctx.F.year;
+  const yLab = (v) => String(v) + (String(v) === cur ? "\nYTD" : "");
+  stackedBars(el, {
+    xs: years.map(Number), height: 240, time: false, xLabel: "year", yLabel: "AI-related CVEs per year",
+    groups: [...origins].reverse().filter((o) => L.originYears[o.id]).map((o) => ({ label: OL(o.id), color: ORIGIN_COLORS[o.id] || OTHER_COLOR, data: years.map((y) => L.originYears[o.id][y] || 0) })),
+    ariaLabel: "AI-related CVEs per year stacked by origin", xValues: tick(yLab), xIncrs: [1, 2, 5], xSpace: 34, xFmt: yLab, barMax: 60,
+  });
+}
+function buildVendAi(ctx) {
+  const L = ctx.core.landscape && ctx.core.landscape.ai;
+  topList($("#vendai"), L ? vendorRows(L.vendorTop) : null, { color: "#4466ff" });
+}
+
 /* ================= AI deep dive lead-in: exploited chips + actions ================= */
 function buildKevChips(F) {
   const el = $("#kev-chips");
   if (!F.kevAi) { note(el, "KEV data is not available."); return; }
   const prods = kevProducts(F);
-  if (!prods.length) { note(el, "No AI-software CVE is in CISA KEV in this data build."); return; }
+  if (!prods.length) { note(el, "No AI-related CVE is in CISA KEV in this data build."); return; }
   for (const p of prods) {
     el.append(h("a", { class: "chip", href: "#exploited",
       title: `${p.n} CVE${p.n === 1 ? "" : "s"} in CISA KEV${p.ransom ? ` (${p.ransom} with known ransomware use)` : ""} — see the exploited table` },
@@ -818,7 +1120,7 @@ function buildKevChips(F) {
       p.ransom ? h("span", { class: "chip-r", text: "R", title: "known ransomware use" }) : null));
   }
   const hint = $("#kev-chips-hint");
-  if (hint) hint.textContent = `${num.format(F.kevAi.length)} AI-software CVEs in CISA's Known Exploited Vulnerabilities catalog, ${num.format(F.kevAiThisYear)} added in ${F.year}. A lower bound — most exploitation is never catalogued.`;
+  if (hint) hint.textContent = `${num.format(F.kevAi.length)} AI-related CVEs in CISA's Known Exploited Vulnerabilities catalog, ${num.format(F.kevAiThisYear)} added in ${F.year}. A lower bound — most exploitation is never catalogued.`;
 }
 
 /* data-tied actions only: exploited products, next-highest EPSS, biggest layer */
@@ -831,18 +1133,15 @@ function buildTodo(ctx, F) {
     ? `Patch ${listJoin(prods.map((p) => p.name))} first: each has CISA-confirmed exploited CVEs (${num.format((F.kevAi || []).length)} in total; see the exploited table).`
     : null);
   add(() => {
-    const ep = ctx.epss && ctx.epss.scores;
-    if (!ep) return null;
-    const kevSet = new Set(((ctx.kev && ctx.kev.entries) || []).map((e) => e.cve));
+    const top = ctx.epss && ctx.epss.top && ctx.epss.top.ai;
+    if (!top) return null;
     const names = [];
     const seen = new Set(prods.map((p) => p.name.toLowerCase()));
-    Object.entries(ep).filter(([id, s]) => s && fin(s.epss) && !kevSet.has(id) && ctx.metaOf(id))
-      .sort((a, b) => b[1].epss - a[1].epss).slice(0, 25)
-      .forEach(([id]) => {
-        const n = shortProduct((ctx.metaOf(id) || {}).product);
-        if (n && !seen.has(n.toLowerCase()) && names.length < 3) { seen.add(n.toLowerCase()); names.push(n); }
-      });
-    return names.length ? `Next, check ${listJoin(names)}: they carry the highest exploit-probability (EPSS) AI CVEs not yet in KEV.` : null;
+    for (const r of top) {
+      const n = shortProduct(r.product);
+      if (n && !seen.has(n.toLowerCase()) && names.length < 3) { seen.add(n.toLowerCase()); names.push(n); }
+    }
+    return names.length ? `Next, check ${listJoin(names)}: they carry the highest exploit-probability (EPSS) AI-related CVEs of the last 12 months not yet in KEV.` : null;
   });
   add(() => {
     const lm = ctx.core.layerMonths;
@@ -855,7 +1154,8 @@ function buildTodo(ctx, F) {
       if (!best || cur > best.cur) best = { id, cur, prev };
     }
     if (!best || !best.cur) return null;
-    const tot = F.ytd && F.ytd.cur ? ` (${pct(best.cur / F.ytd.cur)} of all AI CVEs)` : "";
+    const layered = layerYtd(ctx.core, F);
+    const tot = layered ? ` (${pct(best.cur / layered)} of CVEs in AI software)` : "";
     return `Inventory your ${ctx.label(best.id)}: the largest layer in ${F.year} with ${num.format(best.cur)} CVEs so far${tot}, vs ${num.format(best.prev)} in all of ${F.prevYear}.`;
   });
   if (!out.length) { note(ul.parentElement, "Not enough data for recommendations in this build."); ul.remove(); return; }
@@ -875,7 +1175,7 @@ function buildKevTable(F, ctx) {
     tbody.append(h("tr", null,
       idCell,
       h("td", { text: r.product || "—", title: r.desc || null }),
-      layerCell(r.layer, ctx.label),
+      h("td", null, relTags(r.rels && r.rels.length ? r.rels : ["product"], ctx.relLabel)),
       h("td", { class: "nowrap", text: r.published || "—" }),
       h("td", { class: "nowrap", text: r.added || "—" }),
       h("td", { class: "num", text: fin(r.daysToKev) ? num.format(r.daysToKev) : "—" }),
@@ -1130,24 +1430,9 @@ function buildCweCompare(ctx) {
   el.append(list);
 }
 function buildSevChart(ctx) {
-  const el = $("#chart-sev");
-  const sev = ctx.sev;
-  const rows = (sev && Array.isArray(sev.months) ? sev.months : []).filter((r) => r && r.m >= "2018-01");
-  if (!rows.length) { note(el, "Per-month severity data is not available."); return; }
-  const hint = $("#sev-hint");
-  if (hint) {
-    const bs = sev.bySource;
-    if (bs) {
-      hint.textContent = `Severity of AI-related CVEs over time. Source per CVE: CVE record — CNA ${num.format(bs.cna || 0)}, CISA-ADP ${num.format(bs.adp || 0)}; NVD fallback ${num.format(bs.nvd || 0)}; unrated ${num.format(bs.none || 0)}.`;
-    } else {
-      hint.textContent = `Severity of AI-related CVEs over time. Source: ${sev.source || "NVD"} (rated ${num.format(sev.rated || 0)} of ${num.format(sev.aiTotal || 0)}).`;
-    }
-  }
-  const groups = SEV_KEYS.map((k) => ({ label: k, color: SEV_COLORS[k], data: rows.map((r) => r[k] || 0) }));
-  stackedBars(el, {
-    xs: rows.map((r) => monthT(r.m)), groups, height: 260, yLabel: "AI CVEs per month",
-    ariaLabel: "AI CVE severity mix per month since 2018, stacked CRITICAL to LOW", xFmt: (v) => new Date(v * 86400e3).toISOString().slice(0, 7), barMax: 14, monthly: true,
-  });
+  const L = ctx.core.landscape && ctx.core.landscape.ai;
+  sevYearsChart($("#chart-sev"), L && L.sevYears, { year: ctx.F.year, height: 220, yLabel: "AI-related CVEs per year",
+    ariaLabel: "AI-related CVEs per year stacked by CVSS severity, CRITICAL at the bottom, unrated on top" });
 }
 
 /* ================= patch first (EPSS) ================= */
@@ -1155,29 +1440,15 @@ function buildEpssTable(ctx, F) {
   const tbody = $("#tbl-epss tbody");
   const ep = ctx.epss;
   if (!ep || !ep.scores) { emptyRow(tbody, 5, "EPSS scores are not available in this data build."); return; }
-  const kevSet = new Set((F.kevAi || []).map((r) => r.cve));
-  const kevAll = new Set(((ctx.kev && ctx.kev.entries) || []).map((e) => e.cve));
-  const kevProd = new Map((F.kevAi || []).map((r) => [r.cve, r]));
-  const rows = Object.entries(ep.scores)
-    .filter(([id, s]) => s && fin(s.epss) && (ctx.metaOf(id) || kevSet.has(id)))
-    .sort((a, b) => b[1].epss - a[1].epss).slice(0, 20);
-  if (!rows.length) { emptyRow(tbody, 5, "No EPSS scores for AI CVEs yet."); return; }
-  for (const [id, s] of rows) {
-    const m = ctx.metaOf(id) || {};
-    const k = kevProd.get(id) || {};
-    const idCell = h("td", { class: "nowrap" }, cveLink(id));
-    if (kevAll.has(id)) idCell.append(badge("KEV", "", "in CISA Known Exploited Vulnerabilities"));
-    const sevTd = h("td", { class: "nowrap" });
-    const sb = sevBadge(m.sev, m.score, m.cvssV ? `CVSS v${m.cvssV}${m.sevSrc ? " · " + String(m.sevSrc).toUpperCase() : ""}` : null);
-    if (sb) { sb.classList.add("nomargin"); sevTd.append(sb); } else sevTd.textContent = "—";
-    tbody.append(h("tr", null, idCell,
-      h("td", { text: m.product || k.product || "—" }),
-      layerCell(m.layer || k.layer, ctx.label),
-      sevTd,
-      h("td", { class: "num", text: epssText(s), title: fin(s.pct) ? `percentile ${(100 * s.pct).toFixed(1)}` : null })));
+  let rows = ep.top && Array.isArray(ep.top.ai) ? ep.top.ai : null;
+  if (!rows) {
+    // older data: rank the AI CVEs that have scores (KEV entries excluded)
+    const kevAll = new Set(((ctx.kev && ctx.kev.entries) || []).map((e) => e.cve));
+    rows = Object.entries(ep.scores).filter(([id, sc]) => sc && fin(sc.epss) && ctx.metaOf(id) && !kevAll.has(id))
+      .sort((a, b) => b[1].epss - a[1].epss).slice(0, 15)
+      .map(([id, sc]) => { const m = ctx.metaOf(id) || {}; return { cve: id, epss: sc.epss, pct: sc.pct, product: m.product, published: m.d, rels: m.rels || (m.layer ? ["product"] : []) }; });
   }
-  const hint = $("#epss-hint");
-  if (hint && ep.modelDate) hint.textContent += ` EPSS model date ${ep.modelDate}.`;
+  epssTopTable(tbody, rows, 5, (r) => h("td", null, relTags(r.rels, ctx.relLabel)));
 }
 
 /* ================= latest AI CVEs ================= */
@@ -1204,7 +1475,7 @@ function buildRecentAiTable(ctx) {
     tbody.append(h("tr", null,
       h("td", null, span),
       h("td", { class: "nowrap pub", text: r.published ? r.published + "Z" : "—" }),
-      stackCell(r.layer || m.layer, r.product || m.product, ctx.label),
+      relCell(r.rels || m.rels || (r.layer || m.layer ? ["product"] : []), r.product || m.product, ctx.relLabel),
       tdCna,
       h("td", { class: "desc", text: r.description || "(no English description)" })));
   }
@@ -1338,6 +1609,22 @@ function buildMethod(ctx) {
     }
     if (!origins) ol.after(h("p", { class: "na", text: "This data build predates per-origin classification; origin charts fall back to AI vs all other software." }));
   }
+  const rl = $("#method-relations");
+  if (rl) {
+    const rels = ctx.rels && ctx.rels.length ? ctx.rels : null;
+    if (rels) {
+      const ry = relYtd(ctx.core, ctx.F);
+      for (const r of rels) {
+        const sw = h("span", { class: "swatch", "aria-hidden": "true" });
+        sw.style.background = REL_COLORS[r.id] || OTHER_COLOR;
+        const n = ry && ry[r.id] ? ` (${num.format(ry[r.id].cur)} in ${ctx.F.year})` : "";
+        rl.append(h("li", null, sw, h("b", { text: ctx.relLabel(r.id) }), document.createTextNode((REL_RULES[r.id] ? " — " + REL_RULES[r.id] : "") + n)));
+      }
+    } else {
+      rl.after(h("p", { class: "na", text: "This data build predates the AI relation tags: AI-related means AI software only." }));
+      rl.remove();
+    }
+  }
   const ul = $("#method-layers");
   if (ctx.layers && ctx.layers.length) {
     for (const l of ctx.layers) ul.append(h("li", null, layerSwatch(l.id), h("b", { text: l.label || l.id }), h("span", { class: "lid", text: ` (${l.id})` })));
@@ -1355,9 +1642,9 @@ function buildMethod(ctx) {
       ? ` Among AI-looking records the matcher did not flag, it caught ${st.suspect.tp} of ${st.suspect.tp + st.suspect.fn} genuine AI CVEs.` : "";
     const rnd = st.random && fin(st.random.n) ? ` (${st.random.fn || 0} miss in ${st.random.n} purely random records)` : "";
     p.textContent = `Measured on a hand-labelled sample of ${fin(ev.sample) ? num.format(ev.sample) : "?"} CVEs` +
-      (ev.labeledAt ? ` (${ev.labeledAt})` : "") + `: precision ${pct(ev.precision)} — flagged CVEs are almost always genuinely AI software.` +
+      (ev.labeledAt ? ` (${ev.labeledAt})` : "") + ` for the AI-software matcher (AI software, MCP agents, AI features): precision ${pct(ev.precision)} — flagged CVEs are almost always genuinely AI software.` +
       sus + ` Population-weighted recall estimates ~${pct(ev.recall)}, but that figure is highly uncertain${rnd}: ` +
-      "treat every AI count on this page as a lower bound." +
+      "treat every AI count on this page as a lower bound. The weakness, compute and found-by-AI rules are not part of this sample; their rules are listed above." +
       (ev.method ? ` Method: ${ev.method}` : "");
   } else {
     p.textContent = "No measured precision/recall is available for this data build — treat the AI flag as approximate.";
@@ -1547,13 +1834,12 @@ function explainSummary(ctx, F, S) {
     const title = t && t.prev
       ? `CVEs ${xr(t.cur, t.prev)} vs the same period last year` + (best ? ` — ${oShort(best.id, OL)} growing fastest (${xr(best.cur, best.prev)})` : "")
       : null;
-    const aiR = F.ytd && F.ytd.prev ? F.ytd.cur / F.ytd.prev : null;
     fig("#chart-hero", {
       titleEl: "#h-hero", title,
-      subEl: "#hero-sub", sub: `Published CVEs per calendar year, 2018 → ${F.year} (${partialLabel(F)}), ${core.originYears && originList(core) ? "stacked by origin" : "AI-related vs all other (stacked)"}. Y-axis: CVEs per year.`,
+      subEl: "#hero-sub", sub: `Published CVEs per calendar year, 2018 → ${F.year} (${partialLabel(F)}), stacked by origin (what kind of software). Y-axis: CVEs per year.`,
       after: "#hero-note",
       how: "Each bar is one year's published CVE records; the coloured segments add up to the year's total. Pitfall: the last bar is a partial year, and CVE counts measure disclosure volume, not risk.",
-      so: aiR && aiR >= 1.5 ? `AI + MCP CVEs are up ${aiR.toFixed(1)}× like-for-like — put AI apps, agents and MCP servers in your asset inventory and vulnerability scanning.` : null,
+      so: t && t.prev && t.cur / t.prev >= 1.3 ? "Triage capacity has to scale with volume: prioritise by exploitation (KEV), then EPSS, and only then by CVSS — a CVSS-first queue cannot keep up." : null,
       src: srcLine(ctx, ["cve"]),
     });
   } catch (e) { /* keep static */ }
@@ -1564,15 +1850,12 @@ function explainSummary(ctx, F, S) {
       const OL = originLabel(core);
       let title = null, so = null;
       if (k.origin) {
-        const ranked = Object.entries(k.origin).sort((a, b) => b[1] - a[1]);
-        const aiN = (k.origin.ai || 0) + (k.origin.mcp || 0);
-        const lead = ranked.filter(([id]) => !AI_ORIGINS.has(id)).slice(0, 3);
+        const lead = Object.entries(k.origin).sort((a, b) => b[1] - a[1]).slice(0, 3);
         if (lead.length) {
-          title = `${listJoin(lead.map(([id]) => oShort(id, OL)))} lead exploitation — AI + MCP is ${pct(aiN / k.cur)} of ${F.year} KEV additions`; title = title[0].toUpperCase() + title.slice(1);
-          so = `Keep emergency patching focused on ${listJoin(lead.map(([id]) => oShort(id, OL)))}; ${aiN ? `track the ${aiN} exploited AI/MCP CVEs too` : "AI has no KEV additions this year"}.`;
+          const n = lead.reduce((t, [, x]) => t + x, 0);
+          title = `${listJoin(lead.map(([id]) => oShort(id, OL)))} make up ${pct(n / k.cur)} of ${F.year}'s exploited vulnerabilities`; title = title[0].toUpperCase() + title.slice(1);
+          so = `Keep emergency patching and attack-surface monitoring focused on ${listJoin(lead.map(([id]) => oShort(id, OL)))}.`;
         }
-      } else {
-        title = `AI software is ${pct(k.aiCur / k.cur)} of ${F.year} KEV additions (${num.format(k.aiCur)} of ${num.format(k.cur)})`;
       }
       fig("#where-bars", {
         titleEl: "#h-where", title,
@@ -1625,7 +1908,7 @@ function explainRisk(ctx, F, S) {
       titleEl: "#h-supply-cves",
       title: sc && sc.prev ? `Open-source CVEs ${xr(sc.cur, sc.prev)}: ${num.format(sc.cur)} in ${sc.label} ${F.year} vs ${num.format(sc.prev)} in ${sc.label} ${F.prevYear}` : null,
       subEl: "#supply-hint", sub: `CVEs in open-source projects and packages (registry packages + GitHub-assigned OSS records), per year, 2018 → ${F.year} (${partialLabel(F)}). Not stacked.`,
-      how: "Each bar = open-source CVEs published that year (registry packages plus GitHub-assigned OSS projects). Pitfall: much of the recent jump comes from GitHub's CNA (GitHub_M) issuing far more CVEs — partly a reporting change, not only more vulnerable code; AI packages count under AI.",
+      how: "Each bar = open-source CVEs published that year (registry packages plus GitHub-assigned OSS projects, AI packages included). Pitfall: much of the recent jump comes from GitHub's CNA (GitHub_M) issuing far more CVEs — partly a reporting change, not only more vulnerable code.",
       so: sc && sc.prev && sc.cur / sc.prev >= 1.3 ? "Whatever the reporting share, the fix volume is real — make sure SCA/dependency scanning and OSS patching cover every build pipeline." : null,
       src: srcLine(ctx, ["cve"]),
     });
@@ -1665,8 +1948,8 @@ function explainAi(ctx, F) {
     const prods = kevProducts(F);
     fig("#tbl-kev", {
       titleEl: "#h-exploited",
-      title: rows.length ? `Exploited AI software: ${num.format(rows.length)} CVEs across ${prods.length} product${prods.length === 1 ? "" : "s"}, ${num.format(F.kevAiThisYear)} added in ${F.year}` : null,
-      subEl: "#kev-hint", sub: "AI-software CVEs in CISA's Known Exploited Vulnerabilities catalog, sorted by date added to KEV, newest first. Days to KEV = days from CVE publication to KEV addition.",
+      title: rows.length ? `Exploited AI-related vulnerabilities: ${num.format(rows.length)} CVEs across ${prods.length} product${prods.length === 1 ? "" : "s"}, ${num.format(F.kevAiThisYear)} added in ${F.year}` : null,
+      subEl: "#kev-hint", sub: "AI-related CVEs in CISA's Known Exploited Vulnerabilities catalog, sorted by date added to KEV, newest first. AI relation = why the CVE counts as AI-related. Days to KEV = days from CVE publication to KEV addition.",
       how: "Each row is confirmed in-the-wild exploitation. EPSS = FIRST's estimated 30-day exploitation probability. Pitfall: KEV is a lower bound."
         + lowEpssNote(rows, ctx.epss),
       so: prods.length ? `If you run ${listJoin(prods.map((p) => p.name))}, verify these CVEs are patched now — KEV status outranks any EPSS or CVSS score.` : null,
@@ -1684,8 +1967,8 @@ function explainAi(ctx, F) {
       }
       fig("#chart-layers", {
         titleEl: "#h-layers",
-        title: big && big.cur && F.ytd ? `${ctx.label(big.id)} is the largest AI layer: ${num.format(big.cur)} of ${num.format(F.ytd.cur)} AI CVEs in ${F.year} (${pct(big.cur / F.ytd.cur)})` : null,
-        subEl: "#layers-hint", sub: `AI-related CVEs per month, 2018 → ${F.year} (${partialLabel(F)}; the last month is partial), stacked by AI stack layer. Click a legend entry to hide a layer.`,
+        title: big && big.cur && layerYtd(core, F) ? `${ctx.label(big.id)} is the largest AI layer: ${num.format(big.cur)} of ${num.format(layerYtd(core, F))} CVEs in AI software in ${F.year} (${pct(big.cur / layerYtd(core, F))})` : null,
+        subEl: "#layers-hint", sub: `CVEs in AI software, MCP agents and AI features per month, 2018 → ${F.year} (${partialLabel(F)}; the last month is partial), stacked by AI stack layer. Excludes CVEs that are AI-related only as a weakness, compute or found-by-AI. Click a legend entry to hide a layer.`,
         after: "#layers-note",
         how: "Each bar = AI CVEs published that month; segments add up to the month's total. Pitfall: one project's batch disclosure can dominate a year (labelled on the chart).",
         so: big && big.cur ? `Inventory where ${lcFirst(ctx.label(big.id))} run in your estate — that is where most new AI CVEs land.` : null,
@@ -1696,12 +1979,12 @@ function explainAi(ctx, F) {
   try {
     const ep = ctx.epss && ctx.epss.scores;
     if (ep) {
-      const n = document.querySelectorAll("#tbl-epss tbody tr .badge").length;
+      const d = ctx.epss.dist && ctx.epss.dist.ai;
       fig("#tbl-epss", {
-        titleEl: "#h-patch", title: `Patch first: the 20 AI CVEs most likely to be exploited${n ? ` — ${n} already in KEV` : ""}`,
-        subEl: "#epss-hint", sub: "AI-related CVEs ranked by FIRST EPSS (estimated probability of exploitation activity in the next 30 days), highest first.",
-        how: "EPSS is a model estimate (0–100%), not observed exploitation; Severity is the vendor's CVSS, not risk.",
-        so: "Order of work: every KEV row first (confirmed exploitation, whatever its EPSS), then the rest of this list from the top.",
+        titleEl: "#h-patch", title: d && d.n ? `${num.format(d.ge10)} of ${num.format(d.n)} AI-related CVEs from the last 12 months have an EPSS of 10% or more — these are the top ones not yet in KEV` : null,
+        subEl: "#epss-hint", sub: "AI-related CVEs published in the last 12 months and not in CISA KEV, ranked by FIRST EPSS (estimated probability of exploitation activity in the next 30 days), highest first.",
+        how: "EPSS is a model estimate (0–100%), not observed exploitation. AI relation = why it counts as AI-related; 'found by AI' rows are ordinary software whose bug an AI tool or lab reported.",
+        so: "Order of work: the exploited table above first (confirmed exploitation, whatever its EPSS), then this list from the top.",
         src: srcLine(ctx, ["epss", "kev"]),
       });
     }
@@ -1741,14 +2024,15 @@ function explainDetail(ctx, F, S) {
     }
   } catch (e) { /* skip */ }
   try {
-    const sev = ctx.sev;
-    if (sev && Array.isArray(sev.months) && sev.months.length) {
-      let r = 0, hc = 0;
-      for (const m of sev.months) if (String(m.m).startsWith(F.year)) { for (const k of SEV_KEYS) r += m[k] || 0; hc += (m.CRITICAL || 0) + (m.HIGH || 0); }
+    const sy = core.landscape && core.landscape.ai && core.landscape.ai.sevYears;
+    const o = sy && sy[F.year];
+    if (o) {
+      const r = SEV_KEYS.reduce((t, k) => t + (o[k] || 0), 0), hc = (o.CRITICAL || 0) + (o.HIGH || 0);
       fig("#chart-sev", {
-        titleEl: "#h-sevmix", title: r ? `${num.format(hc)} HIGH/CRITICAL AI CVEs in ${F.year} so far (${pct(hc / r)} of ${num.format(r)} rated)` : null,
-        how: "Each bar = rated AI CVEs that month, stacked CRITICAL (bottom) to LOW (top). Severity is the vendor's CVSS, not risk; the last month is partial.",
-        src: srcLine(ctx, ["sev"]),
+        titleEl: "#h-sevmix", title: r ? `${num.format(hc)} HIGH/CRITICAL AI-related CVEs in ${F.year} so far (${pct(hc / r)} of ${num.format(r)} rated)` : null,
+        subEl: "#sev-hint", sub: `AI-related CVEs per year, 2018 → ${F.year} (${partialLabel(F)}), stacked by CVSS severity from the CVE record.`,
+        how: "Segments add up to the year's AI-related CVEs, CRITICAL at the bottom, unrated on top. Severity is the vendor's CVSS, not risk.",
+        src: srcLine(ctx, ["cve"]),
       });
     }
   } catch (e) { /* skip */ }
@@ -1757,14 +2041,14 @@ function explainDetail(ctx, F, S) {
     fig("#chart-cves", {
       titleEl: "#h-issuance",
       title: ytd && all && all.cur && all.prev ? `AI's share of all CVEs: ${pct(ytd.cur / all.cur, 1)} in ${ytd.label} ${F.year} vs ${pct(ytd.prev / all.prev, 1)} a year earlier` : null,
-      subEl: "#issuance-hint", sub: "AI-related CVEs as a % of all published CVEs, per month since 2018 (earlier AI matches are mostly false positives). Spikes are single-product bulk disclosures (e.g. TensorFlow 2021). Switch Mode to Count or Cumulative for absolute numbers (lines, not stacked).",
+      subEl: "#issuance-hint", sub: "AI-related CVEs as a % of all published CVEs, per month since 2018. Spikes are single-product bulk disclosures (e.g. TensorFlow 2021, OpenClaw 2026). Switch Mode to Count or Cumulative for absolute numbers (lines, not stacked).",
       after: "#ctl-cves",
       how: "Count = CVEs per period; Cumulative = running total; AI share % = AI ÷ all per period. Pitfall: the last period is partial.",
       src: srcLine(ctx, ["cve"]),
     });
   } catch (e) { /* skip */ }
   try {
-    fig("#tbl-ai", { subEl: "#latest-hint", sub: "Last 30 AI-matched published records, newest first. KEV = also in CISA's exploited catalog; severity badge = record CVSS (hover for version and source).", src: srcLine(ctx, ["cve", "kev"]) });
+    fig("#tbl-ai", { subEl: "#latest-hint", sub: "Last 30 AI-related published records, newest first. AI relation = why it counts (hover a tag); KEV = also in CISA's exploited catalog; severity badge = record CVSS (hover for version and source).", src: srcLine(ctx, ["cve", "kev"]) });
   } catch (e) { /* skip */ }
   try {
     const cy = core.cnaYears && core.cnaYears[F.year];
@@ -1812,6 +2096,136 @@ function explainDetail(ctx, F, S) {
   } catch (e) { /* skip */ }
 }
 
+
+function explainPart1(ctx, F, S) {
+  const core = ctx.core;
+  const OL = originLabel(core);
+  const L = core.landscape && core.landscape.all;
+  try {
+    const by = ttkBuckets((ctx.kev && ctx.kev.entries) || [], F.year)[F.year];
+    if (by) {
+      const n = sumObj(by), wk = (by.d1 || 0) + (by.w1 || 0);
+      fig("#chart-ttk", {
+        titleEl: "#h-ttk", title: n ? `${pct(wk / n)} of ${F.year}'s KEV additions were exploited within a week of disclosure` : null,
+        subEl: "#ttk-hint", sub: `CISA KEV additions per year (by date added), 2022 → ${F.year} (${partialLabel(F)}), stacked by days from CVE publication to KEV addition.`,
+        how: "Red/orange = exploited within a week of the CVE going public; grey = old CVEs newly confirmed as exploited. Pitfall: KEV dates are when CISA confirmed it, so true exploitation often started earlier.",
+        so: n && wk / n >= 0.25 ? "A monthly patch cycle is too slow for a quarter or more of exploited bugs: keep an emergency path that can ship a fix or mitigation within days." : null,
+        src: srcLine(ctx, ["kev", "cve"]),
+      });
+    }
+  } catch (e) { /* skip */ }
+  try {
+    const ents = (ctx.kev && ctx.kev.entries) || [];
+    const yr = ents.filter((e) => String(e.added).startsWith(F.year));
+    const rw = yr.filter((e) => e.ransomware).length;
+    fig("#tbl-kevall", {
+      titleEl: "#h-kevall", title: yr.length ? `Latest exploited vulnerabilities — ${num.format(yr.length)} added in ${F.year}, ${num.format(rw)} linked to ransomware` : null,
+      subEl: "#kevall-hint", sub: "The 15 most recent CISA KEV additions, newest first. RANSOMWARE = CISA knows of ransomware use; 0-DAY = added within one day of the CVE's publication.",
+      how: "Every row is confirmed in-the-wild exploitation. EPSS = estimated chance of exploitation activity in the next 30 days.",
+      so: "If you run any of these products, these come before everything else in the patch queue.",
+      src: srcLine(ctx, ["kev", "epss"]),
+    });
+  } catch (e) { /* skip */ }
+  try {
+    const d = ctx.epss && ctx.epss.dist && ctx.epss.dist.all;
+    fig("#tbl-next", {
+      titleEl: "#h-next", title: d && d.n ? `${num.format(d.ge10)} of the last 12 months' ${num.format(d.n)} CVEs have an EPSS of 10% or more — the top ones are not in KEV yet` : null,
+      subEl: "#next-hint", sub: "CVEs published in the last 12 months that are not in CISA KEV, ranked by FIRST EPSS (estimated probability of exploitation activity in the next 30 days), highest first.",
+      how: "EPSS is a model estimate, not observed exploitation; a high score means attackers are likely already probing for it.",
+      so: d && d.n ? `Fewer than ${pct(Math.max(d.ge10 / d.n, 0.001), 1)} of new CVEs clear 10% EPSS — patching that slice after KEV covers most near-term exploitation at a fraction of the volume.` : null,
+      src: srcLine(ctx, ["epss", "kev", "cve"]),
+    });
+  } catch (e) { /* skip */ }
+  try {
+    const sy = L && L.sevYears;
+    if (sy) {
+      fig("#chart-sevall", {
+        titleEl: "#h-sevall", title: S.hc && fin(S.hc.cur) ? `${pct(S.hc.cur)} of ${F.year}'s rated CVEs are HIGH or CRITICAL` + (fin(S.hc.prev) ? ` (${pct(S.hc.prev)} in ${F.prevYear})` : "") + ` — ${num.format(S.hc.crit)} CRITICAL so far` : null,
+        subEl: "#sevall-hint", sub: `Published CVEs per year, 2018 → ${F.year} (${partialLabel(F)}), stacked by CVSS severity from the CVE record (CNA, else CISA-ADP).`,
+        how: "Segments add up to the year's CVEs, CRITICAL at the bottom, unrated on top. Severity is the vendor's CVSS base score: worst-case impact, not likelihood of attack.",
+        so: S.hc && fin(S.hc.cur) && S.hc.cur >= 0.4 ? "With this many HIGH/CRITICAL CVEs, severity alone cannot order the queue — use KEV and EPSS first." : null,
+        src: srcLine(ctx, ["cve"]),
+      });
+    }
+  } catch (e) { /* skip */ }
+  try {
+    if (L) {
+      const names = (ctx.sev && ctx.sev.cweNames) || {};
+      const w = L.window || {};
+      const span = w.cur ? `${w.cur[0]} to ${w.cur[1]}` : "the last 12 months";
+      const cw = topRiser(cweRows(L.cweTop, names));
+      fig("#cweall", {
+        titleEl: "#h-cweall", title: cw ? `Fastest-growing weakness: ${cw.label}, ${growthText(cw.n, cw.prev)}` : null,
+        subEl: "#cweall-hint", sub: `CVEs per weakness class (first CWE in the record), ${span} vs the 12 months before. Top 10.`,
+        how: "Bar = last 12 months, white tick = the 12 months before. Pitfall: a CVE counts once, under its first CWE; many records have none.",
+        src: srcLine(ctx, ["cve"]),
+      });
+      const vr = vendorRows(L.vendorTop);
+      const vb = topRiser(vr);
+      fig("#vendall", {
+        titleEl: "#h-vendall", title: vr.length ? `${vr[0].label} leads with ${num.format(vr[0].n)} CVEs` + (vb && vb !== vr[0] ? ` — ${vb.label} grew most (${growthText(vb.n, vb.prev)})` : "") : null,
+        subEl: "#vendall-hint", sub: `CVEs per vendor (first affected vendor in the record), ${span} vs the 12 months before. Top 10.`,
+        how: "Bar = last 12 months, white tick = the 12 months before. Pitfall: vendors that file their own CVEs (Linux, Microsoft, Oracle) look larger than vendors whose bugs go unreported.",
+        src: srcLine(ctx, ["cve"]),
+      });
+      const cr = cnaRows(L.cnaTop);
+      const cb = topRiser(cr);
+      fig("#cnaall", {
+        titleEl: "#h-cnaall", title: cb ? `Who files moves the curve: ${cb.label} filed ${num.format(cb.n)} CVEs in the last 12 months (${growthText(cb.n, cb.prev)})` : null,
+        subEl: "#cnaall-hint", sub: `CVEs per CVE Numbering Authority (assigner), ${span} vs the 12 months before. Top 10.`,
+        how: "Bar = last 12 months, white tick = the 12 months before. A CNA is whoever assigned the CVE id — a vendor, a bug-bounty platform or a coordinator.",
+        so: cb && cb.n / Math.max(1, cb.prev) >= 3 ? "Before reading the surge as more vulnerable software, discount the new bulk filers: their growth is a reporting change." : null,
+        src: srcLine(ctx, ["cve"]),
+      });
+    }
+  } catch (e) { /* skip */ }
+}
+
+function explainPart2(ctx, F, S) {
+  const core = ctx.core;
+  try {
+    const ry = relYtd(core, F);
+    if (ry) {
+      const top = Object.entries(ry).sort((a, b) => b[1].cur - a[1].cur)[0];
+      const fast = Object.entries(ry).filter(([, v]) => v.prev >= 20).sort((a, b) => b[1].cur / b[1].prev - a[1].cur / a[1].prev)[0];
+      fig("#rel-bars", {
+        titleEl: "#h-rel", title: top ? `${ctx.relLabel(top[0])} account for most AI-related CVEs in ${F.year} (${num.format(top[1].cur)})` + (fast && fast[0] !== top[0] ? `; ${lcFirst(ctx.relLabel(fast[0]))} grew fastest` : "") : null,
+        subEl: "#rel-hint", sub: `AI-related CVEs published in ${F.year} (${partialLabel(F)}) by kind of AI relation. A CVE can carry several tags, so the bars add up to more than the AI-related total.`,
+        after: "#chart-rel",
+        how: "Left: this year's count per relation. Right: the same per year, one line each (click a legend entry to hide a line and rescale). Pitfall: the last year is partial.",
+        so: "Two different jobs: AI software and agents need asset inventory and patching like any software; AI features, weaknesses and compute need you to ask vendors how their AI is isolated.",
+        src: srcLine(ctx, ["cve"]),
+      });
+    }
+  } catch (e) { /* skip */ }
+  try {
+    const L = core.landscape && core.landscape.ai;
+    if (L && L.originYears && L.years && L.years[F.year]) {
+      const OL = originLabel(core);
+      const n = L.years[F.year];
+      const top = Object.entries(L.originYears).map(([id, by]) => [id, by[F.year] || 0]).sort((a, b) => b[1] - a[1])[0];
+      fig("#chart-aiorigin", {
+        titleEl: "#h-aiorigin", title: top && top[1] ? `${pct(top[1] / n)} of ${F.year}'s AI-related CVEs are in ${oShort(top[0], OL)}` : null,
+        subEl: "#aiorigin-hint", sub: `AI-related CVEs per year, 2018 → ${F.year} (${partialLabel(F)}), stacked by origin — the same categories as Part 1.`,
+        how: "Segments add up to each year's AI-related CVEs. This connects the two parts: e.g. open-source AI packages count under supply chain, Copilot under core platforms.",
+        src: srcLine(ctx, ["cve"]),
+      });
+    }
+  } catch (e) { /* skip */ }
+  try {
+    const L = core.landscape && core.landscape.ai;
+    if (L) {
+      const vr = vendorRows(L.vendorTop);
+      const vb = topRiser(vr);
+      fig("#vendai", {
+        titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months` + (vb && vb !== vr[0] ? `; ${vb.label} grew most` : "") : null,
+        how: "Bar = last 12 months, white tick = the 12 months before; text = count · change. 'new' = none the year before.",
+        src: srcLine(ctx, ["cve"]),
+      });
+    }
+  } catch (e) { /* skip */ }
+}
+
 /* ================= boot ================= */
 (async () => {
   const stamp = $("#stamp");
@@ -1838,7 +2252,8 @@ function explainDetail(ctx, F, S) {
   } catch (e) { stamp.textContent = "data loaded"; }
 
   const layers = layerList(core, meta);
-  const ctx = { core, meta, kev, ap, dl, sev, epss, mal, zd, layers, label: makeLayerLabel(layers), metaOf: metaLookup(meta) };
+  const rels = relList(core, meta);
+  const ctx = { core, meta, kev, ap, dl, sev, epss, mal, zd, layers, label: makeLayerLabel(layers), metaOf: metaLookup(meta), rels, relLabel: makeRelLabel(rels) };
   let F = {};
   try { F = computeFacts(ctx); } catch (e) { F = { asOf: new Date().toISOString().slice(0, 10) }; F.year = F.asOf.slice(0, 4); F.prevYear = String(+F.year - 1); }
   ctx.F = F;
@@ -1846,22 +2261,34 @@ function explainDetail(ctx, F, S) {
   try { S = computeSurgeFacts(ctx, F); } catch (e) { S = {}; }
   // each panel renders independently: one bad data file must not blank the rest
   const panels = [
+    // Part 1: all CVEs
     ["headline", () => buildHeadline(ctx, F, S)],
     ["KPIs", () => buildKpis(ctx, F, S)],
     ["hero chart", () => buildHeroChart(ctx, F)],
     ["where exploitation happens", () => buildWhere(ctx, F, S)],
     ["KEV by origin", () => buildKevOrigin(ctx)],
     ["zero-days", () => { buildZeroDay(ctx); labelCells($("#tbl-zd")); }],
+    ["time to KEV", () => buildTtk(ctx)],
+    ["latest exploited", () => { buildKevAll(ctx); labelCells($("#tbl-kevall")); }],
+    ["patch next", () => { buildNext(ctx); labelCells($("#tbl-next")); }],
+    ["severity per year", () => buildSevAll(ctx)],
+    ["top lists", () => buildTops(ctx)],
     ["supply chain", () => buildSupply(ctx)],
+    // Part 2: AI-related
+    ["AI headline", () => buildAiHeadline(ctx, F, S)],
+    ["AI KPIs", () => buildAiKpis(ctx, F, S)],
+    ["AI relations", () => buildRelations(ctx, F)],
+    ["CVE chart", () => buildMainChart(core)],
+    ["AI by origin", () => buildAiOrigin(ctx)],
     ["exploited strip", () => buildKevChips(F)],
     ["what to do", () => buildTodo(ctx, F)],
     ["KEV table", () => { buildKevTable(F, ctx); labelCells($("#tbl-kev")); }],
-    ["layer chart", () => buildLayerChart(ctx)],
-    ["CVE chart", () => buildMainChart(core)],
+    ["EPSS table", () => { buildEpssTable(ctx, F); labelCells($("#tbl-epss")); }],
     ["severity compare", () => buildSevCompare(ctx)],
     ["CWE compare", () => buildCweCompare(ctx)],
+    ["AI vendors", () => buildVendAi(ctx)],
     ["severity chart", () => buildSevChart(ctx)],
-    ["EPSS table", () => { buildEpssTable(ctx, F); labelCells($("#tbl-epss")); }],
+    ["layer chart", () => buildLayerChart(ctx)],
     ["AI CVE table", () => { buildRecentAiTable(ctx); wireAiFilter(); }],
     ["CNA chart", () => buildCnaChart(ctx)],
     ["AI packages", () => buildAiPkgs(ctx)],
@@ -1869,7 +2296,9 @@ function explainDetail(ctx, F, S) {
     ["methodology", () => buildMethod(ctx)],
     ["framing: summary", () => explainSummary(ctx, F, S)],
     ["framing: risk", () => explainRisk(ctx, F, S)],
+    ["framing: part 1", () => explainPart1(ctx, F, S)],
     ["framing: AI", () => explainAi(ctx, F)],
+    ["framing: part 2", () => explainPart2(ctx, F, S)],
     ["framing: detail", () => explainDetail(ctx, F, S)],
   ];
   for (const [name, render] of panels) {

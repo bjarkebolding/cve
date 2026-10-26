@@ -10,10 +10,14 @@
     "chart-kev-origin": !!(kev && (kev.byYear || kev.entries)),
     "chart-zeroday": !!(kev && (kev.byYear || (kev.entries || []).some((e) => typeof e.zeroDay === "boolean"))),
     "chart-supply": !!(core && core.originYears && core.originYears.supplychain),
+    "chart-ttk": !!(kev && (kev.entries || []).some((e) => typeof e.daysToKev === "number")),
+    "chart-sevall": !!(core && core.landscape && core.landscape.all),
+    "chart-aiorigin": !!(core && core.landscape && core.landscape.ai),
+    "chart-rel": !!(core && core.landscape && core.landscape.ai && core.landscape.ai.relYears),
     "chart-malicious": !!(mal && mal.byYear && Object.keys(mal.byYear).length),
     "chart-cves": !!(core && core.days),
     "chart-layers": !!(core && core.layerMonths && core.layers),
-    "chart-sev": !!(sev && sev.months && sev.months.length),
+    "chart-sev": !!(core && core.landscape && core.landscape.ai),
     "chart-cna": !!(core && core.cnaYears),
     "chart-aipkgs": !!(ap && ap.months && Object.keys(ap.months).length),
     "chart-adoption": !!(dl && dl.npmMonthly),
@@ -35,11 +39,16 @@
   out.headline = (document.querySelector("#headline") || {}).textContent || "";
   out.kpis = document.querySelectorAll("#kpis .kpi").length;
   out.whereRows = document.querySelectorAll("#where-bars .hb-row").length;
-  out.tiers = ["summary", "risk", "detail", "method"].filter((id) => document.getElementById(id)).length;
+  out.tiers = ["summary", "exploit", "volume", "ai", "method"].filter((id) => document.getElementById(id)).length;
   out.navLinks = [...document.querySelectorAll(".topnav a")].filter((a) => document.querySelector(a.getAttribute("href"))).length;
   // tier 1 must come before tier 2/3 content
   const pos = (id) => { const e = document.getElementById(id); return e ? e.getBoundingClientRect().top + scrollY : -1; };
-  out.tierOrder = pos("summary") < pos("risk") && pos("risk") < pos("detail") && pos("detail") < pos("method");
+  out.tierOrder = pos("summary") < pos("exploit") && pos("exploit") < pos("volume") && pos("volume") < pos("ai") && pos("ai") < pos("method");
+  out.aiKpis = document.querySelectorAll("#ai-kpis .kpi").length;
+  out.kevAllRows = document.querySelectorAll("#tbl-kevall tbody tr").length;
+  out.topRows = document.querySelectorAll("#cweall .hb-row, #vendall .hb-row, #cnaall .hb-row").length;
+  // Part 1 is AI-free: no AI wording in its headline, KPIs or hero
+  out.part1Ai = /\bAI\b|MCP/.test(["#headline", "#subhead", "#kpis", "#h-hero", "#hero-note", "#h-where"].map((q) => (document.querySelector(q) || {}).textContent || "").join(" "));
   out.summaryBottom = Math.round(document.querySelector(".sumgrid") ? document.querySelector(".sumgrid").getBoundingClientRect().bottom + scrollY : -1);
   out.err = document.querySelectorAll(".err").length ? [...document.querySelectorAll(".err")].map((e) => e.textContent).join(" | ") : "no";
   const text = document.querySelector("main").innerText;
