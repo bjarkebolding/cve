@@ -1449,7 +1449,8 @@ function buildTops(ctx) {
   topList($("#cweall"), cweRows(L.cweTop, names), { color: P.steel });
   topList($("#vendall"), vendorRows(L.vendorTop), { color: P.steel });
   topList($("#cnaall"), cnaRows(L.cnaTop), { color: P.steel });
-  $("#tops").prepend(legend);
+  // the key sits inside every list card, so a screenshot of one card still explains the tick
+  for (const id of ["#cweall", "#vendall", "#cnaall"]) $(id).before(legend.cloneNode(true));
 }
 
 /* ================= Part 2: AI-related summary ================= */
@@ -1598,6 +1599,7 @@ function buildAiOrigin(ctx) {
 function buildVendAi(ctx) {
   const L = ctx.core.landscape && ctx.core.landscape.ai;
   topList($("#vendai"), L ? vendorRows(L.vendorTop) : null, { color: P.blue });
+  $("#vendai").before(h("p", { class: "hint toplegend", text: "Bar = last 12 months; tick = the 12 months before; text = count · change." }));
 }
 
 /* ================= AI deep dive lead-in: exploited chips + actions ================= */

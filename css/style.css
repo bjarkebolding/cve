@@ -624,8 +624,6 @@ td.stack .reltags { margin-bottom: 2px; }
 .cwe-n { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 12px; }
 
 /* ---------------- Part 2 strip: exploited products + what to do ---------------- */
-.ai-lead { margin-bottom: 64px; }
-.ai-lead .panel { margin-bottom: 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
 .chip {
   display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 14px;
@@ -769,3 +767,12 @@ footer a { color: var(--ink-2); }
 }
 
 .last30 { margin: -8px 0 20px; font-size: 13.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+/* exploited-AI card: products and actions above the table */
+#exploited .chips { margin: 4px 0 6px; }
+#exploited .note { margin: 0 0 14px; }
+#exploited .todo { margin: 0 0 18px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+#exploited .todo h3 { margin: 0 0 8px; font-size: 14px; }
+/* paired cards hug their content instead of stretching to the taller one */
+.slide-group > .duo { align-items: start; }
+.toplegend { font-size: 12px; margin: 0 0 8px; color: var(--muted); }

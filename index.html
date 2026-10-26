@@ -244,20 +244,15 @@
     <div id="chart-aiorigin" class="chart"></div>
   </section>
 
-    <div class="duo ai-lead">
-      <div class="panel exploited-strip" aria-labelledby="h-strip">
-        <h3 id="h-strip">Exploited AI-related products</h3>
-        <div class="chips" id="kev-chips"></div>
-        <p class="hint" id="kev-chips-hint">AI-related CVEs in CISA's Known Exploited Vulnerabilities catalog.</p>
-      </div>
-      <div class="panel todo" aria-labelledby="h-todo">
-        <h3 id="h-todo">What to do</h3>
-        <ul class="todo-list" id="todo-list"></ul>
-      </div>
-    </div>
   <section class="panel" id="exploited" aria-labelledby="h-exploited">
     <h2 id="h-exploited">Exploited AI-related vulnerabilities (CISA KEV)</h2>
     <p class="hint" id="kev-hint">AI-related CVEs in CISA's Known Exploited Vulnerabilities catalog — confirmed in-the-wild exploitation.</p>
+    <div class="chips" id="kev-chips" aria-label="exploited AI-related products"></div>
+    <p class="note" id="kev-chips-hint"></p>
+    <div class="todo" aria-labelledby="h-todo">
+      <h3 id="h-todo">What to do</h3>
+      <ol class="todo-list" id="todo-list"></ol>
+    </div>
     <div class="tablewrap">
       <table id="tbl-kev">
         <thead><tr><th scope="col">CVE</th><th scope="col">Product</th><th scope="col">AI relation</th><th scope="col">Published (UTC)</th><th scope="col">Added to KEV (UTC)</th><th scope="col" class="num" title="days from CVE publication to KEV addition">Days to KEV (days)</th><th scope="col" class="num" title="FIRST EPSS: probability of exploitation activity in the next 30 days">EPSS (30-day prob.)</th></tr></thead>
