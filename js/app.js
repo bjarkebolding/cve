@@ -967,6 +967,12 @@ function buildBrief(ctx, F, S) {
         + `${edgeTxt} Keep an emergency-change path and reduce exposed management interfaces.` };
   });
   add(() => {
+    const o = oldKev(ctx, F);
+    if (!o || !o.y3) return null;
+    return { act: "Re-check the whole estate against KEV every week, not just new advisories.", href: "#speed",
+      why: `${pct(o.y1 / o.n)} of ${F.year}'s KEV additions are CVEs published more than a year earlier, and ${num.format(o.y3)} (${pct(o.y3 / o.n, 1)}) are over three years old${o.oldestYear ? `, back to ${o.oldestYear}` : ""}${o.prods.length ? ` (${listJoin(o.prods)})` : ""}. Scan every asset against KEV weekly and set retirement dates for end-of-life systems you cannot patch.` };
+  });
+  add(() => {
     const t = S.total;
     if (!t || !t.prev) return null;
     const doy = Math.max(1, Math.round(daysBetween(F.year + "-01-01", F.asOf) + 1));
@@ -1323,6 +1329,15 @@ function ttkCohort(ctx, origin) {
   };
   const cur = stat(w.cur), prev = stat(w.prev, w.prev[1]);
   return cur ? { cur, prev, from: w.cur[0] } : null;
+}
+/* this year's KEV additions whose CVE is old: >1 year and >3 years since publication */
+function oldKev(ctx, F) {
+  const a = ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.added).startsWith(F.year) && fin(e.daysToKev));
+  if (a.length < 20) return null;
+  const y1 = a.filter((e) => e.daysToKev > 365), y3 = a.filter((e) => e.daysToKev > 1095);
+  const byAge = y3.slice().sort((x, y) => String(x.published).localeCompare(String(y.published)));
+  return { n: a.length, y1: y1.length, y3: y3.length, oldestYear: byAge.length ? String(byAge[0].published).slice(0, 4) : null,
+    prods: [...new Set(byAge.map((e) => tidyProduct(e.product)).filter(Boolean))].slice(0, 3) };
 }
 const daysText = (d) => (d < 1 ? "under a day" : d === 1 ? "1 day" : `${Number.isInteger(d) ? d : fmtX(d)} days`);
 function buildTtk(ctx) {
@@ -2687,7 +2702,9 @@ function explainPart1(ctx, F, S) {
         subEl: "#ttk-hint", sub: `CISA KEV additions per year (by date added), 2022 → ${F.year} (${partialLabel(F)}), stacked by days from CVE publication to KEV addition.`,
         how: "Bars: KEV additions per year by days from CVE publication to KEV addition; red/orange = within a week, grey = old CVEs newly confirmed as exploited. The title uses one cohort instead: CVEs published in the last 12 months that reached KEV. Pitfall: KEV records when CISA confirmed exploitation, so attacks often started earlier.",
         so: (() => { const c = ttkCohort(ctx); const share = c && c.cur.n >= 20 ? c.cur.wk / c.cur.n : n ? wk / n : 0;
-          return share >= 0.25 ? `A monthly patch cycle is too slow for ${pct(share)} of exploited CVEs: keep an emergency path that can ship a fix or mitigation within days.` : null; })(),
+          const o = oldKev(ctx, F);
+          const old = o && o.y3 ? ` And ${num.format(o.y3)} of ${F.year}'s additions are CVEs over three years old${o.oldestYear ? ` (back to ${o.oldestYear})` : ""}: re-scan the whole estate against KEV every week, not only new advisories.` : "";
+          return share >= 0.25 ? `A monthly patch cycle is too slow for ${pct(share)} of exploited CVEs: keep an emergency path that can ship a fix or mitigation within days.${old}` : old.trim() || null; })(),
         src: srcLine(ctx, ["kev", "cve"]),
       });
     }

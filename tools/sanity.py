@@ -221,6 +221,10 @@ if page:
         if pv:
             pw = f"({round(100 * sum(1 for e in pv if e['daysToKev'] <= 7) / len(pv))}% the 12 months before, same follow-up)"
             check(pw in page.get("ttkTitle", ""), f"page: speed card prior cohort should read {pw}: {page.get('ttkTitle')!r}")
+    old3 = sum(1 for e in kev_cur if (e.get("daysToKev") or 0) > 1095)
+    if old3:
+        check(any(b.startswith("Re-check the whole estate") and f"{old3:,} (" in b for b in page["brief"]),
+              f"page: Brief old-CVE action should state {old3} CVEs over three years old")
     k = tile("Exploited (")
     check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
     check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")
