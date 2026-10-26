@@ -683,32 +683,86 @@ function buildHeadline(ctx, F, S) {
   if (parts.length) { sub.textContent = parts.join(" "); sub.classList.add("hint"); } else sub.remove();
 }
 
+/* 24-month sparkline as inline SVG (no canvas: tiles stay crisp and light) */
+const SVGNS = "http://www.w3.org/2000/svg";
+function sparkline(vals, cls) {
+  const W = 120, H = 34, n = vals.length, max = Math.max(1, ...vals);
+  const pts = vals.map((v, i) => [(i / (n - 1)) * W, H - 3 - (v / max) * (H - 6)]);
+  const line = pts.map(([x, y], i) => (i ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1)).join(" ");
+  const svg = document.createElementNS(SVGNS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("class", "spark" + (cls ? " " + cls : ""));
+  svg.setAttribute("aria-hidden", "true");
+  const area = document.createElementNS(SVGNS, "path");
+  area.setAttribute("d", `${line} L${W} ${H} L0 ${H} Z`);
+  area.setAttribute("class", "spark-area");
+  const path = document.createElementNS(SVGNS, "path");
+  path.setAttribute("d", line);
+  path.setAttribute("class", "spark-line");
+  path.setAttribute("vector-effect", "non-scaling-stroke");
+  svg.append(area, path);
+  return svg;
+}
 function kpiTiles(wrap, tiles, emptyMsg) {
   if (!tiles.length) { note(wrap, emptyMsg); return; }
   for (const x of tiles) {
-    wrap.append(h("div", { class: "kpi" },
+    const delta = x.delta ? h("span", { class: "delta" + (x.delta.up ? " up" : " down"), text: (x.delta.up ? "▲ " : "▼ ") + x.delta.text, title: x.delta.title || null }) : null;
+    const spark = x.spark && x.spark.vals.length >= 6 && x.spark.vals.some((v) => v > 0)
+      ? h("div", { class: "kspark", title: x.spark.title || null }, sparkline(x.spark.vals, x.cls)) : null;
+    wrap.append(h("div", { class: "kpi" + (spark ? " has-spark" : "") },
       h("div", { class: "k", text: x.k }),
-      h("div", { class: "v" + (x.cls ? " " + x.cls : ""), text: x.v }),
+      h("div", { class: "vrow" }, h("span", { class: "v" + (x.cls ? " " + x.cls : ""), text: x.v }), delta),
+      spark,
       x.d ? h("div", { class: "d", text: x.d }) : null));
   }
 }
+/* the last n complete months, oldest first */
+function lastMonths(F, n) {
+  const end = ymAdd(F.asOf.slice(0, 7), -1);
+  return monthRange(ymAdd(end, -(n - 1)), end);
+}
+function monthSeries(months, allMonths, arr) {
+  const idx = new Map((allMonths || []).map((m, i) => [m, i]));
+  return months.map((m) => (idx.has(m) && fin(arr[idx.get(m)]) ? arr[idx.get(m)] : 0));
+}
+function countByMonth(months, items, keyFn) {
+  const c = Object.fromEntries(months.map((m) => [m, 0]));
+  for (const it of items || []) { const m = String(keyFn(it) || "").slice(0, 7); if (m in c) c[m] += 1; }
+  return months.map((m) => c[m]);
+}
+const growthDelta = (cur, prev, prevYear) => (prev > 0 && fin(cur)
+  ? { up: cur >= prev, text: cur / prev >= 1.995 ? `×${fmtX(cur / prev)}` : `${Math.round(Math.abs(100 * (cur / prev - 1)))}%`, title: `vs the same period of ${prevYear}` }
+  : null);
 function buildKpis(ctx, F, S) {
   const tiles = [];
+  const M = lastMonths(F, 24);
+  const sparkTitle = "monthly, last 24 complete months";
+  const ents = (ctx.kev && ctx.kev.entries) || [];
   const t = S.total;
-  if (t) tiles.push({ k: `CVEs published ${F.year} YTD`, v: num.format(t.cur),
-    d: t.prev ? `×${(t.cur / t.prev).toFixed(1)} vs same period ${F.prevYear} (${num.format(t.prev)})` : `${num.format(t.prevFull)} in all of ${F.prevYear}` });
+  if (t) tiles.push({ k: `CVEs published ${F.year} YTD`, v: num.format(t.cur), delta: growthDelta(t.cur, t.prev, F.prevYear),
+    spark: { vals: monthSeries(M, ctx.core.months, ctx.core.counts || []), title: sparkTitle },
+    d: t.prev ? `${num.format(t.prev)} by this date in ${F.prevYear}` : `${num.format(t.prevFull)} in all of ${F.prevYear}` });
   const k = S.kev;
-  if (k) tiles.push({ k: `Exploited (KEV) ${F.year}`, v: num.format(k.cur), cls: "warn",
+  if (k) tiles.push({ k: `Exploited (CISA KEV) ${F.year}`, v: num.format(k.cur), cls: "warn", delta: growthDelta(k.cur, k.prevSame, F.prevYear),
+    spark: { vals: countByMonth(M, ents, (e) => e.added), title: sparkTitle },
     d: k.prevSame ? `${num.format(k.prevSame)} by this date in ${F.prevYear}` : "added to CISA KEV this year" });
   if (k && fin(k.zd)) {
-    tiles.push({ k: `Zero-days ${F.year}`, v: num.format(k.zd), cls: "warn",
-      d: ["exploited at disclosure", fin(k.zdPrevSame) ? `${num.format(k.zdPrevSame)} by this date ${F.prevYear}` : null].filter(Boolean).join(" · ") });
+    tiles.push({ k: `Zero-days ${F.year}`, v: num.format(k.zd), cls: "warn", delta: growthDelta(k.zd, k.zdPrevSame, F.prevYear),
+      spark: { vals: countByMonth(M, ents.filter((e) => e.zeroDay), (e) => e.published), title: sparkTitle },
+      d: ["exploited at disclosure", fin(k.zdPrevSame) ? `${num.format(k.zdPrevSame)} by this date in ${F.prevYear}` : null].filter(Boolean).join(" · ") });
   }
   if (S.supply || fin(S.malYtd)) {
+    const om = ctx.core.originMonths && ctx.core.originMonths.supplychain;
+    // complete months on both sides, the same comparison as the CVEs-per-year chart title
+    const ym = om ? ytdMonths(ctx.core, om, F) : null;
+    const delta = ym ? growthDelta(ym.cur, ym.prev, F.prevYear) : null;
+    if (delta) delta.title = `${ym.label} ${F.year} vs ${ym.label} ${F.prevYear}`;
     tiles.push(S.supply
-      ? { k: "Supply chain", v: num.format(S.supply.n), cls: "sc",
-          d: "open-source CVEs" + (fin(S.malYtd) && S.malYtd ? ` · ${num.format(S.malYtd)} malicious packages` : "") }
-      : { k: "Malicious packages", v: num.format(S.malYtd), cls: "sc", d: `${F.year} YTD, OSV MAL advisories` });
+      ? { k: "Open-source CVEs (supply chain)", v: num.format(S.supply.n), delta,
+          spark: om ? { vals: monthSeries(M, ctx.core.months, om), title: sparkTitle } : null,
+          d: fin(S.malYtd) && S.malYtd ? `plus ${num.format(S.malYtd)} malicious packages` : `${F.year} YTD` }
+      : { k: "Malicious packages", v: num.format(S.malYtd), d: `${F.year} YTD, OSV MAL advisories` });
   }
   kpiTiles($("#kpis"), tiles, "Key indicators are not available for this data build.");
 }
@@ -2454,7 +2508,7 @@ function infoize() {
     const gen = new Date(core.generatedAt);
     const ageH = (Date.now() - gen.getTime()) / 3600e3;
     const stale = ageH > 48 ? ` · data ${Math.round(ageH / 24)}d old — rebuild` : "";
-    stamp.textContent = `data as of ${gen.toUTCString()} · ` +
+    stamp.textContent = `Data as of ${gen.toISOString().slice(0, 16).replace("T", " ")} UTC · ` +
       (kev && kev.generatedAt ? `KEV ${String(kev.generatedAt).slice(0, 10)} · ` : "") +
       (epss && epss.modelDate ? `EPSS ${epss.modelDate} · ` : "") + "rebuilt daily" + stale;
     if (stale) stamp.classList.add("err");

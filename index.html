@@ -22,7 +22,7 @@
 <noscript><p class="noscript-msg">This dashboard needs JavaScript to render its charts. Data is committed in <code>data/*.json</code> and the pipeline in <code>build.py</code>/<code>sources.py</code>.</p></noscript>
 <main>
   <nav class="topnav" aria-label="page sections">
-    <a href="#brief">Brief</a><a href="#summary">All CVEs</a><a href="#exploit">Exploitation</a><a href="#volume">Volume</a><a href="#ai">AI-related</a><a href="#method">Method</a>
+    <a href="#summary">Overview</a><a href="#brief">Brief</a><a href="#exploit">Exploitation</a><a href="#volume">Volume</a><a href="#ai">AI-related</a><a href="#method">Method</a>
   </nav>
 
   <!-- ===================== PART 1: ALL CVEs ===================== -->
@@ -31,16 +31,10 @@
       <div>
         <p class="eyebrow">Vulnerability landscape · daily brief</p>
         <h1>The vulnerability surge <span class="x">—</span> and how much of it is AI</h1>
-        <p class="tag">Part 1: all CVEs, exploits and zero-days. Part 2: which of them involve AI. Details sit behind <span class="i-demo" aria-hidden="true">i</span> — hover or tap.</p>
-        <p class="stamp" id="stamp" aria-live="polite">loading…</p>
       </div>
+      <p class="stamp" id="stamp" aria-live="polite">loading…</p>
     </header>
-    <section class="brief" id="brief" aria-labelledby="h-brief">
-      <h2 id="h-brief">How to adjust your programme</h2>
-      <p class="hint">Five changes the current data supports. Each cites the numbers behind it; follow a line to the evidence below. Recomputed with every daily rebuild.</p>
-      <ol class="brief-list" id="brief-list"></ol>
-    </section>
-    <p class="tier-label"><span>Part 1</span> All CVEs — the full picture</p>
+    <p class="tier-label top"><span>Part 1 · All CVEs</span></p>
     <p class="headline" id="headline"></p>
     <p class="subhead" id="subhead"></p>
     <div class="kpis" id="kpis" aria-label="key indicators, all CVEs"></div>
@@ -57,6 +51,11 @@
         <div id="where-bars"></div>
       </div>
     </div>
+    <section class="brief" id="brief" aria-labelledby="h-brief">
+      <h2 id="h-brief">How to adjust your programme</h2>
+      <p class="hint">Five changes the current data supports. Each cites the numbers behind it; follow a line to the evidence below. Recomputed with every daily rebuild.</p>
+      <ol class="brief-list" id="brief-list"></ol>
+    </section>
   </div>
 
   <div class="tier tier2" id="exploit">

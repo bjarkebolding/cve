@@ -134,7 +134,7 @@ a:hover { color: var(--accent); text-decoration-color: currentColor; }
 }
 .topnav a:hover { color: var(--ink); }
 .tier, .group, section.panel, section.context, .panel, .kpis { scroll-margin-top: 60px; }
-.navitem { position: relative; display: inline-flex; }
+.navitem { position: relative; display: inline-flex; flex: none; }
 .navsub { display: none; }
 @media (hover: hover) and (min-width: 761px) {
   .navitem > a::after {
@@ -153,9 +153,10 @@ a:hover { color: var(--accent); text-decoration-color: currentColor; }
 }
 
 /* ---------------- header ---------------- */
-header { display: flex; gap: 16px; align-items: flex-start; margin-top: 40px; }
+header { display: flex; gap: 8px 32px; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; margin-top: 28px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+header .stamp { margin: 0 0 2px; text-align: right; }
 .eyebrow { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
-header h1 { font-size: 20px; line-height: 1.3; font-weight: 600; letter-spacing: -0.01em; margin: 2px 0 6px; }
+header h1 { font-size: 20px; line-height: 1.3; font-weight: 600; letter-spacing: -0.01em; margin: 2px 0 0; }
 header h1 .x { color: var(--muted); font-weight: 400; }
 .tag { color: var(--ink-2); font-size: 14px; margin: 0; max-width: 70ch; }
 .stamp { color: var(--muted); font-size: 12.5px; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
@@ -205,13 +206,31 @@ header h1 .x { color: var(--muted); font-weight: 400; }
 .subhead { font-size: 14px; line-height: 1.6; margin: 0 0 16px; max-width: 75ch; color: var(--ink-2); }
 
 /* ---------------- KPI row ---------------- */
-.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 32px; margin: 0 0 56px; }
-.kpi { border-top: 1px solid var(--line-2); padding: 14px 0 0; min-width: 0; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 0 0 24px; }
+.kpi {
+  min-width: 0; padding: 16px 18px 14px;
+  background: var(--raise); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(20, 24, 32, 0.04);
+}
 .kpi .k { font-size: 13px; color: var(--muted); }
-.kpi .v { font-size: 34px; line-height: 1.15; font-weight: 500; letter-spacing: -0.02em; margin: 6px 0 6px; font-variant-numeric: tabular-nums; }
+.kpi .vrow { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 6px 0 2px; }
+.kpi .v { font-size: 38px; line-height: 1.1; font-weight: 600; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; color: var(--ink); }
 .kpi .v.ai { color: var(--accent); }
 .kpi .v.warn { color: var(--warn); }
-.kpi .v.sc { color: var(--ink); }
+.kpi .delta {
+  display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.kpi .delta.up { color: var(--warn); background: color-mix(in srgb, var(--warn) 11%, transparent); }
+.kpi .delta.down { color: var(--c-sage); background: color-mix(in srgb, var(--c-sage) 12%, transparent); }
+.kspark { height: 36px; margin: 8px 0 8px; }
+.spark { display: block; width: 100%; height: 36px; overflow: visible; }
+.spark-line { fill: none; stroke: var(--c-neutral); stroke-width: 1.6; stroke-linejoin: round; }
+.spark-area { fill: var(--c-neutral); opacity: 0.08; stroke: none; }
+.spark.warn .spark-line { stroke: var(--warn); }
+.spark.warn .spark-area { fill: var(--warn); opacity: 0.1; }
+.spark.ai .spark-line { stroke: var(--accent); }
+.spark.ai .spark-area { fill: var(--accent); opacity: 0.1; }
 .kpi .d { font-size: 13px; line-height: 1.45; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 
 /* ---------------- panels: hairline + whitespace, no boxes ---------------- */
@@ -238,8 +257,16 @@ h3 { font-size: 15px; line-height: 1.4; font-weight: 600; margin: 28px 0 12px; m
 .panel .duo .sub { margin-top: 0; }
 .panel > .sub { margin-top: 40px; }
 
-.sumgrid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 0 48px; }
-.sumgrid .panel { margin-bottom: 0; }
+.sumgrid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px; }
+.sumgrid .panel {
+  margin-bottom: 0; padding: 20px 22px 18px;
+  background: var(--raise); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(20, 24, 32, 0.04);
+}
+.tier-label.top { margin: 28px 0 10px; }
+.tier1 .tier-label.top { margin-top: 28px; margin-bottom: 10px; }
+.tier-label.top span { margin: 0; }
+.tier1 > .headline { margin-bottom: 22px; }
 
 /* "So what" — the one line that stays on screen under each visual */
 .figfoot { margin-top: 16px; display: grid; gap: 4px; max-width: 72ch; }
@@ -532,7 +559,7 @@ footer a { color: var(--ink-2); }
 @media (max-width: 900px) {
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 24px; }
   .sumgrid { grid-template-columns: 1fr; }
-  .sumgrid .panel + .panel { margin-top: 48px; }
+  .sumgrid .panel + .panel { margin-top: 0; }
 }
 @media (max-width: 760px) {
   body { padding: 0 16px 56px; }
@@ -543,11 +570,16 @@ footer a { color: var(--ink-2); }
   header h1 { font-size: 18px; }
   .tag { font-size: 13.5px; }
   .tier { margin-top: 72px; }
+  .tier1 { margin-top: 0; }
   .tier1 .tier-label { margin-top: 40px; }
   .tier-label { font-size: 19px; margin-bottom: 20px; }
   .headline { font-size: 21px; margin-bottom: 24px; }
   .kpis { margin-bottom: 44px; }
-  .kpi .v { font-size: 26px; }
+  .kpi .v { font-size: 28px; }
+  .kpis { gap: 10px; }
+  .kpi { padding: 12px 12px 10px; }
+  header .stamp { text-align: left; }
+  .sumgrid .panel { padding: 16px 14px; }
   .kpi .d { font-size: 12.5px; }
   .panel { margin-bottom: 48px; padding-top: 20px; }
   .duo { grid-template-columns: 1fr; gap: 0; }
