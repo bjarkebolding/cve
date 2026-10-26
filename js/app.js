@@ -830,6 +830,75 @@ function buildSignal(ctx) {
   });
 }
 
+/* ================= Gartner's four critical threats (2026–2027) ================= */
+const APP_RELS = new Set(["agent", "product", "feature"]);
+function buildThreats(ctx, F, S) {
+  const wrap = $("#threat-cards");
+  const core = ctx.core;
+  const M = lastMonths(F, 24);
+  const md = F.asOf.slice(5);
+  const kevAll = (ctx.kev && ctx.kev.entries) || [];
+  const cards = [];
+  // 1. AI application compromise: exploited flaws in AI apps, agents, AI features
+  try {
+    const app = (F.kevAi || []).filter((e) => (e.rels || []).some((r) => APP_RELS.has(r)));
+    const cur = app.filter((e) => String(e.added).startsWith(F.year)).length;
+    const prevSame = app.filter((e) => String(e.added).startsWith(F.prevYear) && String(e.added).slice(5) <= md).length;
+    const prods = [...new Set(app.map((e) => shortProduct(e.product)).filter(Boolean))].slice(0, 4);
+    const a = S.aiShare;
+    cards.push({ id: "app", name: "AI application compromise", signal: "strong", href: "#exploited",
+      v: num.format(cur), unit: `exploited flaws in AI apps & agents, ${F.year}`, delta: growthDelta(cur, prevSame, F.prevYear),
+      spark: Array.isArray(core.aiMonths) ? { vals: monthSeries(M, core.months, core.aiMonths), title: "AI-related CVEs per month, last 24 complete months" } : null,
+      foot: (prods.length ? `${listJoin(prods)}: conventional code-execution and access flaws in AI tooling, not attacks on the model.` : "")
+        + (a ? ` ${num.format(a.n)} AI-related CVEs disclosed this year.` : "") });
+  } catch (e) { /* skip */ }
+  // 2. Software supply chain: open-source share of confirmed exploitation
+  try {
+    const cur = kevAll.filter((e) => String(e.added).startsWith(F.year));
+    const prev = kevAll.filter((e) => String(e.added).startsWith(F.prevYear));
+    const sc = (arr) => arr.filter((e) => e.origin === "supplychain").length;
+    const om = core.originMonths && core.originMonths.supplychain;
+    if (cur.length) cards.push({ id: "supply", name: "Software supply chain", signal: "strong", href: "#supply",
+      v: pct(sc(cur) / cur.length, 1), unit: `of ${F.year}'s exploited vulnerabilities are open source (${num.format(sc(cur))} of ${num.format(cur.length)})`,
+      delta: prev.length ? { up: sc(cur) / cur.length >= sc(prev) / prev.length, text: `from ${pct(sc(prev) / prev.length, 1)}`, title: `share of KEV additions, all of ${F.prevYear}` } : null,
+      spark: om ? { vals: monthSeries(M, core.months, om), title: "open-source CVEs per month, last 24 complete months" } : null,
+      foot: `${S.supply ? num.format(S.supply.n) + " open-source CVEs this year, much of the rise from more filing by GitHub and VulnCheck" : ""}`
+        + (fin(S.malYtd) && S.malYtd ? `; ${num.format(S.malYtd)} malicious packages (2025 was inflated by an npm spam flood).` : ".") });
+  } catch (e) { /* skip */ }
+  // 3. Prompt injection: disclosed AI-specific weaknesses (exploitation not observable)
+  try {
+    const ry = relYtd(core, F);
+    const w = ry && ry.weakness;
+    if (w) {
+      const exploited = kevAll.filter((e) => (e.rels || []).includes("weakness")).length;
+      cards.push({ id: "pi", name: "Prompt injection", signal: "partial", href: "#relations",
+        v: num.format(w.cur), unit: `disclosed AI-specific weaknesses, ${F.year}`,
+        delta: null,
+        foot: `Prompt injection, jailbreaks and unsafe model loading in shipped products (${num.format(w.prev)} in all of ${F.prevYear}). ${exploited ? num.format(exploited) : "None"} confirmed exploited: attacks on your own AI apps never reach CVE data, so test them before release.` });
+    }
+  } catch (e) { /* skip */ }
+  // 4. Deepfakes: outside what vulnerability data can measure
+  cards.push({ id: "deepfake", name: "Deepfake identity impersonation", signal: "none", href: null,
+    statement: "Not a software flaw",
+    foot: "No CVE describes it, so this dashboard cannot measure it. Defend with process: call-back verification and strong authentication for payments, helpdesk resets and hiring." });
+
+  const SIG = { strong: "Strong signal", partial: "Partial signal", none: "Outside CVE scope" };
+  for (const c of cards) {
+    const delta = c.delta ? h("span", { class: "delta" + (c.delta.up ? " up" : " down"), text: (c.delta.up ? "▲ " : "▼ ") + c.delta.text, title: c.delta.title || null }) : null;
+    const spark = c.spark && c.spark.vals.some((v) => v > 0) ? h("div", { class: "kspark", title: c.spark.title }, sparkline(c.spark.vals, c.id === "app" ? "ai" : "")) : null;
+    const body = [
+      h("div", { class: "th-head" }, h("span", { class: "th-name", text: c.name }), h("span", { class: "th-sig " + c.signal, text: SIG[c.signal] })),
+      c.statement ? h("div", { class: "th-statement", text: c.statement })
+        : h("div", { class: "vrow" }, h("span", { class: "v", text: c.v }), delta),
+      c.unit ? h("div", { class: "th-unit", text: c.unit }) : null,
+      spark,
+      h("p", { class: "th-foot", text: c.foot.trim() }),
+      c.href ? h("a", { class: "th-link", href: c.href, text: "Evidence →" }) : null,
+    ];
+    wrap.append(h("article", { class: "threat " + c.id }, ...body));
+  }
+}
+
 /* ================= executive brief: how to adjust ================= */
 /* Five programme changes, each backed by this build's numbers. An item only
  * renders when its evidence exists, so the list never states a bare opinion. */
@@ -2628,6 +2697,7 @@ function infoize() {
     ["KPIs", () => buildKpis(ctx, F, S)],
     ["signal vs noise", () => buildSignal(ctx)],
     ["brief", () => buildBrief(ctx, F, S)],
+    ["threats", () => buildThreats(ctx, F, S)],
     ["hero chart", () => buildHeroChart(ctx, F)],
     ["where exploitation happens", () => buildWhere(ctx, F, S)],
     ["KEV by origin", () => buildKevOrigin(ctx)],

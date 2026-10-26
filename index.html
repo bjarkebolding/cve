@@ -22,7 +22,7 @@
 <noscript><p class="noscript-msg">This dashboard needs JavaScript to render its charts. Data is committed in <code>data/*.json</code> and the pipeline in <code>build.py</code>/<code>sources.py</code>.</p></noscript>
 <main>
   <nav class="topnav" aria-label="page sections">
-    <a href="#summary">Overview</a><a href="#brief">Brief</a><a href="#exploit">Exploitation</a><a href="#volume">Volume</a><a href="#ai">AI-related</a><a href="#method">Method</a>
+    <a href="#summary">Overview</a><a href="#brief">Brief</a><a href="#threats">Threats</a><a href="#exploit">Exploitation</a><a href="#volume">Volume</a><a href="#ai">AI-related</a><a href="#method">Method</a>
   </nav>
 
   <!-- ===================== PART 1: ALL CVEs ===================== -->
@@ -60,6 +60,12 @@
       <h2 id="h-brief">How to adjust your programme</h2>
       <p class="hint">Five changes the current data supports. Each cites the numbers behind it; follow a line to the evidence below. Recomputed with every daily rebuild.</p>
       <ol class="brief-list" id="brief-list"></ol>
+    </section>
+    <section class="threats" id="threats" aria-labelledby="h-threats">
+      <h2 id="h-threats">Through Gartner's four critical threats</h2>
+      <p class="attrib">Organised around the four critical threats Gartner named for 2026–2027 (press release, 2 June 2026), where attackers currently hold the advantage. The mapping to vulnerability data, the signal ratings and all figures are this dashboard's own; not affiliated with or endorsed by Gartner.</p>
+      <p class="hint">Signal = how much of the threat public vulnerability data can see (our rating, not Gartner's). Strong: CVEs and confirmed exploitation exist. Partial: flaws are disclosed but exploitation is not observable here. Outside CVE scope: not a software flaw.</p>
+      <div class="threat-grid" id="threat-cards"></div>
     </section>
   </div>
 
@@ -345,6 +351,8 @@
     <ul class="layer-list" id="method-relations"></ul>
     <p class="hint">AI software, MCP agents and AI features are further placed in one layer of the AI stack (first matching rule wins):</p>
     <ul class="layer-list" id="method-layers"></ul>
+    <h3>Gartner's four critical threats</h3>
+    <p class="mtext" id="method-gartner">The "Threats" section is organised around the four critical threats for 2026–2027 named in Gartner's press release "Gartner Identifies Four Critical Threats Requiring Urgent Improvements from Cybersecurity Leaders" (2 June 2026): AI application compromise, deepfake identity impersonation, software supply chain and prompt injection. Mapping: AI application compromise = CISA KEV entries for CVEs with the agent, AI-software or AI-feature relation; software supply chain = the open-source share of KEV additions (open-source CVE and malicious-package counts are context, both distorted by filing and bulk reports); prompt injection = CVEs with the AI-specific-weakness relation, of which none is in KEV; deepfakes have no CVE signal. The signal ratings are this dashboard's own judgement of what public vulnerability data can see, not Gartner's ThreatScape placement. Gartner has not reviewed or endorsed this dashboard. GARTNER is a registered trademark and service mark of Gartner, Inc. and/or its affiliates.</p>
     <h3>How accurate is the matching</h3>
     <p id="method-eval" class="mtext"></p>
     <h3>Severity</h3>

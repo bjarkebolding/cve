@@ -44,6 +44,7 @@
   // tier 1 must come before tier 2/3 content
   const pos = (id) => { const e = document.getElementById(id); return e ? e.getBoundingClientRect().top + scrollY : -1; };
   out.tierOrder = pos("summary") < pos("exploit") && pos("exploit") < pos("volume") && pos("volume") < pos("ai") && pos("ai") < pos("method");
+  out.threatCards = document.querySelectorAll("#threat-cards .threat").length;
   out.briefItems = document.querySelectorAll("#brief-list li").length;
   out.navSub = [...document.querySelectorAll(".topnav a.sub")].filter((a) => document.querySelector(a.getAttribute("href"))).length;
   out.navSubAll = document.querySelectorAll(".topnav a.sub").length;
