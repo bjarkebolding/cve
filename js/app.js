@@ -668,7 +668,9 @@ function buildHeadline(ctx, F, S) {
     const t = S.total;
     if (t && t.prev) {
       const r = t.cur / t.prev;
-      head = r >= 1.15 ? `CVE disclosures are up ~${fmtX(r)}× on the same period last year: ${num.format(t.cur)} so far in ${F.year}.`
+      const yr = ytdRatio(ctx.core);
+      const ex = yr && yr.rx ? ` (×${fmtX(yr.rx)} without bulk filing by ${BULK_NAMES})` : "";
+      head = r >= 1.15 ? `CVE disclosures are up ~${fmtX(r)}× on the same period last year${ex}: ${num.format(t.cur)} so far in ${F.year}.`
         : r >= 0.95 ? `CVE disclosures are running level with last year: ${num.format(t.cur)} so far in ${F.year}.`
         : `CVE disclosures are down ${pct(1 - r)} on the same period last year.`;
     } else if (t) head = `${num.format(t.cur)} CVEs published in ${F.year} so far.`;
@@ -770,12 +772,12 @@ function buildKpis(ctx, F, S) {
   }
   if (S.supply || fin(S.malYtd)) {
     const om = ctx.core.originMonths && ctx.core.originMonths.supplychain;
-    // complete months on both sides, the same comparison as the CVEs-per-year chart title
-    const ym = om ? ytdMonths(ctx.core, om, F) : null;
+    // the build's one YTD window, the same comparison as the CVEs-per-year chart title
+    const ym = ytdRatio(ctx.core, "supplychain");
     const delta = ym ? growthDelta(ym.cur, ym.prev, F.prevYear) : null;
-    if (delta) delta.title = `${ym.label} ${F.year} vs ${ym.label} ${F.prevYear}`;
+    if (delta) delta.title = `1 Jan–${fmtDay(F.asOf).replace(/, \d+$/, "")}, ${F.year} vs ${F.prevYear}`;
     tiles.push(S.supply
-      ? { k: "Open-source CVEs (supply chain)", v: num.format(S.supply.n), delta,
+      ? { k: "Open-source CVEs (supply chain)", v: num.format(ym ? ym.cur : S.supply.n), delta,
           spark: om ? { vals: monthSeries(M, ctx.core.months, om), title: sparkTitle } : null,
           d: fin(S.malYtd) && S.malYtd ? `plus ${num.format(S.malYtd)} malicious packages` : `${F.year} YTD` }
       : { k: "Malicious packages", v: num.format(S.malYtd), d: `${F.year} YTD, OSV MAL advisories` });
@@ -2070,6 +2072,17 @@ function srcLine(ctx, names) {
   return "Source: " + parts.map((p) => p[0]).join(" + ") + (dates.length ? ` · data as of ${dates[dates.length - 1]}` : "") + ` · ${SITE}`;
 }
 /* like-for-like: complete months Jan..(M-1) of this year vs the same months last year */
+/* Year-to-date ratio over the build's one window (1 Jan → as-of day, both
+ * years), overall or for one origin, with and without the bulk filers. */
+function ytdRatio(core, origin) {
+  const y = core && core.ytd;
+  const c = y && (origin ? (y.origins || {})[origin] : y.all);
+  if (!c || !c.prev) return null;
+  const xc = c.cur - c.bulkCur, xp = c.prev - c.bulkPrev;
+  return { cur: c.cur, prev: c.prev, r: c.cur / c.prev, rx: xp > 0 ? xc / xp : null, xcur: xc, xprev: xp,
+    bulkShare: c.cur - c.prev > 0 ? (c.bulkCur - c.bulkPrev) / (c.cur - c.prev) : null };
+}
+const BULK_NAMES = "GitHub and VulnCheck";
 function ytdMonths(core, arr, F) {
   if (!Array.isArray(arr) || !Array.isArray(core.months)) return null;
   const curM = +F.asOf.slice(5, 7);
@@ -2189,15 +2202,15 @@ function explainSummary(ctx, F, S) {
   try {
     const OL = originLabel(core);
     let best = null;
-    if (core.originMonths && originList(core)) {
-      for (const [id, arr] of Object.entries(core.originMonths)) {
-        const r = ytdMonths(core, arr, F);
-        if (r && r.prev >= 20 && (!best || r.cur / r.prev > best.r)) best = { id, r: r.cur / r.prev, ...r };
-      }
+    for (const id of Object.keys((core.ytd && core.ytd.origins) || {})) {
+      const r = ytdRatio(core, id);
+      if (r && r.prev >= 20 && (!best || r.r > best.r)) best = { id, ...r };
     }
     const t = S.total;
+    const all = ytdRatio(core);
     const title = t && t.prev
-      ? `CVEs ${xr(t.cur, t.prev)} vs the same period last year` + (best ? ` — ${oShort(best.id, OL)} growing fastest (${xr(best.cur, best.prev)})` : "")
+      ? `CVEs ${xr(t.cur, t.prev)} vs the same period last year` + (all && all.rx ? ` (×${fmtX(all.rx)} without ${BULK_NAMES})` : "")
+        + (best ? `; ${oShort(best.id, OL)} growing fastest (${xr(best.cur, best.prev)})` : "")
       : null;
     fig("#chart-hero", {
       titleEl: "#h-hero", title,
@@ -2270,10 +2283,11 @@ function explainRisk(ctx, F, S) {
     });
   } catch (e) { /* skip */ }
   try {
-    const sc = core.originMonths && ytdMonths(core, core.originMonths.supplychain, F);
+    const sc = ytdRatio(core, "supplychain");
     fig("#chart-supply", {
       titleEl: "#h-supply-cves",
-      title: sc && sc.prev ? `Open-source CVEs ${xr(sc.cur, sc.prev)}: ${num.format(sc.cur)} in ${sc.label} ${F.year} vs ${num.format(sc.prev)} in ${sc.label} ${F.prevYear}` : null,
+      title: sc ? `Open-source CVEs ${xr(sc.cur, sc.prev)}: ${num.format(sc.cur)} so far in ${F.year} vs ${num.format(sc.prev)} by this date in ${F.prevYear}`
+        + (sc.bulkShare != null && sc.bulkShare >= 0.5 ? `; ${pct(sc.bulkShare)} of the rise is ${BULK_NAMES} filing` : "") : null,
       subEl: "#supply-hint", sub: `CVEs in open-source projects and packages (registry packages + GitHub-assigned OSS records), per year, 2018 → ${F.year} (${partialLabel(F)}). Not stacked.`,
       how: "Each bar = open-source CVEs published that year (registry packages plus GitHub-assigned OSS projects, AI packages included). Pitfall: much of the recent jump comes from GitHub's CNA (GitHub_M) issuing far more CVEs — partly a reporting change, not only more vulnerable code.",
       so: sc && sc.prev && sc.cur / sc.prev >= 1.3 ? "Whatever the reporting share, the fix volume is real — make sure SCA/dependency scanning and OSS patching cover every build pipeline." : null,

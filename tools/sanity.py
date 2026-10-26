@@ -112,6 +112,16 @@ check(all(a["epss"] >= b["epss"] for a, b in zip(top.get("all", []), top.get("al
 if zd:
     check(zd.get("aiTotal", 0) <= zd.get("total", 0), "zerodays: AI total exceeds total")
 
+# one window for every title ratio: the build's YTD block must match the day series
+y = d.get("ytd")
+check(y is not None, "data: no ytd block (titles would mix windows)")
+if y:
+    check(y["all"]["cur"] == ytd and y["all"]["prev"] == ytd_prev,
+          f"data: ytd.all {y['all']['cur']}/{y['all']['prev']} != day series {ytd}/{ytd_prev}")
+    check(sum(o["cur"] for o in y["origins"].values()) == y["all"]["cur"], "data: ytd origins do not sum to all")
+    rise = y["all"]["cur"] - y["all"]["prev"]
+    bulk_share = (y["all"]["bulkCur"] - y["all"]["bulkPrev"]) / rise if rise > 0 else 0
+
 # independent recomputation of the headline figures the page shows
 exp = {
     "cves_ytd": ytd, "cves_ratio": round(ratio, 1) if ratio else None,
@@ -157,6 +167,9 @@ if page:
     check(a and num(a["v"]) == exp["cves_ytd"], f"page: CVE tile {a and a['v']} != data {exp['cves_ytd']}")
     check(a and num(a["delta"]) == exp["cves_ratio"], f"page: CVE tile delta {a and a['delta']} != ×{exp['cves_ratio']}")
     check(f"{exp['cves_ytd']:,}" in page["headline"], f"page: headline does not state {exp['cves_ytd']:,}")
+    if y and bulk_share >= 0.3:  # a growth headline driven by bulk filers must say so
+        check("without" in page["headline"] and "without" in page["heroTitle"],
+              f"page: {bulk_share:.0%} of the CVE rise is bulk filing, but the headline/hero title do not show growth without it")
     k = tile("Exploited")
     check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
     check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")

@@ -954,6 +954,35 @@ def _windowed_top(cur, prev, n, names=None):
     return out
 
 
+# CNAs whose filing volume jumped for reasons of reporting practice (GitHub
+# advisories, VulnCheck's bulk assignments): growth is shown with and without them.
+BULK_CNAS = ("GitHub_M", "VulnCheck")
+
+
+def ytd_filers(rows, today, bulk=BULK_CNAS):
+    """Year-to-date vs the same days last year, overall and per origin, with the
+    bulk filers' share: {window, prevWindow, bulkCnas, all, origins}; each count
+    is {cur, prev, bulkCur, bulkPrev}. rows: (day, sev, cwe, cna, vendor, origin,
+    rels) per published CVE. One window for every ratio a title prints."""
+    cy, py = str(today.year), str(today.year - 1)
+    md = today.strftime("%m-%d")
+    zero = lambda: {"cur": 0, "prev": 0, "bulkCur": 0, "bulkPrev": 0}
+    tot, by = zero(), defaultdict(zero)
+    for day, _sev, _cwe, cna, _vend, origin, _rels in rows:
+        if day[5:] > md:
+            continue
+        k = "cur" if day[:4] == cy else "prev" if day[:4] == py else None
+        if not k:
+            continue
+        b = "bulkCur" if k == "cur" else "bulkPrev"
+        for c in (tot, by[origin or "other"]):
+            c[k] += 1
+            if cna in bulk:
+                c[b] += 1
+    return {"window": [f"{cy}-01-01", today.isoformat()], "prevWindow": [f"{py}-01-01", f"{py}-{md}"],
+            "bulkCnas": list(bulk), "all": tot, "origins": dict(by)}
+
+
 def landscape(rows, months, today, since="2018", top=12):
     """The same set of aggregates for any slice of CVEs (all, AI-related).
     rows: (pubDay, sev, cwe, cna, vendor, origin, rels) per PUBLISHED CVE.
@@ -1304,6 +1333,7 @@ def main():
         "origins": ORIGINS,
         "originMonths": {o: [origin_month[o].get(m, 0) for m in months] for o in ORIGIN_IDS},
         "originYears": origin_years(origin_month),
+        "ytd": ytd_filers(land_all, today),
         "cnaYears": cna_years(ai_cna),
         "concentration": concentration(ai_products),
         "severityCompare": severity_compare,

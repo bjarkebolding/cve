@@ -3,6 +3,7 @@
 
 Run:  python3 test_build.py
 """
+import datetime as dt
 import json
 import os
 import subprocess
@@ -456,6 +457,22 @@ def test_relations():
           R(None, "nvidia gpu, prompt injection", "nvidia gpu", "Big Sleep", set(), kernel=True) == ["found"])
     check("multi-label", R("mcp", "prompt injection in an MCP server", "", "XBOW", set()) ==
           ["agent", "weakness", "found"])
+
+
+def test_ytd_filers():
+    print("ytd_filers")
+    today = dt.date(2026, 10, 26)
+    rows = [("2026-03-01", None, None, "GitHub_M", None, "supplychain", None),
+            ("2026-03-02", None, None, "mitre", None, "supplychain", None),
+            ("2026-11-01", None, None, "mitre", None, "edge", None),       # after the cut-off day
+            ("2025-10-26", None, None, "VulnCheck", None, "edge", None),
+            ("2025-10-27", None, None, "mitre", None, "edge", None),       # after the same day last year
+            ("2024-05-01", None, None, "mitre", None, "edge", None)]
+    r = build.ytd_filers(rows, today)
+    check("same day-window both years", r["all"] == {"cur": 2, "prev": 1, "bulkCur": 1, "bulkPrev": 1})
+    check("per origin", r["origins"]["supplychain"] == {"cur": 2, "prev": 0, "bulkCur": 1, "bulkPrev": 0}
+          and r["origins"]["edge"] == {"cur": 0, "prev": 1, "bulkCur": 0, "bulkPrev": 1})
+    check("windows labelled", r["window"] == ["2026-01-01", "2026-10-26"] and r["prevWindow"] == ["2025-01-01", "2025-10-26"])
 
 
 def test_landscape():
