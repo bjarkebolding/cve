@@ -98,6 +98,14 @@ const LAYER_FALLBACK = {
   cloud: "AI cloud services & assistants", framework: "ML frameworks & libraries",
   other: "Other AI-related",
 };
+/* hex colour blended toward the card background: a = share of the colour kept */
+function tint(hex, a) {
+  const bg = tok("raise", "#181b21", "#ffffff");
+  const rgb = (h) => { const m = /^#?([0-9a-f]{6})$/i.exec(String(h).trim()); return m ? [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16)) : null; };
+  const c = rgb(hex), b = rgb(bg);
+  if (!c || !b) return hex;
+  return "#" + c.map((v, i) => Math.round(v * a + b[i] * (1 - a)).toString(16).padStart(2, "0")).join("");
+}
 const CAT_COLORS = [P.blue, P.sand, P.teal, P.mauve, P.sage, P.sky, P.neutral, P.plum];
 const OTHER_COLOR = P.slate;
 
@@ -1168,7 +1176,8 @@ function buildSupply(ctx) {
   const ecos = Object.entries(mal.byYear).map(([eco, by]) => [eco, sumObj(by)]).sort((a, b) => b[1] - a[1]);
   const top = ecos.slice(0, 4).map((x) => x[0]);
   const years = [...new Set(Object.values(mal.byYear).flatMap((by) => Object.keys(by || {})))].filter((y) => /^\d{4}$/.test(y) && y >= "2018").sort();
-  const cols = [P.blue, P.sand, P.mauve, P.teal];
+  // registries are open source: tints of the open-source teal (blue means AI on this page)
+  const cols = [P.teal, tint(P.teal, 0.68), tint(P.teal, 0.45), tint(P.teal, 0.25)];
   const groups = top.map((eco, i) => ({ label: eco, color: cols[i], data: years.map((y) => (mal.byYear[eco] || {})[y] || 0) }));
   if (ecos.length > 4) groups.push({ label: "other", color: OTHER_COLOR, data: years.map((y) => ecos.slice(4).reduce((s, [eco]) => s + ((mal.byYear[eco] || {})[y] || 0), 0)) });
   if (!years.length) { note(el2, "No malicious-package counts since 2018."); return; }
@@ -2346,7 +2355,11 @@ function explainRisk(ctx, F, S) {
       how: "A proxy for zero-days: it misses exploitation CISA confirms later, so recent years still fill in.",
       so, src: srcLine(ctx, ctx.zd ? ["kev", "zd"] : ["kev"]),
     });
+    const zb = ctx.zd && ctx.zd.byYear;
+    const zprods = ctx.zd && ctx.zd.recent ? [...new Set(ctx.zd.recent.map((r) => shortProduct(tidyProduct([r.vendor, r.product].filter(Boolean).join(" "))) || r.product).filter(Boolean))].slice(0, 3) : [];
     fig("#tbl-zd", {
+      titleEl: "#h-zdlist",
+      title: zb && fin(zb[F.year]) ? `${num.format(zb[F.year])} in-the-wild zero-days patched in ${F.year} so far (${num.format(zb[F.prevYear] || 0)} in all of ${F.prevYear})` + (zprods.length ? `; the latest hit ${listJoin(zprods)}` : "") : null,
       so: "If you run these products, patch status is not enough: review logs from before the patch date for signs of earlier compromise.",
       subEl: "#zd-list-hint", sub: ctx.zd && ctx.zd.recent ? `Latest in-the-wild zero-days, newest first (${ctx.zd.source || "tracker"}).` : "Latest KEV entries added ≤1 day after publication, newest first; date = added to KEV.",
       src: srcLine(ctx, ctx.zd ? ["zd"] : ["kev"]),
@@ -2659,7 +2672,7 @@ function explainPart2(ctx, F, S) {
       const top = Object.entries(ry).sort((a, b) => b[1].cur - a[1].cur)[0];
       const fast = Object.entries(ry).filter(([, v]) => v.prev >= 20).sort((a, b) => b[1].cur / b[1].prev - a[1].cur / a[1].prev)[0];
       fig("#rel-bars", {
-        titleEl: "#h-rel", title: top ? `${ctx.relLabel(top[0])} account for most AI-related CVEs in ${F.year} (${num.format(top[1].cur)})` + (fast && fast[0] !== top[0] ? `; ${lcFirst(ctx.relLabel(fast[0]))} grew fastest` : "") : null,
+        titleEl: "#h-rel", title: top ? `${ctx.relLabel(top[0])} account for ${S.aiShare && S.aiShare.n && top[1].cur / S.aiShare.n > 0.5 ? "most" : "the largest share of"} AI-related CVEs in ${F.year} (${num.format(top[1].cur)}${S.aiShare && S.aiShare.n ? `, ${pct(top[1].cur / S.aiShare.n)}` : ""})` + (fast && fast[0] !== top[0] ? `; ${lcFirst(ctx.relLabel(fast[0]))} grew fastest` : "") : null,
         subEl: "#rel-hint", sub: `AI-related CVEs published in ${F.year} (${partialLabel(F)}) by kind of AI relation. A CVE can carry several tags, so the bars add up to more than the AI-related total.`,
         how: "This year's count per relation; the next card shows the same per year. Pitfall: the last year is partial.",
         so: "Two different jobs: AI software and agents need asset inventory and patching like any software; AI features, weaknesses and compute need you to ask vendors how their AI is isolated.",

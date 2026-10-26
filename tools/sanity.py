@@ -226,6 +226,11 @@ if page:
     check(not re.search(r"(?<![\d.])0\.0%|×0\.0\b", body), "page: a 0.0% / ×0.0 figure (check the denominator)", warn=True)
     neg = re.findall(r"[^\d\s]\s?-\d[\d,]* (?:CVEs|vulnerabilities)", body)
     check(not neg, f"page: negative counts {neg[:3]}")
+    # "most" means a majority: a sentence that says "most" and gives its own share must give > 50%
+    for sent in re.split(r"(?<=[.;])\s", body):
+        if re.search(r"\b(account for|make up|is) most\b|\bmost new AI CVEs\b", sent):
+            shares = [float(x) for x in re.findall(r"\((?:[\d,]+, )?(\d+(?:\.\d+)?)%\)", sent)]
+            check(not shares or max(shares) > 50, f"page: 'most' with only {shares}%: {sent[:90]!r}")
     years = {int(y) for y in re.findall(r"\b(20\d\d)\b", body)}
     check(max(years) <= int(year) + 1, f"page: mentions year {max(years)} beyond {year}")
 

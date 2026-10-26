@@ -757,3 +757,13 @@ footer a { color: var(--ink-2); }
 #kevvend-bars .hb-row { grid-template-columns: minmax(120px, 0.8fr) minmax(0, 2fr) minmax(220px, auto); }
 #kevvend-bars .hb-n { white-space: nowrap; }
 @media (max-width: 760px) { #kevvend-bars .hb-row { grid-template-columns: minmax(0, 1fr) auto; } #kevvend-bars .hb-n { white-space: normal; text-align: right; } }
+
+/* figure tiles: source footers on one baseline across a row */
+.kpi { display: flex; flex-direction: column; }
+.kpi .ksrc, .threat .ksrc { margin-top: auto; }
+.threat .th-foot { flex: 0 0 auto; }
+.threat .th-link { margin-bottom: 12px; }
+/* phone: a fade at the right edge says the menu scrolls */
+@media (max-width: 760px) {
+  .topnav { -webkit-mask-image: linear-gradient(to right, #000 82%, transparent); mask-image: linear-gradient(to right, #000 82%, transparent); }
+}
