@@ -615,6 +615,22 @@ function shortProduct(p) {
   const toks = String(p).trim().split(/[\s/]+/).filter(Boolean);
   return toks.length ? toks[toks.length - 1] : null;
 }
+/* "Strapi Strapi" → "Strapi", "Zammad GmbH Zammad" → "Zammad",
+ * "Ray-Project Ray" → "Ray", "Ahsay AhsayCBS" → "AhsayCBS": drop a vendor
+ * prefix the product name repeats. "Microsoft Windows" stays as it is. */
+const normTok = (t) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
+function tidyProduct(p) {
+  if (!p) return p;
+  const toks = String(p).trim().split(/\s+/);
+  // the vendor is at most three words, and only its first word may repeat
+  const first = toks[0].split(/[-_.]/).map(normTok).filter(Boolean)[0] || "";
+  for (let k = 1; k < Math.min(toks.length, 4); k++) {
+    if (/,$/.test(toks[k - 1]) || /^(and|or|on|of|the|for)$/i.test(toks[k - 1])) break;
+    const head = normTok(toks[k]);
+    if (head && (head === first || (first.length >= 3 && head.startsWith(first)))) return toks.slice(k).join(" ");
+  }
+  return String(p);
+}
 function kevProducts(F) {
   const m = new Map();
   for (const r of F.kevAi || []) {
@@ -903,7 +919,7 @@ function buildZeroDay(ctx) {
   const OL = originLabel(ctx.core);
   let rows = [];
   if (zdj && Array.isArray(zdj.recent) && zdj.recent.length) {
-    rows = zdj.recent.map((r) => ({ cve: r.cve, product: [r.vendor, r.product].filter(Boolean).join(" ").replace(/^(\S+) \1 /, "$1 "), origin: r.origin, date: r.date }));
+    rows = zdj.recent.map((r) => ({ cve: r.cve, product: tidyProduct([r.vendor, r.product].filter(Boolean).join(" ")), origin: r.origin, date: r.date }));
     $("#zd-list-hint").textContent = `Latest in-the-wild zero-days from ${zdj.source || "the zero-day tracker"}.`;
   } else if (kev && Array.isArray(kev.entries)) {
     rows = kev.entries.filter((e) => e && e.zeroDay).sort((a, b) => String(b.added).localeCompare(String(a.added)))
@@ -916,7 +932,7 @@ function buildZeroDay(ctx) {
     const oc = h("td", { class: "nowrap" });
     if (r.origin) { const sw = h("span", { class: "swatch", "aria-hidden": "true" }); sw.style.background = ORIGIN_COLORS[r.origin] || OTHER_COLOR; oc.append(sw, document.createTextNode(oShort(r.origin, OL))); oc.title = OL(r.origin); }
     else oc.textContent = "—";
-    tbody.append(h("tr", null, h("td", { class: "nowrap" }, cveLink(r.cve)), h("td", { text: r.product || "—" }), oc, h("td", { class: "nowrap", text: r.date || "—" })));
+    tbody.append(h("tr", null, h("td", { class: "nowrap" }, cveLink(r.cve)), h("td", { text: tidyProduct(r.product) || "—" }), oc, h("td", { class: "nowrap", text: r.date || "—" })));
   }
 }
 
@@ -1002,7 +1018,7 @@ function buildKevAll(ctx) {
     if (r.zeroDay) idCell.append(badge("0-DAY", "", "added to KEV within one day of CVE publication"));
     const sc = scores ? scores[r.cve] : null;
     tbody.append(h("tr", null, idCell,
-      h("td", { text: r.product || "—", title: r.desc || null }),
+      h("td", { text: tidyProduct(r.product) || "—", title: r.desc || null }),
       originCell(r.origin, OL),
       h("td", { class: "nowrap", text: r.added || "—" }),
       h("td", { class: "num", text: fin(r.daysToKev) ? num.format(r.daysToKev) : "—" }),
@@ -1014,7 +1030,7 @@ function epssTopTable(tbody, rows, cols, cell) {
   for (const r of rows) {
     tbody.append(h("tr", null,
       h("td", { class: "nowrap" }, cveLink(r.cve)),
-      h("td", { text: r.product || "—" }),
+      h("td", { text: tidyProduct(r.product) || "—" }),
       cell(r),
       h("td", { class: "nowrap", text: r.published || "—" }),
       h("td", { class: "num", text: epssText(r), title: fin(r.pct) ? `percentile ${(100 * r.pct).toFixed(1)}` : null })));
@@ -1267,7 +1283,7 @@ function buildKevTable(F, ctx) {
     const s = scores ? scores[r.cve] : null;
     tbody.append(h("tr", null,
       idCell,
-      h("td", { text: r.product || "—", title: r.desc || null }),
+      h("td", { text: tidyProduct(r.product) || "—", title: r.desc || null }),
       h("td", null, relTags(r.rels && r.rels.length ? r.rels : ["product"], ctx.relLabel)),
       h("td", { class: "nowrap", text: r.published || "—" }),
       h("td", { class: "nowrap", text: r.added || "—" }),
@@ -1568,7 +1584,7 @@ function buildRecentAiTable(ctx) {
     tbody.append(h("tr", null,
       h("td", null, span),
       h("td", { class: "nowrap pub", text: r.published ? r.published + "Z" : "—" }),
-      relCell(r.rels || m.rels || (r.layer || m.layer ? ["product"] : []), r.product || m.product, ctx.relLabel),
+      relCell(r.rels || m.rels || (r.layer || m.layer ? ["product"] : []), tidyProduct(r.product || m.product), ctx.relLabel),
       tdCna,
       h("td", { class: "desc", text: r.description || "(no English description)" })));
   }
