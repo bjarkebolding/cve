@@ -204,6 +204,11 @@ if page:
         wk = f"{round(100 * sum(1 for e in co if e['daysToKev'] <= 7) / len(co))}%"
         check(page.get("ttkTitle", "").startswith(wk), f"page: speed card {page.get('ttkTitle')!r} != cohort {wk}")
         check(any(b.startswith("Patch internet-facing") and wk in b for b in page["brief"]), f"page: Brief speed item does not use the cohort {wk}")
+        # the earlier cohort must have equal follow-up (KEV additions made by the end of its window)
+        pv = [e for e in ents if e.get("published") and W["prev"][0] <= e["published"] <= W["prev"][1] and e.get("daysToKev") is not None and e["added"] <= W["prev"][1]]
+        if pv:
+            pw = f"({round(100 * sum(1 for e in pv if e['daysToKev'] <= 7) / len(pv))}% the 12 months before, same follow-up)"
+            check(pw in page.get("ttkTitle", ""), f"page: speed card prior cohort should read {pw}: {page.get('ttkTitle')!r}")
     k = tile("Exploited (")
     check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
     check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")
