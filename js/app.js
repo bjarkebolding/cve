@@ -631,6 +631,19 @@ function tidyProduct(p) {
   }
   return String(p);
 }
+/* Short display name for an AI product: the tidied name, cut at a subtitle
+ * ("AI Engine – The Chatbot, AI Framework & MCP for WordPress" → "AI Engine");
+ * a one-word vendor prefix is dropped ("langchain-ai langchain" → "langchain"). */
+function aiProductName(p) {
+  let n = tidyProduct(p);
+  if (!n) return null;
+  n = n.split(/\s+[–—:|]\s+|\s+-\s+/)[0].trim();
+  const toks = n.split(/\s+/);
+  if (toks.length >= 2 && /[a-z]-(?:ai|io|labs?|project)$|AI$/.test(toks[0])) n = toks.slice(1).join(" ");
+  else if (toks.length >= 3 && /^[a-z0-9]+$/.test(toks[0])) n = toks.slice(1).join(" ");
+  if (/wordpress/i.test(p) && !/wordpress/i.test(n)) n += " (WordPress plugin)";
+  return n;
+}
 function kevProducts(F) {
   const m = new Map();
   for (const r of F.kevAi || []) {
@@ -1317,13 +1330,17 @@ function buildTodo(ctx, F) {
   add(() => {
     const top = ctx.epss && ctx.epss.top && ctx.epss.top.ai;
     if (!top) return null;
+    // only AI you deploy (AI software, agents, AI features): a curl bug that
+    // an AI tool found is AI-related, but not an AI system to inventory
+    const DEPLOYED = new Set(["product", "agent", "feature"]);
     const names = [];
     const seen = new Set(prods.map((p) => p.name.toLowerCase()));
     for (const r of top) {
-      const n = shortProduct(r.product);
+      if (!(r.rels || []).some((x) => DEPLOYED.has(x))) continue;
+      const n = aiProductName(r.product);
       if (n && !seen.has(n.toLowerCase()) && names.length < 3) { seen.add(n.toLowerCase()); names.push(n); }
     }
-    return names.length ? `Next, check ${listJoin(names)}: they carry the highest exploit-probability (EPSS) AI-related CVEs of the last 12 months not yet in KEV.` : null;
+    return names.length ? `Next, check ${listJoin(names)}: the AI software with the highest exploit-probability (EPSS) CVEs of the last 12 months that are not yet in KEV.` : null;
   });
   add(() => {
     const lm = ctx.core.layerMonths;
