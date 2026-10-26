@@ -145,7 +145,7 @@ EXPR = r"""(() => {
   const threats = [...document.querySelectorAll("#threat-cards .threat")].map((c) => ({ name: c.querySelector(".th-name").textContent,
     v: (c.querySelector(".v") || {}).textContent || "", unit: (c.querySelector(".th-unit") || {}).textContent || "" }));
   return JSON.stringify({ tiles: tiles("#kpis"), aiTiles: tiles("#ai-kpis"), sig, threats,
-    headline: t("#headline"), heroTitle: t("#h-hero"), aiHeadline: t("#ai-headline"), signalTitle: t("#h-signal"),
+    headline: t("#headline"), kevVendTitle: t("#h-kevvend"), kevVendTop: t("#kevvend-bars .hb-n"), heroTitle: t("#h-hero"), aiHeadline: t("#ai-headline"), signalTitle: t("#h-signal"),
     brief: [...document.querySelectorAll("#brief-list li")].map((l) => l.textContent),
     body: document.querySelector("main").innerText.slice(0, 200000) });
 })()"""
@@ -187,6 +187,14 @@ if page:
         check(f"only {caught:,} of the {len(coh):,} confirmed-exploited" in page["body"],
               f"page: EPSS recall {caught}/{len(coh)} not stated on the signal card")
     check("likely to be exploited" not in page["body"].lower(), "page: EPSS described as 'likely to be exploited'")
+    from collections import Counter
+    vc = Counter((e.get("vendor") or "").strip().lower() for e in kev_cur)
+    top3 = sorted(vc.items(), key=lambda t: (-t[1], t[0]))[:3]
+    if top3 and exp["kev_cur"]:
+        share = round(100 * sum(n for _, n in top3) / exp["kev_cur"])
+        check(page.get("kevVendTitle", "").find(f"{share}%") >= 0,
+              f"page: vendor card title {page.get('kevVendTitle')!r} != top-3 share {share}%")
+        check(num(page.get("kevVendTop", "")) == top3[0][1], f"page: top vendor count {page.get('kevVendTop')} != {top3[0][1]}")
     sig = [num(v) for v in page["sig"]]
     want = [exp["signal_base"], exp["signal_hc"], exp["signal_epss"], exp["signal_kev"]]
     check(sig == want, f"page: signal bars {sig} != data {want}")

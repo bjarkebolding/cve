@@ -752,3 +752,8 @@ footer a { color: var(--ink-2); }
 .theme-switch button[aria-pressed="true"] { color: var(--ink); border-color: var(--line-2); background: var(--raise); }
 @media (max-width: 760px) { .theme-switch { display: none; } }
 @media print { .theme-switch { display: none; } }
+
+/* KEV-by-vendor: wider figure column for "40 · 18 at disclosure · 4 ransomware" */
+#kevvend-bars .hb-row { grid-template-columns: minmax(120px, 0.8fr) minmax(0, 2fr) minmax(220px, auto); }
+#kevvend-bars .hb-n { white-space: nowrap; }
+@media (max-width: 760px) { #kevvend-bars .hb-row { grid-template-columns: minmax(0, 1fr) auto; } #kevvend-bars .hb-n { white-space: normal; text-align: right; } }

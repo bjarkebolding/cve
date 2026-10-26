@@ -1180,6 +1180,38 @@ function buildSupply(ctx) {
   if (hint && fin(mal.total)) hint.textContent += ` ${num.format(mal.total)} in total${mal.method ? ` (${mal.method})` : ""}.`;
 }
 
+/* ================= Part 1: exploited vulnerabilities by vendor ================= */
+function buildKevVendors(ctx, F) {
+  const el = $("#kevvend-bars");
+  const ents = ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.added).startsWith(F.year));
+  if (ents.length < 20) { $("#kev-vendors").remove(); return; }
+  const by = new Map();
+  for (const e of ents) {
+    const name = (e.vendor || "").trim() || "Unknown";
+    const k = name.toLowerCase();
+    const r = by.get(k) || { name, n: 0, zd: 0, ransom: 0 };
+    r.n += 1; r.zd += e.zeroDay ? 1 : 0; r.ransom += e.ransomware ? 1 : 0;
+    by.set(k, r);
+  }
+  const rows = [...by.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name)).slice(0, 10);
+  hbars(el, rows.map((r) => ({ label: r.name, n: r.n, color: P.red })));
+  // count · at disclosure · ransomware, per row
+  el.querySelectorAll(".hb-n").forEach((cell, i) => {
+    const r = rows[i];
+    cell.textContent = [num.format(r.n), r.zd ? `${num.format(r.zd)} at disclosure` : null, r.ransom ? `${num.format(r.ransom)} ransomware` : null].filter(Boolean).join(" · ");
+  });
+  const top3 = rows.slice(0, 3), n3 = top3.reduce((t, r) => t + r.n, 0);
+  fig(el, {
+    titleEl: "#h-kevvend",
+    title: `${listJoin(top3.map((r) => r.name))} account for ${pct(n3 / ents.length)} of ${F.year}'s exploited vulnerabilities`,
+    subEl: "#kevvend-hint",
+    sub: `Vulnerabilities added to CISA KEV in ${F.year} (${partialLabel(F)}), top 10 vendors of ${num.format(by.size)}. "At disclosure" = added to KEV within one day of CVE publication; "ransomware" = CISA reports known ransomware use.`,
+    how: "Bar length = KEV additions this year. Pitfall: KEV favours products US federal agencies run, so niche vendors are under-represented; a vendor's count reflects its install base as much as its code quality.",
+    so: "For these vendors, agree patch timelines in days, track your own time-to-fix for their KEV entries, and keep their management interfaces off the internet.",
+    src: srcLine(ctx, ["kev"]),
+  });
+}
+
 /* ================= Part 1: speed of exploitation ================= */
 const TTK_BUCKETS = [
   { id: "d1", label: "≤1 day (at disclosure)", color: P.red, test: (d) => d <= 1 },
@@ -2238,7 +2270,10 @@ function explainSummary(ctx, F, S) {
         if (lead.length) {
           const n = lead.reduce((t, [, x]) => t + x, 0);
           title = `${listJoin(lead.map(([id]) => oShort(id, OL)))} make up ${pct(n / k.cur)} of ${F.year}'s exploited vulnerabilities`; title = title[0].toUpperCase() + title.slice(1);
-          so = `Keep emergency patching and attack-surface monitoring focused on ${listJoin(lead.map(([id]) => oShort(id, OL)))}.`;
+          const edge = k.origin.edge || 0, ye = core.ytd && core.ytd.origins && core.ytd.origins.edge, ya = core.ytd && core.ytd.all;
+          so = edge && ye && ya && ya.cur
+            ? `Edge devices are ${pct(edge / k.cur)} of exploited vulnerabilities but only ${pct(ye.cur / ya.cur, 1)} of new CVEs: put internet-facing appliances on a days-not-weeks patch track and take their management interfaces off the internet.`
+            : `Keep emergency patching and attack-surface monitoring focused on ${listJoin(lead.map(([id]) => oShort(id, OL)))}.`;
         }
       }
       fig("#where-bars", {
@@ -2273,7 +2308,7 @@ function explainRisk(ctx, F, S) {
       const c = {};
       for (const e of ents) c[e.origin] = (c[e.origin] || 0) + 1;
       const top = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
-      if (top) so = `${num.format(top[1])} of ${num.format(ents.length)} were ${oShort(top[0], OL)} — for these there is no patch window; harden and monitor them, and pre-stage emergency patching.`;
+      if (top) so = `${num.format(top[1])} of ${num.format(ents.length)} were ${oShort(top[0], OL)}. Exploitation started at or before disclosure: assume compromise was possible, hunt in logs from before the patch date, and pre-stage mitigations for these products.`;
     }
     fig("#chart-zeroday", {
       titleEl: "#h-zd",
@@ -2638,7 +2673,7 @@ function explainPart2(ctx, F, S) {
 const NAV_SUB = {
   brief: [],
   summary: [["kpis", "Key figures"], ["signal", "Signal vs noise"], ["hero", "CVEs per year"], ["where", "Where exploitation happens"]],
-  exploit: [["exploitation", "Exploitation by origin"], ["speed", "Speed of exploitation"], ["kev-latest", "Latest exploited"], ["zerodays", "Recent zero-days"], ["next", "Patch next"]],
+  exploit: [["exploitation", "Exploitation by origin"], ["kev-vendors", "Exploited by vendor"], ["speed", "Speed of exploitation"], ["kev-latest", "Latest exploited"], ["zerodays", "Recent zero-days"], ["next", "Patch next"]],
   volume: [["sevyears", "Severity per year"], ["tops", "Top weaknesses, vendors & CNAs"], ["supply", "Supply chain"]],
   ai: [["ai-kpis", "Key figures"], ["relations", "How CVEs relate to AI"], ["issuance", "AI share of all CVEs"], ["ai-origin", "Where AI CVEs come from"], ["exploited", "Exploited AI vulnerabilities"], ["ai-next", "AI patch next"], ["breaks", "How AI CVEs differ"], ["layers", "AI stack layers"], ["latest", "Latest AI CVEs"], ["cna", "Who reports AI CVEs"], ["context", "Context"]],
   method: [],
@@ -2802,6 +2837,7 @@ function infoize() {
     ["KEV by origin", () => buildKevOrigin(ctx)],
     ["zero-days", () => { buildZeroDay(ctx); labelCells($("#tbl-zd")); }],
     ["time to KEV", () => buildTtk(ctx)],
+    ["KEV by vendor", () => buildKevVendors(ctx, F)],
     ["latest exploited", () => { buildKevAll(ctx); labelCells($("#tbl-kevall")); }],
     ["patch next", () => { buildNext(ctx); labelCells($("#tbl-next")); }],
     ["severity per year", () => buildSevAll(ctx)],
