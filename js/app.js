@@ -2130,7 +2130,7 @@ function malClipMax(mal, years) {
 function malOutlierNotes(mal) {
   const o = malOutliers(mal);
   const tot = (y) => Object.values(mal.byYear).reduce((s, by) => s + ((by || {})[y] || 0), 0);
-  const notes = Object.fromEntries(Object.entries(o).map(([y, v]) => [y, `${v.eco} wave ×${v.mult} ↑ ${compact(tot(y))} (bar clipped)`]));
+  const notes = Object.fromEntries(Object.entries(o).map(([y, v]) => [y, `${v.eco} spike: ${compact(tot(y))}, bar cut (×${v.mult})`]));
   return Object.keys(notes).length ? yearNotes(notes, false) : null;
 }
 
@@ -2153,6 +2153,16 @@ function yearNotes(notes, isTime) {
       if (bi < 0) continue;
       const w = c.measureText(text).width;
       let px = u.valToPos(xs[bi], "x", true);
+      const ymax = u.scales.y && u.scales.y.max;
+      if (fin(ymax) && bv > ymax) {
+        // clipped bar: the note goes beside it (left, or right if no room), never on it
+        const half = 22 * dpr;
+        const left = px - half - 6 * dpr - w >= u.bbox.left;
+        c.textAlign = left ? "right" : "left";
+        c.fillText(text, left ? px - half - 6 * dpr : px + half + 6 * dpr, u.bbox.top + 12 * dpr);
+        c.textAlign = "center";
+        continue;
+      }
       px = Math.min(Math.max(px, u.bbox.left + w / 2 + 2), u.bbox.left + u.bbox.width - w / 2 - 2);
       const py = Math.max(u.bbox.top + 11 * dpr, u.valToPos(bv, "y", true) - 5 * dpr);
       c.fillText(text, px, py);
