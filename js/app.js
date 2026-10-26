@@ -1227,6 +1227,49 @@ function buildKevVendors(ctx, F) {
   });
 }
 
+/* ================= Part 1: ransomware-linked exploitation ================= */
+/* CISA sets the ransomware flag after the fact, so the most recent years read
+ * low until campaigns are attributed: they are shown, but marked as filling in. */
+const RANSOM_SETTLE_YEARS = 2;
+function buildRansom(ctx, F) {
+  const el = $("#ransom-bars");
+  const ents = (ctx.kev && ctx.kev.entries) || [];
+  const by = {};
+  for (const e of ents) {
+    const y = String(e.added || "").slice(0, 4);
+    if (!/^\d{4}$/.test(y) || y < "2021") continue;
+    const r = by[y] || (by[y] = { n: 0, r: 0 });
+    r.n += 1; r.r += e.ransomware ? 1 : 0;
+  }
+  const years = Object.keys(by).sort();
+  if (years.length < 3) { $("#ransom").remove(); return; }
+  const settledTo = String(+F.year - RANSOM_SETTLE_YEARS);
+  const settled = years.filter((y) => y <= settledTo);
+  const sn = settled.reduce((t, y) => t + by[y].n, 0), sr = settled.reduce((t, y) => t + by[y].r, 0);
+  const rows = years.map((y) => ({ label: y + (y > settledTo ? " (still filling in)" : "") + (y === F.year ? " YTD" : ""), n: by[y].r / by[y].n, y,
+    color: y > settledTo ? tint(P.red, 0.4) : P.red }));
+  hbars(el, rows.map((r) => ({ label: r.label, n: Math.round(1000 * r.n), color: r.color })));
+  el.querySelectorAll(".hb-n").forEach((cell, i) => {
+    const y = rows[i].y;
+    cell.textContent = `${pct(by[y].r / by[y].n)} · ${num.format(by[y].r)} of ${num.format(by[y].n)}`;
+  });
+  // vendors behind the ransomware-linked entries of the last three years
+  const since = String(+F.year - 2);
+  const vc = new Map();
+  for (const e of ents) if (e.ransomware && String(e.added) >= since) { const v = (e.vendor || "").trim(); if (v) vc.set(v, (vc.get(v) || 0) + 1); }
+  const lead = [...vc.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 4);
+  const share = sn ? sr / sn : null;
+  fig(el, {
+    titleEl: "#h-ransom",
+    title: share ? `About ${pct(share)} of exploited vulnerabilities are later linked to ransomware (${settled[0]}–${settledTo}); recent years are still filling in` : null,
+    subEl: "#ransom-hint",
+    sub: `Share of each year's CISA KEV additions flagged "known ransomware campaign use", ${years[0]} → ${F.year} (${partialLabel(F)}). CISA adds the flag when a campaign is attributed, often months later, so the last ${RANSOM_SETTLE_YEARS} years (lighter bars) will rise.` + (lead.length ? ` Since ${since}: ${lead.map(([v, n]) => `${v} ${n}`).join(", ")}.` : ""),
+    how: "Bar length = share of that year's KEV additions with the ransomware flag; text = share · flagged of all. Pitfall: a falling share in the newest years is a reporting lag, not a falling threat.",
+    so: `Treat any KEV entry for software you run as a potential ransomware entry point${lead.length ? `, especially ${listJoin(lead.slice(0, 3).map(([v]) => v))}` : ""}: patch it on an emergency timeline and check for compromise, because ransomware crews reuse these flaws for months.`,
+    src: srcLine(ctx, ["kev"]),
+  });
+}
+
 /* ================= Part 1: speed of exploitation ================= */
 const TTK_BUCKETS = [
   { id: "d1", label: "≤1 day (at disclosure)", color: P.red, test: (d) => d <= 1 },
@@ -2738,7 +2781,7 @@ function explainPart2(ctx, F, S) {
 const NAV_SUB = {
   brief: [],
   summary: [["kpis", "Key figures"], ["signal", "Signal vs noise"], ["hero", "CVEs per year"], ["where", "Where exploitation happens"]],
-  exploit: [["exploitation", "Exploitation by origin"], ["kev-vendors", "Exploited by vendor"], ["speed", "Speed of exploitation"], ["kev-latest", "Latest exploited"], ["zerodays", "Recent zero-days"], ["next", "Patch next"]],
+  exploit: [["exploitation", "Exploitation by origin"], ["kev-vendors", "Exploited by vendor"], ["ransom", "Ransomware-linked"], ["speed", "Speed of exploitation"], ["kev-latest", "Latest exploited"], ["zerodays", "Recent zero-days"], ["next", "Patch next"]],
   volume: [["sevyears", "Severity per year"], ["tops", "Top weaknesses, vendors & CNAs"], ["supply", "Supply chain"]],
   ai: [["ai-kpis", "Key figures"], ["relations", "How CVEs relate to AI"], ["issuance", "AI share of all CVEs"], ["ai-origin", "Where AI CVEs come from"], ["exploited", "Exploited AI vulnerabilities"], ["ai-next", "AI patch next"], ["breaks", "How AI CVEs differ"], ["layers", "AI stack layers"], ["latest", "Latest AI CVEs"], ["cna", "Who reports AI CVEs"], ["context", "Context"]],
   method: [],
@@ -2903,6 +2946,7 @@ function infoize() {
     ["zero-days", () => { buildZeroDay(ctx); labelCells($("#tbl-zd")); }],
     ["time to KEV", () => buildTtk(ctx)],
     ["KEV by vendor", () => buildKevVendors(ctx, F)],
+    ["ransomware", () => buildRansom(ctx, F)],
     ["latest exploited", () => { buildKevAll(ctx); labelCells($("#tbl-kevall")); }],
     ["patch next", () => { buildNext(ctx); labelCells($("#tbl-next")); }],
     ["severity per year", () => buildSevAll(ctx)],

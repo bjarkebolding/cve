@@ -145,7 +145,7 @@ EXPR = r"""(() => {
   const threats = [...document.querySelectorAll("#threat-cards .threat")].map((c) => ({ name: c.querySelector(".th-name").textContent,
     v: (c.querySelector(".v") || {}).textContent || "", unit: (c.querySelector(".th-unit") || {}).textContent || "" }));
   return JSON.stringify({ tiles: tiles("#kpis"), aiTiles: tiles("#ai-kpis"), sig, threats,
-    headline: t("#headline"), kevVendTitle: t("#h-kevvend"), cweTitle: t("#h-cweall"), issTitle: t("#h-issuance"), kevVendTop: t("#kevvend-bars .hb-n"), heroTitle: t("#h-hero"), aiHeadline: t("#ai-headline"), signalTitle: t("#h-signal"),
+    headline: t("#headline"), kevVendTitle: t("#h-kevvend"), cweTitle: t("#h-cweall"), issTitle: t("#h-issuance"), ransomTitle: t("#h-ransom"), kevVendTop: t("#kevvend-bars .hb-n"), heroTitle: t("#h-hero"), aiHeadline: t("#ai-headline"), signalTitle: t("#h-signal"),
     brief: [...document.querySelectorAll("#brief-list li")].map((l) => l.textContent),
     body: document.querySelector("main").innerText.slice(0, 200000) });
 })()"""
@@ -191,6 +191,12 @@ if page:
     if y and y.get("ai"):
         sh = f"{100 * y['ai']['cur'] / y['all']['cur']:.1f}%"
         check(sh in page.get("issTitle", "") and sh in json.dumps(page["aiTiles"]), f"page: AI share {sh} not identical on tile and issuance title")
+    # ransomware share over settled years (the newest two still fill in)
+    st_years = [str(yy) for yy in range(2021, int(year) - 1)]
+    rn = sum(1 for e in ents if e["added"][:4] in st_years)
+    rr = sum(1 for e in ents if e["added"][:4] in st_years and e.get("ransomware"))
+    if rn:
+        check(f"About {round(100 * rr / rn)}%" in page.get("ransomTitle", ""), f"page: ransomware title {page.get('ransomTitle')!r} != {round(100 * rr / rn)}% settled share")
     k = tile("Exploited (")
     check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
     check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")
