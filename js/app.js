@@ -2237,6 +2237,7 @@ function explainRisk(ctx, F, S) {
   try {
     const k = S.kev;
     fig("#chart-kev-origin", {
+      so: "Put emergency-patching capacity where confirmed exploitation concentrates, not where CVE counts are highest.",
       titleEl: "#h-exploitation",
       title: k && k.cur ? `${num.format(k.cur)} exploited vulnerabilities added in ${F.year} so far` + (k.prevSame ? ` vs ${num.format(k.prevSame)} by this date in ${F.prevYear}` : "") : null,
       subEl: "#kev-origin-hint", sub: `CISA KEV additions per year (by date added), 2022 → ${F.year} (${partialLabel(F)}), stacked by origin. 2021 is omitted: the catalog launched in Nov 2021 with a ~300-entry backlog.`,
@@ -2262,6 +2263,7 @@ function explainRisk(ctx, F, S) {
       so, src: srcLine(ctx, ctx.zd ? ["kev", "zd"] : ["kev"]),
     });
     fig("#tbl-zd", {
+      so: "If you run these products, patch status is not enough: review logs from before the patch date for signs of earlier compromise.",
       subEl: "#zd-list-hint", sub: ctx.zd && ctx.zd.recent ? `Latest in-the-wild zero-days, newest first (${ctx.zd.source || "tracker"}).` : "Latest KEV entries added ≤1 day after publication, newest first; date = added to KEV.",
       src: srcLine(ctx, ctx.zd ? ["zd"] : ["kev"]),
     });
@@ -2361,6 +2363,7 @@ function explainDetail(ctx, F, S) {
     const sc = core.severityCompare;
     if (sc && sc.ai && F.sevShare && F.sevShare.ai) {
       fig("#sev-compare", {
+        so: "AI software is not lower-risk than the rest: hold it to the same severity-based patch SLAs as other production software.",
         titleEl: "#h-sevcmp",
         title: `${pct(F.sevShare.ai.hc)} of AI CVEs are HIGH/CRITICAL` + (F.sevShare.all ? ` vs ${pct(F.sevShare.all.hc)} of all CVEs` : ""),
         subEl: "#sevcmp-sub", sub: `Share of rated CVEs by CVSS severity, published ${Array.isArray(sc.window) ? sc.window.join(" to ") : "in the window"}; 100% bars, AI vs all.`,
@@ -2393,6 +2396,7 @@ function explainDetail(ctx, F, S) {
     if (o) {
       const r = SEV_KEYS.reduce((t, k) => t + (o[k] || 0), 0), hc = (o.CRITICAL || 0) + (o.HIGH || 0);
       fig("#chart-sev", {
+        so: "Most AI-related CVEs need high-priority handling: budget AI patching like any production stack.",
         titleEl: "#h-sevmix", title: r ? `${num.format(hc)} HIGH/CRITICAL AI-related CVEs in ${F.year} so far (${pct(hc / r)} of ${num.format(r)} rated)` : null,
         subEl: "#sev-hint", sub: `AI-related CVEs per year, 2018 → ${F.year} (${partialLabel(F)}), stacked by CVSS severity from the CVE record.`,
         how: "Segments add up to the year's AI-related CVEs, CRITICAL at the bottom, unrated on top. Severity is the vendor's CVSS, not risk.",
@@ -2403,6 +2407,7 @@ function explainDetail(ctx, F, S) {
   try {
     const ytd = ytdMonths(core, core.aiMonths, F), all = ytdMonths(core, core.counts, F);
     fig("#chart-cves", {
+      so: "AI is a growing slice of the patch workload: put AI tooling in the asset inventory so these CVEs reach an owner.",
       titleEl: "#h-issuance",
       title: ytd && all && all.cur && all.prev ? `AI's share of all CVEs: ${pct(ytd.cur / all.cur, 1)} in ${ytd.label} ${F.year} vs ${pct(ytd.prev / all.prev, 1)} a year earlier` : null,
       subEl: "#issuance-hint", sub: "AI-related CVEs as a % of all published CVEs, per month since 2018. Spikes are single-product bulk disclosures (e.g. TensorFlow 2021, OpenClaw 2026). Switch Mode to Count or Cumulative for absolute numbers (lines, not stacked).",
@@ -2412,7 +2417,7 @@ function explainDetail(ctx, F, S) {
     });
   } catch (e) { /* skip */ }
   try {
-    fig("#tbl-ai", { subEl: "#latest-hint", sub: "Last 30 AI-related published records, newest first. AI relation = why it counts (hover a tag); KEV = also in CISA's exploited catalog; severity badge = record CVSS (hover for version and source).", src: srcLine(ctx, ["cve", "kev"]) });
+    fig("#tbl-ai", { so: "Check this list against your AI inventory each week; anything without an owner is the gap.", subEl: "#latest-hint", sub: "Last 30 AI-related published records, newest first. AI relation = why it counts (hover a tag); KEV = also in CISA's exploited catalog; severity badge = record CVSS (hover for version and source).", src: srcLine(ctx, ["cve", "kev"]) });
   } catch (e) { /* skip */ }
   try {
     const cy = core.cnaYears && core.cnaYears[F.year];
@@ -2420,6 +2425,7 @@ function explainDetail(ctx, F, S) {
       const tot = sumObj(cy);
       const top = Object.entries(cy).filter(([c]) => c !== "other").sort((a, b) => b[1] - a[1])[0];
       fig("#chart-cna", {
+        so: "Part of the AI rise is who files CVEs: judge AI risk by exploitation and your own exposure, not by count alone.",
         titleEl: "#h-cna", title: cnaTitle(core.cnaYears, F, top, tot),
         how: "Stacked: each colour is one CVE Numbering Authority's AI CVEs that year (top 7 overall + other CNAs). Pitfall: one prolific new CNA raises counts without more vulnerable software.",
         src: srcLine(ctx, ["cve"]),
@@ -2436,6 +2442,7 @@ function explainDetail(ctx, F, S) {
         if (m.startsWith(F.year)) a += n; if (m.startsWith(F.prevYear)) b += n;
       }
       fig("#chart-aipkgs", {
+        so: "Pin AI packages and models to reviewed versions and pull them from a curated mirror.",
         titleEl: "#h-aipkgs", title: a && b ? `AI package advisories ${xr(a, b)} like-for-like (${num.format(a)} vs ${num.format(b)}, Jan–${MONTHS[Math.max(1, curM) - 1]})` : null,
         after: "#adv-recent",
         how: "Each bar = OSV advisories for AI/ML packages published that month. Pitfall: one advisory can name several packages.",
@@ -2450,6 +2457,7 @@ function explainDetail(ctx, F, S) {
       const full = ks.slice(0, -1); // drop the partial current month
       const last = full[full.length - 1], yAgo = full.find((x) => x === ymAdd(last, -12));
       fig("#chart-adoption", {
+        so: "Adoption outpaces oversight: expect AI SDKs in code you have not inventoried, and scan for them.",
         titleEl: "#h-adoption",
         title: yAgo && m[yAgo] ? `openai SDK downloads ${xr(m[last], m[yAgo])} in 12 months (log scale)` : "Adoption context: npm AI SDK downloads (log scale)",
         subEl: "#adoption-hint", sub: "Monthly npm downloads per package, log scale (each gridline = 10×). Adoption context only — not attack surface, not used in any count above.",
@@ -2519,6 +2527,7 @@ function explainPart1(ctx, F, S) {
       const span = w.cur ? `${w.cur[0]} to ${w.cur[1]}` : "the last 12 months";
       const cw = topRiser(cweRows(L.cweTop, names));
       fig("#cweall", {
+        so: "Fund fixes that remove whole weakness classes (authorization checks, input handling, memory safety) instead of patching one CVE at a time.",
         titleEl: "#h-cweall", title: cw ? `Fastest-growing weakness: ${cw.label}, ${growthText(cw.n, cw.prev)}` : null,
         subEl: "#cweall-hint", sub: `CVEs per weakness class (first CWE in the record), ${span} vs the 12 months before. Top 10.`,
         how: "Bar = last 12 months, tick = the 12 months before. Pitfall: a CVE counts once, under its first CWE; many records have none.",
@@ -2527,6 +2536,7 @@ function explainPart1(ctx, F, S) {
       const vr = vendorRows(L.vendorTop);
       const vb = topRiser(vr);
       fig("#vendall", {
+        so: "Counts reflect product footprint and reporting practice: use them to plan vendor patch cadence, not to rank vendor security.",
         titleEl: "#h-vendall", title: vr.length ? `${vr[0].label} leads with ${num.format(vr[0].n)} CVEs` + (vb && vb !== vr[0] ? ` — ${vb.label} grew most (${growthText(vb.n, vb.prev)})` : "") : null,
         subEl: "#vendall-hint", sub: `CVEs per vendor (first affected vendor in the record), ${span} vs the 12 months before. Top 10.`,
         how: "Bar = last 12 months, tick = the 12 months before. Pitfall: vendors that file their own CVEs (Linux, Microsoft, Oracle) look larger than vendors whose bugs go unreported.",
@@ -2555,9 +2565,13 @@ function explainPart2(ctx, F, S) {
       fig("#rel-bars", {
         titleEl: "#h-rel", title: top ? `${ctx.relLabel(top[0])} account for most AI-related CVEs in ${F.year} (${num.format(top[1].cur)})` + (fast && fast[0] !== top[0] ? `; ${lcFirst(ctx.relLabel(fast[0]))} grew fastest` : "") : null,
         subEl: "#rel-hint", sub: `AI-related CVEs published in ${F.year} (${partialLabel(F)}) by kind of AI relation. A CVE can carry several tags, so the bars add up to more than the AI-related total.`,
-        after: "#chart-rel",
-        how: "Left: this year's count per relation. Right: the same per year, one line each (click a legend entry to hide a line and rescale). Pitfall: the last year is partial.",
+        how: "This year's count per relation; the next card shows the same per year. Pitfall: the last year is partial.",
         so: "Two different jobs: AI software and agents need asset inventory and patching like any software; AI features, weaknesses and compute need you to ask vendors how their AI is isolated.",
+        src: srcLine(ctx, ["cve"]),
+      });
+      fig("#chart-rel", {
+        how: "One line per relation (click a legend entry to hide a line and rescale). Pitfall: the last year is partial.",
+        so: "The steepest line is the attack surface growing fastest: track MCP servers and agents as their own asset class, with an owner each.",
         src: srcLine(ctx, ["cve"]),
       });
     }
@@ -2569,6 +2583,7 @@ function explainPart2(ctx, F, S) {
       const n = L.years[F.year];
       const top = Object.entries(L.originYears).map(([id, by]) => [id, by[F.year] || 0]).sort((a, b) => b[1] - a[1])[0];
       fig("#chart-aiorigin", {
+        so: "Most AI exposure arrives through open-source components: AI packages belong in dependency scanning and SBOMs.",
         titleEl: "#h-aiorigin", title: top && top[1] ? `${pct(top[1] / n)} of ${F.year}'s AI-related CVEs are in ${oShort(top[0], OL)}` : null,
         subEl: "#aiorigin-hint", sub: `AI-related CVEs per year, 2018 → ${F.year} (${partialLabel(F)}), stacked by origin — the same categories as Part 1.`,
         how: "Segments add up to each year's AI-related CVEs. This connects the two parts: e.g. open-source AI packages count under supply chain, Copilot under core platforms.",
@@ -2582,6 +2597,7 @@ function explainPart2(ctx, F, S) {
       const vr = vendorRows(L.vendorTop);
       const vb = topRiser(vr);
       fig("#vendai", {
+        so: "Ask your main AI vendors for their disclosure and patch timelines; one product can dominate the count.",
         titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months` + (vb && vb !== vr[0] ? `; ${vb.label} grew most` : "") : null,
         how: "Bar = last 12 months, tick = the 12 months before; text = count · change. 'new' = none the year before.",
         src: srcLine(ctx, ["cve"]),
@@ -2654,6 +2670,10 @@ function slideify() {
   }
   for (const u of units) {
     u.classList.add("slide");
+    if (!u.querySelector("h2, h3")) {
+      const gh = u.closest(".slide-group") && u.closest(".slide-group").querySelector(":scope > h2");
+      if (gh) { u.prepend(gh); const hint = u.parentElement.closest(".slide-group").querySelector(":scope > p.hint"); if (hint) gh.after(hint); }
+    }
     if (u.querySelector(".src")) continue;
     // borrow the group's source line, else a generic one
     const g = u.closest(".slide-group");

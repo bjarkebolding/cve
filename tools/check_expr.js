@@ -44,6 +44,10 @@
   // tier 1 must come before tier 2/3 content
   const pos = (id) => { const e = document.getElementById(id); return e ? e.getBoundingClientRect().top + scrollY : -1; };
   out.tierOrder = pos("summary") < pos("exploit") && pos("exploit") < pos("volume") && pos("volume") < pos("ai") && pos("ai") < pos("method");
+  // every slide card stands alone: title + "So what" + visible source
+  out.slideGaps = [...document.querySelectorAll(".slide")].filter((u) => !u.querySelector("h2, h3") || !u.querySelector(".figfoot .so") || !u.querySelector(".src"))
+    .map((u) => u.id || ((u.querySelector("h2, h3") || {}).id) || "?");
+  out.slides = document.querySelectorAll(".slide").length;
   out.threatCards = document.querySelectorAll("#threat-cards .threat").length;
   out.briefItems = document.querySelectorAll("#brief-list li").length;
   out.navSub = [...document.querySelectorAll(".topnav a.sub")].filter((a) => document.querySelector(a.getAttribute("href"))).length;

@@ -75,6 +75,7 @@ for label, mobile in (("desktop", None), ("phone 390px", True)):
     if d["kpis"] < 2: problems.append(f"only {d['kpis']} KPI tiles")
     if d["tiers"] != 5 or not d["tierOrder"]: problems.append("section structure (summary/exploit/volume/ai/method) missing or out of order")
     if d["navLinks"] != 7: problems.append("top nav links broken")
+    if d.get("slides", 0) < 20 or d.get("slideGaps"): problems.append(f"slide cards incomplete: {d.get('slideGaps')} (of {d.get('slides')})")
     if d.get("threatCards", 0) != 4: problems.append(f"threat cards: {d.get('threatCards')}")
     if d.get("briefItems", 0) < 4: problems.append(f"executive brief has {d.get('briefItems', 0)} items")
     if d.get("navSub", 0) < 15 or d.get("navSub") != d.get("navSubAll"): problems.append("nav sub-menu links missing or broken")
