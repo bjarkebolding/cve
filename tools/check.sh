@@ -1,22 +1,41 @@
 #!/bin/bash
-# Smoke test: data files valid + page renders headlessly (no JS errors,
-# charts draw, no horizontal overflow). Requires Chrome (set CHROME env).
+# Smoke test: data files valid + page renders headlessly at desktop and phone
+# width (no JS errors, every chart whose data exists draws ink, no horizontal
+# overflow, no NaN/undefined text, removed panels stay removed, three tiers
+# + method in order, headline + KPI tiles present).
+# Requires Chrome (set CHROME env). Runs against the repo root.
 set -u
 cd "$(dirname "$0")/.."
 
 fail=0
-for f in data/data.json data/ai_meta.json data/kev.json data/ai_packages.json data/downloads.json data/nvd.json data/severity.json; do
+for f in data/data.json data/ai_meta.json data/kev.json data/ai_packages.json data/downloads.json data/severity.json; do
   if [ ! -f "$f" ]; then echo "MISSING $f"; fail=1; continue; fi
   python3 -c "import json; json.load(open('$f'))" || { echo "BAD JSON $f"; fail=1; }
 done
-python3 - <<'EOF' || fail=1
+# optional (newer pipeline) — must be valid JSON when present
+for f in data/epss.json data/malicious.json data/zerodays.json; do
+  if [ -f "$f" ]; then python3 -c "import json; json.load(open('$f'))" || { echo "BAD JSON $f"; fail=1; }
+  else echo "  note: $f not present (EPSS panel will show 'not available')"; fi
+done
+python3 - <<'PY' || fail=1
 import json
 d = json.load(open("data/data.json"))
 assert d["total"] > 300000, f"total={d['total']}"
 assert d["aiTotal"] > 100, f"aiTotal={d['aiTotal']}"
 assert len(d["months"]) > 300
-print(f"  data.json ok: {d['total']} total, {d['aiTotal']} AI, {len(d['months'])} months")
-EOF
+lm = d.get("layerMonths")
+if lm is not None:
+    assert d.get("layers"), "layerMonths without layers"
+    for k, v in lm.items():
+        assert len(v) == len(d["months"]), f"layerMonths[{k}] not aligned with months"
+om = d.get("originMonths")
+if om is not None:
+    assert d.get("origins"), "originMonths without origins"
+    for k, v in om.items():
+        assert len(v) == len(d["months"]), f"originMonths[{k}] not aligned with months"
+new = [k for k in ("layers", "layerMonths", "cnaYears", "severityCompare", "cweCompare", "evaluation", "origins", "originMonths", "originYears", "concentration") if k in d]
+print(f"  data.json ok: {d['total']} total, {d['aiTotal']} AI, {len(d['months'])} months; new keys: {', '.join(new) or 'none'}")
+PY
 
 CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 PORT="${PORT:-8999}"
@@ -30,22 +49,45 @@ for _ in $(seq 1 20); do
   sleep 0.5
 done
 
-python3 - <<EOF || fail=1
-import sys, json
+python3 - <<PY || fail=1
+import sys, json, os, tempfile
 sys.path.insert(0, "tools")
 import cdp_probe as cdp
-out, exc = cdp.run("http://127.0.0.1:$PORT/", open("tools/check_expr.js").read(), wait=8)
-print("  ", out)
-print("  exceptions:", exc if exc else "none")
-d = json.loads(out) if isinstance(out, str) else out
-bad = [k for k in d["inks"] if k.endswith(":zero")]
-share_ok = d.get("shareLabel") == "AI share of CVEs (%)" and d.get("countLabel") == "CVEs / month"
-kev_ok = d.get("kevAiRows") == d.get("kevAiFlagged")
-share_ticks = d.get("shareYLabel") or []
-share_ticks_ok = len(share_ticks) >= 2 and all("%" in t for t in share_ticks if t)
-if exc or d["overflow"] or bad or d["rows"] < 5 or d["err"] == "yes" or not share_ok or not kev_ok or not share_ticks_ok:
-    sys.exit(1)
-EOF
+bad_any = False
+for label, mobile in (("desktop", None), ("phone 390px", True)):
+    # fresh profile per run: a persistent one serves stale js from cache
+    os.environ["CDP_PROFILE"] = tempfile.mkdtemp(prefix="cdp-check-")
+    out, exc = cdp.run("http://127.0.0.1:$PORT/", open("tools/check_expr.js").read(), wait=8, mobile=mobile)
+    print(f"  [{label}]", out)
+    print("   exceptions:", exc if exc else "none")
+    if not out:
+        bad_any = True
+        continue
+    d = json.loads(out)
+    problems = []
+    if exc: problems.append("exceptions")
+    if d["overflow"] > 0: problems.append(f"horizontal overflow {d['overflow']}px")
+    if [k for k in d["inks"] if k.endswith(":0%")]: problems.append("blank chart")
+    if d["missing"]: problems.append(f"charts missing although data exists: {d['missing']}")
+    if d["removed"]: problems.append(f"removed panels present: {d['removed']}")
+    if d["rows"] < 5: problems.append("latest-AI table < 5 rows")
+    if len(d["headline"]) < 20: problems.append("no headline statement")
+    if d["kpis"] < 2: problems.append(f"only {d['kpis']} KPI tiles")
+    if d["tiers"] != 4 or not d["tierOrder"]: problems.append("tier structure (summary/risk/detail/method) missing or out of order")
+    if d["navLinks"] != 4: problems.append("top nav links broken")
+    if d["err"] != "no": problems.append("render error: " + d["err"])
+    if d["badText"]: problems.append(f"bad text {d['badText']}")
+    if d["badLinks"]: problems.append(f"{d['badLinks']} external links without target=_blank rel=noopener")
+    if not d.get("defaultRange2018"): problems.append("main chart default range is not 2018+")
+    if d.get("shareLabel") != "AI share of CVEs (%)" or d.get("countLabel") != "CVEs per month": problems.append("share/count mode labels")
+    ticks = d.get("shareYLabel") or []
+    if len(ticks) < 2 or not all("%" in t for t in ticks if t): problems.append("share-mode y ticks")
+    if d.get("kevAiFlagged") is not None and d.get("kevAiRows") != d.get("kevAiFlagged"): problems.append("KEV table != AI-flagged KEV entries")
+    if problems:
+        print("   FAIL:", "; ".join(problems))
+        bad_any = True
+sys.exit(1 if bad_any else 0)
+PY
 
 if [ $fail -eq 0 ]; then echo "SMOKE PASS"; else echo "SMOKE FAIL"; fi
 exit $fail

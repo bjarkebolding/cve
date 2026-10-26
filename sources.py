@@ -2,20 +2,31 @@
 """
 Fetch auxiliary public sources for the AI x cybersecurity dashboard:
 
-  data/kev.json           CISA Known Exploited Vulnerabilities (full list,
-                          AI-related entries flagged) -- "exploited in the wild"
-  data/ai_packages.json   Vulnerabilities in AI/ML software packages via OSV.dev
-                          (PyPI + npm), with CVE aliases, severities, monthly
-                          publication series
+  data/kev.json           CISA Known Exploited Vulnerabilities (full list;
+                          per entry origin, days-to-KEV, zero-day proxy; AI
+                          entries flagged with stack layer; byYear)
+  data/zerodays.json      Google Project Zero "0day In the Wild" tracker
+                          (public Google Sheet CSV export), per year + recent
+  data/malicious.json     Malicious open-source packages per ecosystem/year
+                          (OSV MAL-* ids from the OSV GCS modified_id.csv index)
+  data/epss.json          FIRST EPSS exploit-probability scores for the AI
+                          CVE set + AI-flagged KEV entries
+  data/ai_packages.json   OSV.dev advisories for the modern AI stack (PyPI,
+                          npm, Go), deduped, with layer + fixed flag
   data/downloads.json     Adoption / attack-surface proxy: npm download history
                           (daily -> monthly) for AI npm packages + pypistats
                           snapshots for PyPI AI packages
+  data/severity.json      Severity mix of the AI CVE set: record-based CVSS
+                          from ai_meta.json, NVD fallback (data/cvss.json cache)
 
 All sources are free, keyless and rate-limit friendly. Each is wrapped in its
 own try/except: one failing source never blocks the others.
+CVE_DATA_DIR overrides the data directory (default <repo>/data).
 """
 
+import csv
 import datetime as dt
+import gzip
 import json
 import os
 import re
@@ -26,55 +37,92 @@ import urllib.parse
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-DATADIR = os.path.join(BASE, "data")
-CVSS_CACHE = os.path.join(DATADIR, "cvss.json")
+DATADIR = os.environ.get("CVE_DATA_DIR") or os.path.join(BASE, "data")
+
+
+def dpath(name):
+    return os.path.join(DATADIR, name)
+
 
 # Human-readable names for common CWEs (NVD API often returns bare IDs).
 # Fallback only: if NVD supplied a label with a name, that wins.
 CWE_NAMES = {
+    "CWE-20": "Improper Input Validation",
+    "CWE-22": "Path Traversal",
+    "CWE-29": "Path Traversal: '\\..\\filename\\'",
+    "CWE-73": "External Control of File Name or Path",
+    "CWE-74": "Injection",
+    "CWE-77": "Command Injection",
+    "CWE-78": "OS Command Injection",
     "CWE-79": "Cross-site Scripting (XSS)",
     "CWE-89": "SQL Injection",
-    "CWE-78": "OS Command Injection",
-    "CWE-22": "Path Traversal",
-    "CWE-502": "Deserialization of Untrusted Data",
-    "CWE-20": "Improper Input Validation",
-    "CWE-125": "Out-of-bounds Read",
-    "CWE-787": "Out-of-bounds Write",
-    "CWE-119": "Memory Corruption",
-    "CWE-434": "Unrestricted Upload of File with Dangerous Type",
-    "CWE-269": "Improper Privilege Management",
-    "CWE-352": "Cross-Site Request Forgery (CSRF)",
-    "CWE-200": "Exposure of Sensitive Information",
-    "CWE-862": "Missing Authorization",
-    "CWE-362": "Race Condition",
-    "CWE-400": "Uncontrolled Resource Consumption (DoS)",
-    "CWE-918": "Server-Side Request Forgery (SSRF)",
-    "CWE-522": "Insufficiently Protected Credentials",
-    "CWE-319": "Cleartext Transmission of Sensitive Information",
-    "CWE-287": "Improper Authentication",
-    "CWE-639": "Authorization Bypass Through User-Controlled Key",
     "CWE-94": "Code Injection",
-    "CWE-829": "Inclusion of Functionality from Untrusted Control Sphere",
-    "CWE-693": "Protection Mechanism Failure",
-    "CWE-754": "Improper Check for Unusual or Exceptional Conditions",
-    "CWE-369": "Stride Error",
+    "CWE-95": "Eval Injection",
+    "CWE-119": "Improper Restriction of Operations within Memory Buffer Bounds",
+    "CWE-120": "Classic Buffer Overflow",
+    "CWE-121": "Stack-based Buffer Overflow",
+    "CWE-122": "Heap-based Buffer Overflow",
+    "CWE-125": "Out-of-bounds Read",
     "CWE-131": "Incorrect Calculation of Buffer Size",
+    "CWE-134": "Use of Externally-Controlled Format String",
+    "CWE-190": "Integer Overflow or Wraparound",
+    "CWE-200": "Exposure of Sensitive Information",
+    "CWE-252": "Unchecked Return Value",
+    "CWE-269": "Improper Privilege Management",
+    "CWE-284": "Improper Access Control",
+    "CWE-285": "Improper Authorization",
+    "CWE-287": "Improper Authentication",
+    "CWE-306": "Missing Authentication for Critical Function",
+    "CWE-319": "Cleartext Transmission of Sensitive Information",
+    "CWE-345": "Insufficient Verification of Data Authenticity",
     "CWE-347": "Improper Verification of Cryptographic Signature",
-    "CWE-501": "Incomplete Authorization",
-    "CWE-280": "Improper Permission Allocation for Resource",
-    "CWE-134": "Improper Neutralization in Output",
-    "CWE-252": "Unreadable Data",
-    "CWE-386": "Partial Reliance on Client-Supplied Input",
-    "CWE-755": "Improper Handling of Unspecified Resource",
-    "CWE-822": "Untrusted Pointer Dereference",
-    "CWE-120": "Buffer Overflow",
-    "CWE-190": "Integer Overflow",
-    "CWE-416": "Use After Free",
+    "CWE-352": "Cross-Site Request Forgery (CSRF)",
+    "CWE-362": "Race Condition",
+    "CWE-369": "Divide By Zero",
+    "CWE-400": "Uncontrolled Resource Consumption",
+    "CWE-404": "Improper Resource Shutdown or Release",
     "CWE-415": "Double Free",
+    "CWE-416": "Use After Free",
+    "CWE-434": "Unrestricted Upload of File with Dangerous Type",
+    "CWE-476": "NULL Pointer Dereference",
+    "CWE-501": "Trust Boundary Violation",
+    "CWE-502": "Deserialization of Untrusted Data",
+    "CWE-522": "Insufficiently Protected Credentials",
+    "CWE-532": "Insertion of Sensitive Information into Log File",
+    "CWE-601": "Open Redirect",
+    "CWE-611": "XML External Entity (XXE)",
+    "CWE-617": "Reachable Assertion",
+    "CWE-639": "Authorization Bypass Through User-Controlled Key",
+    "CWE-693": "Protection Mechanism Failure",
+    "CWE-732": "Incorrect Permission Assignment for Critical Resource",
+    "CWE-754": "Improper Check for Unusual or Exceptional Conditions",
+    "CWE-755": "Improper Handling of Exceptional Conditions",
+    "CWE-770": "Allocation of Resources Without Limits or Throttling",
+    "CWE-787": "Out-of-bounds Write",
+    "CWE-798": "Use of Hard-coded Credentials",
+    "CWE-822": "Untrusted Pointer Dereference",
+    "CWE-824": "Access of Uninitialized Pointer",
+    "CWE-829": "Inclusion of Functionality from Untrusted Control Sphere",
+    "CWE-862": "Missing Authorization",
+    "CWE-863": "Incorrect Authorization",
+    "CWE-915": "Improperly Controlled Modification of Object Attributes",
+    "CWE-918": "Server-Side Request Forgery (SSRF)",
+    "CWE-1321": "Prototype Pollution",
+    "CWE-1333": "Inefficient Regular Expression Complexity (ReDoS)",
+    "CWE-1336": "Server-Side Template Injection",
+    "CWE-1426": "Improper Validation of Generative AI Output",
+    "CWE-1427": "Improper Neutralization of Input Used for LLM Prompting",
 }
 UA = {"User-Agent": "cve-ai-dashboard/1.0 (research script)"}
+# Optional free NVD API key (https://nvd.nist.gov/developers/request-an-api-key)
+# raises the rate limit from 5 to 50 requests / 30 s.
+NVD_API_KEY = os.environ.get("NVD_API_KEY", "")
+NVD_DELAY = 0.7 if NVD_API_KEY else 6.5
+# An AI CVE NVD has not scored yet is re-checked on later runs for this long.
+CVSS_RECHECK_DAYS = 90
+SEVS = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
 
-# --- AI package universe ----------------------------------------------------
+# --- adoption package lists (downloads.json) --------------------------------
 PYPI_PKGS = [
     "transformers", "torch", "tensorflow", "onnxruntime", "onnx",
     "scikit-learn", "xgboost", "lightgbm", "keras", "jax",
@@ -87,9 +135,101 @@ NPM_PKGS = [
     "onnxruntime-node", "js-tiktoken", "@google/generative-ai", "ollama", "ai",
 ]
 
+# --- OSV package universe: (ecosystem, name, layer) -------------------------
+# Every entry verified to have OSV coverage (2026-10-25). No coverage, dropped:
+# Dify, ComfyUI, KServe, Triton, huggingface_hub, safetensors, onnxruntime,
+# openai, xgboost, jax, tokenizers, AnythingLLM, LibreChat, RAGFlow.
+OSV_PKGS = [
+    # MCP servers & agent tools
+    ("PyPI", "mcp", "mcp"),
+    ("npm", "@modelcontextprotocol/sdk", "mcp"),
+    ("PyPI", "fastmcp", "mcp"),
+    ("PyPI", "mcp-server-git", "mcp"),
+    ("npm", "@modelcontextprotocol/server-filesystem", "mcp"),
+    ("npm", "@modelcontextprotocol/inspector", "mcp"),
+    ("npm", "mcp-remote", "mcp"),
+    ("PyPI", "agentscope", "mcp"),
+    ("PyPI", "metagpt", "mcp"),
+    # LLM gateways & proxies
+    ("PyPI", "litellm", "gateway"),
+    ("Go", "github.com/QuantumNous/new-api", "gateway"),
+    ("Go", "github.com/songquanpeng/one-api", "gateway"),
+    # Inference & model serving
+    ("Go", "github.com/ollama/ollama", "inference"),
+    ("PyPI", "vllm", "inference"),
+    ("PyPI", "sglang", "inference"),
+    ("Go", "github.com/mudler/LocalAI", "inference"),
+    ("PyPI", "llama-cpp-python", "inference"),
+    ("PyPI", "lmdeploy", "inference"),
+    ("PyPI", "torchserve", "inference"),
+    ("PyPI", "xinference", "inference"),
+    ("PyPI", "text-generation", "inference"),
+    # MLOps & ML platforms
+    ("PyPI", "mlflow", "mlops"),
+    ("PyPI", "ray", "mlops"),
+    ("PyPI", "bentoml", "mlops"),
+    ("PyPI", "clearml", "mlops"),
+    ("PyPI", "label-studio", "mlops"),
+    ("PyPI", "h2o", "mlops"),
+    ("PyPI", "zenml", "mlops"),
+    ("PyPI", "aim", "mlops"),
+    ("PyPI", "mindsdb", "mlops"),
+    ("Go", "github.com/kubeflow/pipelines", "mlops"),
+    # LLM apps & orchestration
+    ("PyPI", "langflow", "llmapp"),
+    ("PyPI", "langflow-base", "llmapp"),
+    ("PyPI", "open-webui", "llmapp"),
+    ("npm", "open-webui", "llmapp"),
+    ("npm", "flowise", "llmapp"),
+    ("npm", "flowise-components", "llmapp"),
+    ("PyPI", "gradio", "llmapp"),
+    ("PyPI", "langchain", "llmapp"),
+    ("PyPI", "langchain-core", "llmapp"),
+    ("PyPI", "langchain-community", "llmapp"),
+    ("PyPI", "langchain-experimental", "llmapp"),
+    ("PyPI", "langgraph", "llmapp"),
+    ("npm", "langchain", "llmapp"),
+    ("npm", "@langchain/core", "llmapp"),
+    ("PyPI", "llama-index", "llmapp"),
+    ("PyPI", "llama-index-core", "llmapp"),
+    ("PyPI", "haystack-ai", "llmapp"),
+    ("npm", "@lobehub/chat", "llmapp"),
+    ("PyPI", "chromadb", "llmapp"),
+    ("PyPI", "pandasai", "llmapp"),
+    ("PyPI", "vanna", "llmapp"),
+    ("npm", "ai", "llmapp"),
+    # Model files & loading
+    ("PyPI", "picklescan", "model"),
+    ("PyPI", "modelscope", "model"),
+    # AI cloud services & assistants
+    ("PyPI", "sagemaker", "cloud"),
+    ("PyPI", "anthropic", "cloud"),
+    ("npm", "@anthropic-ai/sdk", "cloud"),
+    # ML frameworks & libraries
+    ("PyPI", "tensorflow", "framework"),
+    ("PyPI", "torch", "framework"),
+    ("PyPI", "transformers", "framework"),
+    ("PyPI", "keras", "framework"),
+    ("PyPI", "onnx", "framework"),
+    ("PyPI", "paddlepaddle", "framework"),
+    ("PyPI", "scikit-learn", "framework"),
+    ("PyPI", "diffusers", "framework"),
+    ("PyPI", "sentence-transformers", "framework"),
+    ("PyPI", "lightgbm", "framework"),
+    ("PyPI", "ultralytics", "framework"),
+    ("PyPI", "pytorch-lightning", "framework"),
+    ("PyPI", "lightning", "framework"),
+    ("PyPI", "deepspeed", "framework"),
+    ("PyPI", "nemo-toolkit", "framework"),
+    ("PyPI", "llamafactory", "framework"),
+]
+
 
 def get(url, timeout=30):
-    req = urllib.request.Request(url, headers=UA)
+    headers = UA
+    if NVD_API_KEY and url.startswith("https://services.nvd.nist.gov/"):
+        headers = {**UA, "apiKey": NVD_API_KEY}
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
 
@@ -107,7 +247,7 @@ def now_iso():
 
 
 def write_json(name, obj):
-    path = os.path.join(DATADIR, name)
+    path = dpath(name)
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
         json.dump(obj, f)
@@ -115,127 +255,480 @@ def write_json(name, obj):
     print(f"wrote {path} ({os.path.getsize(path)} bytes)", file=sys.stderr)
 
 
-def is_ai_text(text):
-    """Same heuristic as build.py for the CVE list."""
+def read_json(name, default=None):
     try:
-        sys.path.insert(0, BASE)
-        from build import is_ai_blob
-        return is_ai_blob(text or "")
+        with open(dpath(name)) as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return default
+
+
+# --- AI definition from build.py (imported lazily, defensively) ------------
+def _build():
+    try:
+        if BASE not in sys.path:
+            sys.path.insert(0, BASE)
+        import build
+        return build
     except Exception:
-        return bool(re.search(r"machine learning|neural|llm|gpt|transformer",
-                              (text or ""), re.I))
+        return None
+
+
+def is_ai_text(text):
+    """Same matcher as build.py for the CVE list."""
+    b = _build()
+    if b is not None and hasattr(b, "is_ai_blob"):
+        return bool(b.is_ai_blob(text or ""))
+    return bool(re.search(r"machine learning|neural|llm|gpt|transformer",
+                          (text or ""), re.I))
+
+
+def layer_of_text(text):
+    """build.classify_layer if available, else "other"."""
+    b = _build()
+    try:
+        return b.classify_layer(text or "") or "other"
+    except Exception:
+        return "other"
+
+
+def origin_of_text(text):
+    """build.classify_origin if available, else "other"."""
+    b = _build()
+    try:
+        return b.classify_origin(text or "") or "other"
+    except Exception:
+        return "other"
+
+
+def lookup_records(cve_ids):
+    """build.lookup_records over the parse cache, else {} (A not landed)."""
+    b = _build()
+    try:
+        return b.lookup_records(list(cve_ids), DATADIR) or {}
+    except Exception as err:
+        print(f"build.lookup_records unavailable: {err}", file=sys.stderr)
+        return {}
+
+
+def norm_meta(ids):
+    """ai_meta ids -> ({cve: {"d", "layer", "sev", ...}}, new_shape).
+
+    Accepts the old {cve: "YYYY-MM-DD"} and the new {cve: {...}} shape.
+    """
+    out, new = {}, False
+    for cid, v in (ids or {}).items():
+        if isinstance(v, dict):
+            new = True
+            out[cid] = v
+        else:
+            out[cid] = {"d": v}
+    return out, new
+
+
+def load_meta():
+    raw = read_json("ai_meta.json")
+    if raw is None:
+        return None, False
+    return norm_meta(raw.get("ids"))
+
+
+def days_between(a, b):
+    """(b - a) in days for ISO days, or None."""
+    try:
+        return (dt.date.fromisoformat(b[:10]) - dt.date.fromisoformat(a[:10])).days
+    except (TypeError, ValueError):
+        return None
 
 
 # --- 1. CISA KEV -------------------------------------------------------------
-def fetch_kev():
-    raw = json.loads(get("https://www.cisa.gov/sites/default/files/feeds/"
-                        "known_exploited_vulnerabilities.json"))
-    # Authoritative AI set from the CVE list (build.py); CISA's own text is a
-    # secondary signal (their shortDescriptions rarely name the AI angle).
-    ai_ids = set()
-    meta_path = os.path.join(DATADIR, "ai_meta.json")
-    if os.path.exists(meta_path):
-        try:
-            ai_ids = set(json.load(open(meta_path)).get("ids", {}))
-        except Exception:
-            pass
+ZERO_DAY_MAX = 1  # KEV-added <= 1 day after CVE publication = "exploited at disclosure"
+KEV_NOTES = ("added/origin: bucketed by KEV dateAdded year. zeroDay: bucketed by "
+             "CVE publication year; an entry counts when its CVE publication day is "
+             f"known and it was added to KEV <= {ZERO_DAY_MAX} day after publication "
+             "(negative = added before publication).")
+
+
+def kev_entries(vulns, meta, records=None, ai_match=is_ai_text,
+                layer_fn=layer_of_text, origin_fn=origin_of_text):
+    """KEV catalog rows -> (entries newest first, aiCount).
+
+    AI = CVE in ai_meta (authoritative CVE-list set) OR build's matcher on
+    CISA's vendor/product/name/description text. origin/published come from
+    the CVE-list parse cache (records), else KEV text / ai_meta.
+    """
+    records = records or {}
     entries = []
-    ai = 0
-    for v in raw["vulnerabilities"]:
+    for v in vulns:
         cve = v.get("cveID", "")
-        text = " ".join([v.get("vendorProject", ""), v.get("product", ""),
-                         v.get("vulnerabilityName", ""),
+        vp = f'{v.get("vendorProject", "")} {v.get("product", "")}'.strip()
+        text = " ".join([vp, v.get("vulnerabilityName", ""),
                          v.get("shortDescription", "")])
-        flag = is_ai_text(text) or (cve in ai_ids)
-        ai += int(flag)
+        m = meta.get(cve)
+        r = records.get(cve) or {}
+        flag = (m is not None or r.get("origin") in ("mcp", "ai")
+                or ai_match(text))
+        added = (v.get("dateAdded") or "")[:10]
+        pub = (m or {}).get("d") or r.get("d")
+        layer = None
+        if flag:
+            layer = (m or {}).get("layer") or r.get("layer") or layer_fn(text)
+            origin = "mcp" if layer == "mcp" else "ai"  # consistent with `ai`
+        else:
+            origin = r.get("origin") or origin_fn(vp)
+            if origin in ("mcp", "ai"):  # AI origins only via the AI flag
+                origin = "other"
+        days = days_between(pub, added) if pub else None
         entries.append({
             "cve": cve,
-            "added": (v.get("dateAdded") or "")[:10],
-            "product": f'{v.get("vendorProject", "")} {v.get("product", "")}'.strip(),
+            "added": added,
+            "product": vp,
             "desc": (v.get("shortDescription") or "")[:200],
             "ransomware": v.get("knownRansomwareCampaignUse") == "Known",
             "ai": flag,
+            "layer": layer,
+            "origin": origin,
+            "published": pub,
+            "daysToKev": days,
+            "zeroDay": days is not None and days <= ZERO_DAY_MAX,
         })
     entries.sort(key=lambda e: e["added"], reverse=True)
+    return entries, sum(1 for e in entries if e["ai"])
+
+
+def kev_by_year(entries):
+    """{year: {"added", "zeroDay", "origin": {id: n}}} (see KEV_NOTES)."""
+    out = {}
+
+    def row(y):
+        return out.setdefault(y, {"added": 0, "zeroDay": 0, "origin": {}})
+
+    for e in entries:
+        y = e["added"][:4]
+        if y:
+            r = row(y)
+            r["added"] += 1
+            r["origin"][e["origin"]] = r["origin"].get(e["origin"], 0) + 1
+        if e["zeroDay"] and e["published"]:
+            row(e["published"][:4])["zeroDay"] += 1
+    return dict(sorted(out.items()))
+
+
+def fetch_kev():
+    raw = json.loads(get("https://www.cisa.gov/sites/default/files/feeds/"
+                         "known_exploited_vulnerabilities.json"))
+    meta, _ = load_meta()
+    vulns = raw["vulnerabilities"]
+    records = lookup_records(v.get("cveID", "") for v in vulns)
+    entries, ai = kev_entries(vulns, meta or {}, records)
     write_json("kev.json", {
         "generatedAt": now_iso(),
         "source": "CISA Known Exploited Vulnerabilities catalog",
         "total": len(entries),
         "aiCount": ai,
         "ransomwareCount": sum(1 for e in entries if e["ransomware"]),
+        "zeroDayCount": sum(1 for e in entries if e["zeroDay"]),
+        "notes": KEV_NOTES,
+        "byYear": kev_by_year(entries),
         "entries": entries,
     })
 
 
-# --- 2. OSV.dev AI package vulnerabilities -----------------------------------
+# --- 1b. Google Project Zero "0day In the Wild" tracker ----------------------
+# Public Google Sheet, keyless CSV export of the "All" tab (gid verified
+# 2026-10-25; tabs: Introduction, All, 2026 ... 2014).
+PZ_SHEET = "1lkNJ0uQwbeC1ZTRrxdtuPLCIl7mlUreoKfSIgajnSyY"
+PZ_GID_ALL = "1190662839"
+PZ_URL = f"https://docs.google.com/spreadsheets/d/{PZ_SHEET}/export?format=csv&gid={PZ_GID_ALL}"
+PZ_VIEW = f"https://docs.google.com/spreadsheets/d/{PZ_SHEET}/"
+
+
+def parse_zerodays(text):
+    """CSV -> rows [{cve, vendor, product, type, date}] (date = Date Patched,
+    "Date Discovered" is mostly "???"). Raises ValueError on a layout change."""
+    rows = list(csv.DictReader(text.splitlines()))
+    need = {"CVE", "Vendor", "Product", "Date Patched"}
+    if not rows or not need <= set(rows[0]):
+        raise ValueError(f"unexpected 0day sheet header: {list(rows[0]) if rows else []}")
+    out, seen = [], set()
+    for r in rows:
+        cve = (r.get("CVE") or "").strip()
+        day = (r.get("Date Patched") or "").strip()[:10]
+        if not re.match(r"CVE-\d{4}-\d+$", cve) or cve in seen:
+            continue
+        seen.add(cve)
+        out.append({"cve": cve, "vendor": (r.get("Vendor") or "").strip(),
+                    "product": (r.get("Product") or "").strip(),
+                    "type": (r.get("Type") or "").strip(),
+                    "date": day if re.match(r"\d{4}-\d{2}-\d{2}$", day) else None})
+    return out
+
+
+def zerodays_payload(rows, records=None, kev_ids=(), origin_fn=origin_of_text):
+    records = records or {}
+    kev_ids = set(kev_ids)
+    by_year = {}
+    for r in rows:
+        rec = records.get(r["cve"]) or {}
+        r["origin"] = rec.get("origin") or origin_fn(f'{r["vendor"]} {r["product"]}')
+        r["inKev"] = r["cve"] in kev_ids
+        if r["date"]:
+            by_year[r["date"][:4]] = by_year.get(r["date"][:4], 0) + 1
+    recent = sorted((r for r in rows if r["date"]), key=lambda r: r["date"], reverse=True)
+    return {
+        "generatedAt": now_iso(),
+        "source": "Google Project Zero, 0day \"In the Wild\" tracker",
+        "url": PZ_VIEW,
+        "method": "unique CVEs in the sheet's All tab, bucketed by Date Patched year",
+        "total": len(rows),
+        "byYear": dict(sorted(by_year.items())),
+        "recent": recent[:20],
+    }
+
+
+def fetch_zerodays():
+    rows = parse_zerodays(get(PZ_URL, timeout=60).decode("utf-8", "replace"))
+    kev = read_json("kev.json", {}) or {}
+    kev_ids = {e["cve"] for e in kev.get("entries") or []}
+    write_json("zerodays.json", zerodays_payload(
+        rows, lookup_records(r["cve"] for r in rows), kev_ids))
+
+
+# --- 1c. Malicious open-source packages (OSV MAL-* ids) ----------------------
+# Per-ecosystem index of the OSV GCS export: "<modified ISO>,<id>" per line
+# (npm ~9 MB, PyPI ~1 MB, others < 0.5 MB; no all.zip download).
+OSV_GCS = "https://osv-vulnerabilities.storage.googleapis.com"
+MAL_ECOSYSTEMS = ["npm", "PyPI", "RubyGems", "NuGet", "crates.io", "Go",
+                  "Maven", "VSCode", "Packagist"]
+
+
+def count_mal(text):
+    """modified_id.csv -> ({year: n}, set of ids); year = MAL-YYYY id year."""
+    ids = set()
+    for line in text.splitlines():
+        _, _, vid = line.strip().rpartition(",")
+        if re.match(r"MAL-\d{4}-\d+$", vid):
+            ids.add(vid)
+    years = {}
+    for vid in ids:
+        years[vid[4:8]] = years.get(vid[4:8], 0) + 1
+    return dict(sorted(years.items())), ids
+
+
+def fetch_malicious():
+    by_year, totals, all_ids = {}, {}, set()
+    for eco in MAL_ECOSYSTEMS:
+        try:
+            text = get(f"{OSV_GCS}/{urllib.parse.quote(eco)}/modified_id.csv",
+                       timeout=120).decode("utf-8", "replace")
+        except (urllib.error.URLError, OSError) as err:
+            print(f"OSV GCS {eco}: {err}", file=sys.stderr)
+            continue
+        years, ids = count_mal(text)
+        if ids:
+            by_year[eco], totals[eco] = years, len(ids)
+            all_ids |= ids
+    if not by_year:
+        raise RuntimeError("no OSV ecosystem index fetched")
+    write_json("malicious.json", {
+        "generatedAt": now_iso(),
+        "source": "OSV.dev malicious-package advisories (MAL-*, OpenSSF malicious-packages)",
+        "method": ("unique MAL-* ids per ecosystem in the OSV GCS modified_id.csv "
+                   "index, bucketed by the id's year (year the report was "
+                   "catalogued, not necessarily first seen); includes withdrawn"),
+        "byYear": by_year,
+        "totals": totals,
+        "total": len(all_ids),
+    })
+
+
+# --- 2. FIRST EPSS -------------------------------------------------------------
+EPSS_API = "https://api.first.org/data/v1/epss"
+EPSS_CSV = "https://epss.empiricalsecurity.com/epss_scores-current.csv.gz"
+EPSS_BATCH = 100  # API page limit; ~1.5 kB URL
+
+
+def parse_epss_api(d):
+    """FIRST API JSON page -> ({cve: {"epss", "pct"}}, modelDate)."""
+    scores, day = {}, None
+    for r in d.get("data") or []:
+        try:
+            scores[r["cve"]] = {"epss": float(r["epss"]),
+                                "pct": float(r["percentile"])}
+        except (KeyError, TypeError, ValueError):
+            continue
+        day = max(day or "", r.get("date") or "") or None
+    return scores, day
+
+
+def parse_epss_csv(text, wanted):
+    """Bulk CSV ("#model_version:..,score_date:..." + cve,epss,percentile)."""
+    scores, day = {}, None
+    lines = text.splitlines()
+    if lines and lines[0].startswith("#"):
+        m = re.search(r"score_date:(\d{4}-\d{2}-\d{2})", lines[0])
+        day = m.group(1) if m else None
+        lines = lines[1:]
+    for r in csv.DictReader(lines):
+        cve = r.get("cve")
+        if cve in wanted:
+            try:
+                scores[cve] = {"epss": float(r["epss"]),
+                               "pct": float(r["percentile"])}
+            except (KeyError, TypeError, ValueError):
+                pass
+    return scores, day
+
+
+def epss_wanted():
+    meta, _ = load_meta()
+    ids = set(meta or {})
+    kev = read_json("kev.json", {}) or {}
+    ids |= {e["cve"] for e in kev.get("entries") or [] if e.get("ai")}
+    return sorted(i for i in ids if i.startswith("CVE-"))
+
+
+def fetch_epss():
+    """API in batches of 100 CVEs (~25 requests, limit 1000/min); on any API
+    error fall back to the daily bulk CSV (~3 MB gz, all CVEs)."""
+    ids = epss_wanted()
+    if not ids:
+        print("EPSS: no CVEs to score (ai_meta.json missing?)", file=sys.stderr)
+        return
+    scores, day, src = {}, None, "FIRST EPSS"
+    try:
+        for i in range(0, len(ids), EPSS_BATCH):
+            batch = ids[i:i + EPSS_BATCH]
+            url = (f"{EPSS_API}?cve={','.join(batch)}"
+                   f"&limit={EPSS_BATCH}")
+            s, d = parse_epss_api(json.loads(get(url, timeout=60)))
+            scores.update(s)
+            day = max(day or "", d or "") or None
+            time.sleep(0.5)
+    except (urllib.error.URLError, json.JSONDecodeError, OSError) as err:
+        print(f"EPSS API: {err}; falling back to bulk CSV", file=sys.stderr)
+        text = gzip.decompress(get(EPSS_CSV, timeout=120)).decode()
+        scores, day = parse_epss_csv(text, set(ids))
+        src = "FIRST EPSS (bulk CSV)"
+    write_json("epss.json", {
+        "generatedAt": now_iso(),
+        "source": src,
+        "modelDate": day,
+        "requested": len(ids),
+        "scores": dict(sorted(scores.items())),
+    })
+
+
+# --- 3. OSV.dev AI package vulnerabilities -----------------------------------
 def osv_query(name, ecosystem):
-    return json.loads(post("https://api.osv.dev/v1/query",
-                           {"package": {"name": name, "ecosystem": ecosystem}}))
+    """All OSV records for one package (follows next_page_token)."""
+    vulns, token = [], None
+    while True:
+        q = {"package": {"name": name, "ecosystem": ecosystem}}
+        if token:
+            q["page_token"] = token
+        d = json.loads(post("https://api.osv.dev/v1/query", q, timeout=60))
+        vulns += d.get("vulns") or []
+        token = d.get("next_page_token")
+        if not token:
+            return vulns
+
+
+def dedupe_advisories(vulns):
+    """Group OSV records describing the same vulnerability.
+
+    OSV returns one record per database (e.g. PYSEC-* and GHSA-* for the same
+    bug); records that share an id or alias are merged, transitively.
+    Returns a list of groups (lists of records), in first-seen order.
+    """
+    parent = {}
+
+    def find(x):
+        while parent.setdefault(x, x) != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for v in vulns:
+        ids = [v.get("id", "")] + list(v.get("aliases") or [])
+        for other in ids[1:]:
+            parent[find(other)] = find(ids[0])
+    groups = {}
+    for v in vulns:
+        groups.setdefault(find(v.get("id", "")), []).append(v)
+    return list(groups.values())
+
+
+def osv_fixed(group):
+    """Any record's affected range has a "fixed" event."""
+    return any("fixed" in ev
+               for v in group for a in v.get("affected") or []
+               for r in a.get("ranges") or [] for ev in r.get("events") or [])
+
+
+def _advisory_row(group, package, layer=None):
+    """One display row for a group of duplicate OSV records."""
+    # earliest publication; prefer a GHSA record (it carries the summary)
+    group = sorted(group, key=lambda v: v.get("published") or v.get("modified") or "")
+    best = next((v for v in group if v.get("id", "").startswith("GHSA-") and v.get("summary")),
+                next((v for v in group if v.get("summary")), group[0]))
+    sev = ""
+    for v in [best] + group:
+        sev = next((s.get("score", "") for s in v.get("severity") or []
+                    if s.get("type", "").startswith("CVSS")), "")
+        if sev:
+            break
+    ids = [i for v in group for i in [v.get("id", "")] + list(v.get("aliases") or [])]
+    pub = group[0].get("published") or group[0].get("modified") or ""
+    return {
+        "id": best.get("id", ""),
+        "cve": next((a for a in ids if a.startswith("CVE-")), ""),
+        "package": package,
+        "layer": layer,
+        "published": pub[:10],
+        "summary": re.sub(r"\s+", " ", best.get("summary") or "")[:160],
+        "severity": sev,
+        "fixed": osv_fixed(group),
+    }
 
 
 def fetch_osv():
     by_month = {}
     per_package = {}
-    recent = []
-    for pkg, eco in [(p, "PyPI") for p in PYPI_PKGS] + [(p, "npm") for p in NPM_PKGS]:
+    tagged = []  # (record, "eco:pkg", layer)
+    for eco, pkg, layer in OSV_PKGS:
         try:
-            d = osv_query(pkg, eco)
-        except (urllib.error.URLError, json.JSONDecodeError) as err:
+            vulns = osv_query(pkg, eco)
+        except (urllib.error.URLError, json.JSONDecodeError, OSError) as err:
             print(f"OSV {eco}:{pkg}: {err}", file=sys.stderr)
             continue
-        vulns = d.get("vulns", [])
-        n = len(vulns)
-        per_package[pkg] = {"ecosystem": eco, "count": n,
+        # npm "langchain" and PyPI "langchain" are different packages
+        key = pkg if pkg not in per_package else f"{eco}:{pkg}"
+        per_package[key] = {"ecosystem": eco, "layer": layer,
+                            "count": len(dedupe_advisories(vulns)),
                             "latest": max((v.get("published") or "")[:10]
                                           for v in vulns) if vulns else None}
-        for v in vulns:
-            pub = v.get("published") or v.get("modified") or ""
-            if not pub:
-                continue
-            month = pub[:7]
-            by_month[month] = by_month.get(month, 0) + 1
-            sev = ""
-            for s in v.get("severity") or []:
-                if s.get("type", "").startswith("CVSS"):
-                    sev = s.get("score", "")
-                    break
-            recent.append({
-                "id": v.get("id", ""),
-                "cve": next((a for a in v.get("aliases") or []
-                             if a.startswith("CVE-")), ""),
-                "package": f"{eco}:{pkg}",
-                "published": (pub or "")[:10],
-                "summary": re.sub(r"\s+", " ", v.get("summary") or "")[:160],
-                "severity": sev,
-            })
+        tagged += [(v, f"{eco}:{pkg}", layer) for v in vulns]
         time.sleep(0.4)
+    # dedupe across packages too: one advisory can list several of them
+    tag_of = {id(v): (p, lay) for v, p, lay in tagged}
+    recent = []
+    for group in dedupe_advisories([v for v, _, _ in tagged]):
+        pkg, layer = tag_of[id(group[0])]
+        row = _advisory_row(group, pkg, layer)
+        if not row["published"]:
+            continue
+        by_month[row["published"][:7]] = by_month.get(row["published"][:7], 0) + 1
+        recent.append(row)
     recent.sort(key=lambda r: r["published"], reverse=True)
     write_json("ai_packages.json", {
         "generatedAt": now_iso(),
-        "source": "OSV.dev (GitHub Security Advisories, PyPI, etc.)",
+        "source": "OSV.dev (GitHub Security Advisories, PyPI, Go, etc.)",
+        "total": len(recent),
         "months": dict(sorted(by_month.items())),
         "perPackage": per_package,
         "recent": recent[:40],
     })
-
-
-# --- 3b. NVD full-text keyword counts ----------------------------------------
-def nvd_count(keyword):
-    url = ("https://services.nvd.nist.gov/rest/json/cves/2.0"
-           f"?keywordSearch={urllib.parse.quote(keyword)}&resultsPerPage=1")
-    d = json.loads(get(url))
-    return d.get("totalResults", 0)
-
-
-def fetch_nvd_counts():
-    out = {"generatedAt": now_iso(),
-           "source": "NVD API 2.0 full-text keywordSearch (derived source; lags the CVE list)"}
-    for key, kw in [("machineLearning", "machine learning"),
-                    ("neuralNetwork", "neural network"),
-                    ("llm", "large language model")]:
-        out[key] = nvd_count(kw)
-        time.sleep(7)  # anonymous: 5 req / 30s
-    write_json("nvd.json", out)
 
 
 # --- 4. Adoption proxies (npm downloads + pypistats) --------------------------
@@ -273,12 +766,11 @@ def fetch_downloads():
     write_json("downloads.json", out)
 
 
-# --- 5. NVD CVSS severity for the whole AI set (incremental) ----------------
-def _primary_cvss(cve):
-    """(severity, score, cwe_id, cwe_label) from a NVD CVE object."""
-    metrics = cve.get("metrics") or {}
-    sev, score = None, None
-    for key in ("cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+# --- 5. Severity of the AI set: record CVSS, NVD fallback (incremental) -----
+def _nvd_metric(metrics):
+    """(severity, score, version) per rule 5: V31 -> V40 -> V30, never V2."""
+    for key, ver in (("cvssMetricV31", "3.1"), ("cvssMetricV40", "4.0"),
+                     ("cvssMetricV30", "3.0")):
         m = metrics.get(key)
         if not m:
             continue
@@ -286,10 +778,18 @@ def _primary_cvss(cve):
         data = prim.get("cvssData") or {}
         sev = (data.get("baseSeverity") or "").upper() or None
         score = data.get("baseScore")
-        break
-    if sev is None and score is not None:  # old V2 records often lack baseSeverity
-        sev = ("CRITICAL" if score >= 9.0 else "HIGH" if score >= 7.0
-               else "MEDIUM" if score >= 4.0 else "LOW")
+        if sev == "NONE":
+            sev = None
+        if sev is None and score:
+            sev = ("CRITICAL" if score >= 9.0 else "HIGH" if score >= 7.0
+                   else "MEDIUM" if score >= 4.0 else "LOW")
+        return sev, score, ver
+    return None, None, None
+
+
+def _primary_cvss(cve):
+    """(severity, score, cwe_id, cwe_label) from a NVD CVE object."""
+    sev, score, _ = _nvd_metric(cve.get("metrics") or {})
     cwe_id, cwe_label = None, None
     for w in cve.get("weaknesses") or []:
         for wd in w.get("description") or []:
@@ -309,34 +809,138 @@ def _primary_cvss(cve):
     return sev, score, cwe_id, cwe_label
 
 
-def fetch_cvss(limit=0):
-    """Fetch primary CVSS for every AI CVE (NVD, 1 cveId per request, cached).
+def cvss_settled(sev, published_day, today=None):
+    """Whether a fetched NVD record needs no re-check: it has a severity, or
+    it is old enough that NVD analysis is not coming (records often arrive
+    "Awaiting Analysis" with no metrics and get scored days later)."""
+    if sev:
+        return True
+    today = today or dt.datetime.now(dt.timezone.utc).date()
+    try:
+        age = (today - dt.date.fromisoformat(published_day)).days
+    except (TypeError, ValueError):
+        return True
+    return age > CVSS_RECHECK_DAYS
 
-    Writes data/cvss.json (cache) and data/severity.json (chart payload).
-    First run: ~2250 requests (~50 min anonymous). Later runs: incremental.
+
+def _legacy(rec):
+    """Cache entry written before rule 5 (V40-first, V2 allowed): no "v" key."""
+    return "v" not in rec
+
+
+def needs_nvd(cid, m, cache, new_shape, today=None):
+    """Whether to (re)query NVD for this CVE.
+
+    New ai_meta: only CVEs whose record has no severity (rule 5 fallback);
+    legacy cache entries are refetched. Old ai_meta: every CVE, legacy ok.
     """
-    meta_path = os.path.join(DATADIR, "ai_meta.json")
-    if not os.path.exists(meta_path):
+    if new_shape and m.get("sev"):
+        return False
+    rec = cache.get(cid) or {}
+    if not rec.get("done"):
+        return True
+    if new_shape and _legacy(rec):
+        return True
+    return not cvss_settled(rec.get("sev"), m.get("d"), today)
+
+
+def pick_sev(m, rec, new_shape):
+    """(severity, source) for one CVE: record first, then NVD cache."""
+    if m.get("sev"):
+        return m["sev"], m.get("sevSrc") or "cna"
+    rec = rec or {}
+    if rec.get("sev") and not (new_shape and _legacy(rec)):
+        return rec["sev"], "nvd"
+    return None, "none"
+
+
+def severity_payload(meta, cache, new_shape):
+    """Aggregate -> severity.json body (+ CWE counts)."""
+    by_month, totals, by_src, layer_totals = {}, {}, {}, {}
+    cwe_counts, cwe_names = {}, {}
+    rated = 0
+    for cid, m in meta.items():
+        rec = cache.get(cid) or {}
+        cwe = m.get("cwe") or rec.get("cwe")
+        if cwe:
+            cwe_counts[cwe] = cwe_counts.get(cwe, 0) + 1
+            # prefer an NVD label that includes a name; fall back to the map
+            lab = (rec.get("cweLabel") or "") if rec.get("cwe") == cwe else ""
+            if lab and ": " in lab:
+                cwe_names[cwe] = lab
+            elif cwe in CWE_NAMES:
+                cwe_names.setdefault(cwe, CWE_NAMES[cwe])
+            elif lab:
+                cwe_names.setdefault(cwe, lab)
+        sev, src = pick_sev(m, rec, new_shape)
+        if sev not in SEVS:
+            sev, src = None, "none"
+        by_src[src] = by_src.get(src, 0) + 1
+        lt = layer_totals.setdefault(m.get("layer") or "other",
+                                     {s: 0 for s in SEVS + ("UNRATED",)})
+        lt[sev or "UNRATED"] += 1
+        if not sev:
+            continue
+        rated += 1
+        totals[sev] = totals.get(sev, 0) + 1
+        row = by_month.setdefault((m.get("d") or "")[:7], {})
+        row[sev] = row.get(sev, 0) + 1
+    by_month.pop("", None)
+    months = []
+    if by_month:
+        first, last = min(by_month), max(by_month)
+        y, mo = int(first[:4]), int(first[5:7])
+        while f"{y:04d}-{mo:02d}" <= last:
+            ym = f"{y:04d}-{mo:02d}"
+            row = by_month.get(ym, {})
+            months.append({"m": ym, **{s: row.get(s, 0) for s in SEVS}})
+            mo += 1
+            if mo > 12:
+                mo, y = 1, y + 1
+    for k in ("cna", "adp", "nvd", "none"):
+        by_src.setdefault(k, 0)
+    return {
+        "generatedAt": now_iso(),
+        "source": ("CVE record CVSS (CNA, then CISA-ADP) over the AI-related "
+                   "CVE set (cvelistV5); NVD API 2.0 fallback (v3.1 > v4.0 > v3.0)"),
+        "aiTotal": len(meta),
+        "rated": rated,
+        "totals": totals,
+        "bySource": by_src,
+        "layerTotals": layer_totals,
+        "cwe": dict(sorted(cwe_counts.items(), key=lambda kv: -kv[1])),
+        "cweNames": cwe_names,
+        "months": months,
+    }
+
+
+def _save_cache(cache):
+    path = dpath("cvss.json")
+    with open(path + ".tmp", "w") as f:
+        json.dump(cache, f)
+    os.replace(path + ".tmp", path)
+
+
+def fetch_cvss(limit=0):
+    """NVD fallback CVSS for AI CVEs without a record severity (1 cveId per
+    request, cached in cvss.json), then write severity.json.
+    """
+    meta, new_shape = load_meta()
+    if meta is None:
         print("ai_meta.json missing (run build.py first)", file=sys.stderr)
         return
-    meta = json.load(open(meta_path))["ids"]  # {cve: "YYYY-MM-DD"}
-    cache = {}
-    if os.path.exists(CVSS_CACHE):
-        try:
-            cache = json.load(open(CVSS_CACHE))
-        except json.JSONDecodeError:
-            cache = {}
-    todo = [c for c in meta if not (cache.get(c) or {}).get("done")]
+    cache = read_json("cvss.json", {}) or {}
+    todo = [c for c, m in meta.items() if needs_nvd(c, m, cache, new_shape)]
+    todo.sort(key=lambda c: meta[c].get("d") or "", reverse=True)  # newest first
+    print(f"NVD CVSS: {len(todo)} to fetch"
+          + (f" (limit {limit})" if limit else ""), file=sys.stderr)
     if limit:
         todo = todo[:limit]
     # NOTE: NVD only honors the FIRST cveId of a multi-cveId query (verified
     # empirically), so we fetch one CVE per request.
     for i, cid in enumerate(todo):
         if i % 50 == 0 and i:
-            tmp = CVSS_CACHE + ".tmp"
-            with open(tmp, "w") as f:
-                json.dump(cache, f)
-            os.replace(tmp, CVSS_CACHE)
+            _save_cache(cache)
         d = None
         for attempt in (1, 2):
             try:
@@ -354,78 +958,34 @@ def fetch_cvss(limit=0):
             if cve.get("id") != cid:
                 continue
             found = True
-            sev, score, cwe_id, cwe_label = _primary_cvss(cve)
-            cache[cid] = {"sev": sev, "score": score, "cwe": cwe_id,
-                          "cweLabel": cwe_label, "done": True}
+            sev, score, ver = _nvd_metric(cve.get("metrics") or {})
+            _, _, cwe_id, cwe_label = _primary_cvss(cve)
+            cache[cid] = {"sev": sev, "score": score, "v": ver, "cwe": cwe_id,
+                          "cweLabel": cwe_label,
+                          "done": cvss_settled(sev, meta[cid].get("d"))}
         if not found:  # not in NVD yet -> retry next run
-            cache[cid] = {"sev": None, "score": None, "cwe": None,
+            cache[cid] = {"sev": None, "score": None, "v": None, "cwe": None,
                           "cweLabel": None, "done": False}
         if i + 1 < len(todo):
-            time.sleep(6.5)  # anonymous: 5 req / 30 s
-    with open(CVSS_CACHE + ".tmp", "w") as f:
-        json.dump(cache, f)
-    os.replace(CVSS_CACHE + ".tmp", CVSS_CACHE)
-
-    # aggregate -> severity.json (+ CWE counts)
-    by_month = {}
-    totals = {}
-    cwe_counts = {}
-    cwe_names = {}
-    rated = 0
-    for cid, day in meta.items():
-        rec = cache.get(cid) or {}
-        sev = rec.get("sev")
-        if rec.get("cwe"):
-            c = rec["cwe"]
-            cwe_counts[c] = cwe_counts.get(c, 0) + 1
-            # prefer an NVD label that includes a name; fall back to the map
-            lab = rec.get("cweLabel") or ""
-            if lab and ": " in lab:
-                cwe_names[c] = lab
-            elif c in CWE_NAMES:
-                cwe_names.setdefault(c, CWE_NAMES[c])
-            elif rec.get("cweLabel"):
-                cwe_names.setdefault(c, rec["cweLabel"])
-        if not sev:
-            continue
-        rated += 1
-        totals[sev] = totals.get(sev, 0) + 1
-        row = by_month.setdefault(day[:7], {})
-        row[sev] = row.get(sev, 0) + 1
-    months = []
-    if by_month:
-        first, last = min(by_month), max(by_month)
-        y, m = int(first[:4]), int(first[5:7])
-        while f"{y:04d}-{m:02d}" <= last:
-            ym = f"{y:04d}-{m:02d}"
-            row = by_month.get(ym, {})
-            months.append({"m": ym,
-                           "CRITICAL": row.get("CRITICAL", 0),
-                           "HIGH": row.get("HIGH", 0),
-                           "MEDIUM": row.get("MEDIUM", 0),
-                           "LOW": row.get("LOW", 0)})
-            m += 1
-            if m > 12:
-                m, y = 1, y + 1
-    write_json("severity.json", {
-        "generatedAt": now_iso(),
-        "source": "NVD API 2.0 primary CVSS over the AI-related CVE set (cvelistV5)",
-        "aiTotal": len(meta),
-        "rated": rated,
-        "totals": totals,
-        "cwe": dict(sorted(cwe_counts.items(), key=lambda kv: -kv[1])),
-        "cweNames": cwe_names,
-        "months": months,
-    })
+            time.sleep(NVD_DELAY)
+    _save_cache(cache)
+    write_json("severity.json", severity_payload(meta, cache, new_shape))
 
 
 def main():
     os.makedirs(DATADIR, exist_ok=True)
-    tasks = [("KEV", fetch_kev), ("OSV AI packages", fetch_osv),
-             ("NVD counts", fetch_nvd_counts),
+    tasks = [("kev", fetch_kev),
+             ("epss", fetch_epss),  # after KEV: scores AI-flagged KEV CVEs too
+             ("zerodays", fetch_zerodays),  # after KEV: inKev cross-ref
+             ("malicious", fetch_malicious),
+             ("osv", fetch_osv),
              ("downloads", fetch_downloads),
-             ("AI CVSS", lambda: fetch_cvss(
+             ("cvss", lambda: fetch_cvss(
                  limit=int(os.environ.get("CVSS_LIMIT", 0))))]
+    # SOURCES_ONLY=kev,epss runs a subset (local testing)
+    only = {s.strip().lower() for s in os.environ.get("SOURCES_ONLY", "").split(",") if s.strip()}
+    if only:
+        tasks = [t for t in tasks if t[0] in only]
     failed = 0
     for name, fn in tasks:
         try:

@@ -1,105 +1,189 @@
-# AI × Cybersecurity dashboard
+# The vulnerability surge — and how much of it is AI
 
-A static, self-hosted dashboard showing **how AI is changing the cybersecurity
-landscape** across time scales — hourly, daily, weekly, monthly, yearly — and
-its impact (exploitation, attack-surface growth, adoption).
+A static, self-hosted dashboard for security leaders: how fast published
+CVEs, exploited vulnerabilities and zero-days are growing, and **where they
+come from** — AI software and MCP/agents, the open-source supply chain, web
+CMS plugins, network edge devices, OS/browser platforms, enterprise
+software. Rebuilt daily from public data.
 
-No server, no database, no third-party runtime dependency: six JSON data files
-plus one page. The only JS runtime on the page is a self-hosted copy of
-[uPlot](https://uplot.org) (vendored in `vendor/`).
+The page reads top-down from executive summary to analyst detail:
+
+1. **Summary** — one generated headline, four KPI tiles, CVEs per year by
+   origin, and where exploitation actually happens.
+2. **Risk** — exploitation by origin, zero-days, the AI & MCP deep dive
+   (exploited AI software, stack layers, patch-first by EPSS), supply chain.
+3. **Detail** — how AI software breaks vs all CVEs, AI share over time,
+   latest AI CVEs, who reports them, context.
+4. **Method** — definitions, measured accuracy, caveats.
+
+Every chart follows one standard: the title states the takeaway (computed
+from the data), the subtitle says what is plotted (measure, unit, grain,
+window), axes carry units, and each chart has a *How to read* line with
+its main pitfall, a *So what* line where the data supports an action, and a
+source line with its data date. Comparisons are like-for-like (year-to-date
+vs the same period last year). Outliers are detected and annotated from the
+data (bulk disclosures, spam waves, catalog backlogs) rather than hardcoded.
+
+No server, no database, no third-party runtime dependency: a handful of JSON
+data files plus one page. The only JS runtime on the page is a self-hosted
+copy of [uPlot](https://uplot.org) (vendored in `vendor/`).
 
 ![status](https://img.shields.io/badge/data-rebuilt%20daily-blue)
 
 ## What it shows
 
-| Panel | What | Source |
+| Section | What | Source |
 |---|---|---|
-| Stat cards | Totals, AI share, month projection, KEV, package advisories, adoption | all sources |
-| CVE issuance | All vs AI-related per day/week/month/year; count / cumulative / AI share % | `cvelistV5` |
-| Hourly activity | New CVEs per hour (40d) + record updates per hour (30d) | `cvelistV5` + `deltaLog.json` |
-| AI package vulns | Advisories per month for AI/ML packages (PyPI + npm) + 8 most recent advisories | OSV.dev |
-| AI CVE severity mix | Stacked CRITICAL/HIGH/MEDIUM/LOW per month over the whole AI set | cvelistV5 + NVD CVSS |
-| Top CWEs of AI CVEs | The 12 most common weakness classes behind AI CVEs (NVD) | cvelistV5 + NVD |
-| AI adoption | Monthly npm downloads of AI SDKs (log scale) | npm downloads API |
-| Latest AI CVEs | Feed of the last 30 AI-matched CVEs, CNA + CVSS severity + KEV cross-ref | `cvelistV5` + NVD + KEV |
-| KEV timeline | KEV additions per month (all products, since Nov 2021) + ransomware stat | CISA KEV |
-| KEV (AI) | CISA Known-Exploited entries in the AI CVE set (or AI-keyword text match) | CISA KEV + `ai_meta.json` |
+| Summary: headline + KPIs | CVEs YTD (× same period last year), exploited (KEV) YTD + exploited-at-disclosure, % from AI + MCP, supply chain (OSS CVEs + malicious packages) | all |
+| Summary: CVEs by origin | CVEs per year since 2018, stacked by origin; partial year marked; bulk-disclosure caveat | `cvelistV5` |
+| Summary: where exploitation happens | KEV additions this year by origin (count · share) | CISA KEV |
+| Exploitation by origin | KEV additions per year by origin (2022+; 2022 backlog quantified) | CISA KEV |
+| Zero-days | Exploited-at-disclosure proxy per year + recent in-the-wild zero-days | KEV, Google Project Zero |
+| AI & MCP deep dive | Exploited AI software, AI CVEs by stack layer, patch-first by EPSS | KEV, `cvelistV5`, EPSS |
+| Supply chain | Open-source CVEs per year; malicious packages per year by registry (outlier years clipped + labelled) | `cvelistV5`, OSV |
+| How AI software breaks | AI vs all: severity distribution and top CWEs (last 24 months); AI severity mix over time | `cvelistV5` (+ NVD fallback) |
+| AI share over time | AI % of all CVEs per period (count / cumulative / share modes) | `cvelistV5` |
+| Latest AI CVEs, who reports | Last 30 AI CVEs (filterable); AI CVEs per year by assigning CNA | `cvelistV5` + KEV |
+| Context | AI package advisories (OSV) and npm AI SDK downloads (adoption, not attack surface) | OSV, npm |
+| Method | Origin + layer definitions, zero-day proxy, measured precision/recall, severity rule, caveats | `data.json` |
 
 ## Data sources (all public, keyless)
 
 1. **`CVEProject/cvelistV5`** (git) — the *official* CVE list in CVE-JSON-5.
-   One JSON file per CVE under `cves/<year>/<prefix>xxx/`, synced upstream
-   ~every 7 minutes. We clone it depth-1 + partial (blobless) + sparse
-   (~4.5 GB working tree). Each record's `cveMetadata` carries
-   `state`, `datePublished`, `dateReserved` (hour precision) — the core of
-   every chart. `cves/deltaLog.json` is a 30-day rolling log of every sync
-   (new/updated CVE ids) → hourly activity.
-   *This is the same source as cve.0xosprey.com, and the best source for
-   raw CVE counts: it is the list itself, not a derived index.*
-2. **CISA KEV** (single JSON) — known-exploited-vulnerabilities catalog.
-3. **OSV.dev** (API) — package security advisories (GitHub Security, PyPI,
-   npm, …) for a curated list of 24 PyPI + 9 npm AI/ML packages.
-4. **npm downloads API** + **pypistats** — adoption / attack-surface proxies.
-5. **NVD API 2.0** (enrichment only) — `sourceIdentifier` for CNA names and
-   primary **CVSS severity/score** for the 30-entry feed (badges); full-text
-   keyword counts on the AI card; and a full **CVSS join over the entire AI
-   set** (one `cveId` per request — NVD only honors the first of a multi-cveId query — ≈2250 requests, cached in `cvss.json`,
-   incremental afterwards) → the severity-mix chart. NVD is a *derived*
-   source (it lags the CVE list), so it's used for enrichment, never for the
-   core counts.
+   One JSON file per CVE under `cves/<year>/<N>xxx/`, synced upstream ~every
+   7 minutes. Cloned depth-1 + blobless + sparse (~4.5 GB). It is the primary
+   source for everything: counts, dates, origin, the AI flag, assigner,
+   affected product, CWE and — for ~96% of AI CVEs — severity (the CNA's own
+   CVSS, or CISA's ADP "Vulnrichment" score).
+2. **CISA KEV** — known-exploited-vulnerabilities catalog (a *lower bound* of
+   exploitation: it only lists what CISA has confirmed). Every entry gets an
+   origin, its CVE publication date, days-to-KEV and the zero-day flag.
+3. **Google Project Zero "0day In the Wild"** — public tracker of confirmed
+   in-the-wild zero-days (keyless CSV export of the published sheet's "All"
+   tab; skipped gracefully if its columns change).
+4. **FIRST EPSS** — daily exploitation-probability scores
+   (`api.first.org/data/v1/epss`, 100 CVEs per request; falls back to the
+   daily bulk CSV) for every AI CVE.
+5. **OSV.dev** — (a) package advisories for ~74 AI packages across PyPI, npm
+   and Go, with `PYSEC-*`/`GHSA-*` duplicates merged; (b) **malicious
+   packages**: `MAL-*` ids counted per ecosystem from the per-ecosystem
+   `modified_id.csv` index in OSV's public GCS bucket (~11 MB, no zips).
+6. **npm downloads API** + **pypistats** — adoption context only.
+7. **NVD API 2.0** — severity *fallback* only, for AI CVEs whose record has
+   no CVSS (CVSS v3.1 → v4.0 → v3.0; never v2), cached in `cvss.json`;
+   unscored CVEs are re-checked for 90 days. NVD lags the CVE list, so it is
+   never used for counts.
 
-### Why not just NVD for everything?
+## Origins — where a CVE comes from
 
-NVD's `keywordSearch` (e.g. “large language model” → ~200 CVEs) is useful,
-but NVD is a secondary index: records arrive after the CVE list, counts drift
-vs the official list, and full-text search can't see `dateReserved` (only
-published records). `cvelistV5` is the primary source and is also what the
-reference site uses.
+Each published CVE gets exactly one origin (`build.py` → `ORIGINS`), first
+match wins:
 
-## “AI-related” — methodology
+| id | Origin | Rule (summary) |
+|---|---|---|
+| `mcp` | MCP servers & AI agents | AI stack layer = mcp (below) |
+| `ai` | Other AI software | any other AI layer |
+| `plugin` | Web CMS plugins & themes | WordPress/Joomla/Drupal plugin/theme/extension (Wordfence, Patchstack, WPScan CNAs; wordpress.org/drupal.org collection URLs; `pkg:wordpress-*`) |
+| `supplychain` | Open-source projects & packages | registry packageURL/collectionURL (npm, PyPI, Maven, Go, Cargo, Composer, RubyGems, NuGet, …) or OSS CNAs (GitHub, PSF, Go, OpenJS, EEF, CPANSec) |
+| `edge` | Network & security edge devices | firewalls, VPN/SSL gateways, routers, load balancers (Fortinet, Ivanti Connect Secure, Citrix ADC/Gateway, PAN-OS, Cisco ASA/FTD/IOS, SonicWall, Juniper, F5 BIG-IP, …) |
+| `platform` | OS, browsers & core platforms | Microsoft, Apple, Google Android/Chrome, Linux kernel, Mozilla, mobile chipsets, VMware ESXi/vCenter |
+| `other` | Enterprise & other software | everything else — mostly Oracle, Adobe, IBM, SAP, Atlassian, Apache, PHP web apps |
 
-A CVE counts as AI-related if a case-insensitive keyword set matches its
-English description **or** its affected vendor/product/packageURL. The set
-covers ML terminology (“machine learning”, “neural”, “LLM”, “prompt
-injection”, …), AI frameworks (PyTorch, TensorFlow, Hugging Face, ONNX, …)
-and package names (`transformers`, `vllm`, `openai`, …) with word-boundary
-matching so e.g. `jax` does **not** match “AJAX” or “JAX-WS”. It is a
-heuristic: expect a small error both ways (roughly 0.1–0.5% of all CVEs).
-Tune `AI_PATTERNS` / `AI_PACKAGES` in `build.py`.
+Sampled precision (2024–26): plugin 25/25, supply chain 25/25, edge ~93%,
+platform ~93%. `plugin` is evaluated before `supplychain` so WordPress
+packages stay plugins. **Caveat:** the supply-chain jump in 2026 is largely
+GitHub's CNA issuing far more CVEs (~2.6k → 12k) — partly a reporting change.
+
+**Zero-day proxy** — a KEV entry whose CVE was published ≤1 day before CISA
+added it (or after) counts as *exploited at disclosure*; bucketed by CVE
+publication year. It misses exploitation CISA confirms later, so recent years
+fill in over time. Project Zero's tracker is shown alongside as a stricter,
+smaller count of confirmed in-the-wild zero-days.
+
+## “AI-related” — methodology (the AI and MCP origins)
+
+`build.py` parses each record as full JSON and matches, case-insensitively:
+
+- a curated **product/vendor list** of the AI stack against affected
+  vendor/product/packageURL (CNA entries of the record's own vendor plus
+  CISA ADP entries; downstream distro entries — Red Hat, SUSE, Debian,
+  Ubuntu — are skipped, since they list "OpenShift AI" etc. as bundles for
+  unrelated library bugs), and distinctive names in the English description;
+- **MCP / agent** terms ("Model Context Protocol", MCP servers, AI agents);
+- **AI cloud assistants** (Copilot, Azure OpenAI, Bedrock, Vertex AI, …);
+- generic **AI terminology** ("machine learning", "large language model",
+  "prompt injection", …).
+
+Generic framework package names (`jax`, `torch`, `accelerate`, …) only
+count in package URLs or with AI context, so "Jax Guestbook" or BlackBerry
+"Torch" no longer match; Linux kernel records are never AI.
+Each AI CVE gets one **stack layer** (first match in priority order):
+
+| id | Layer |
+|---|---|
+| `mcp` | MCP servers & agent tools |
+| `gateway` | LLM gateways & proxies |
+| `inference` | Inference & model serving |
+| `mlops` | MLOps & ML platforms |
+| `llmapp` | LLM apps & orchestration |
+| `model` | Model files & loading |
+| `cloud` | AI cloud services & assistants |
+| `framework` | ML frameworks & libraries |
+| `other` | Other AI-related (generic terminology only) |
+
+**Measured accuracy** — `tools/ai_labels.json` is a hand-labeled stratified
+sample (290 records: flagged / AI-looking-but-unflagged / random);
+`python3 tools/eval_ai.py` scores the current matcher against it, and the
+result is published in `data.json` → `evaluation` and on the page. Precision
+is ~99%. Population-weighted recall is ~50% but highly uncertain (it hinges
+on a single miss in the 383k-record random stratum), so treat every AI count
+as a **lower bound**. Re-label and re-run when the matcher changes.
+
+**Bulk disclosures** — single products sometimes dominate a year
+(TensorFlow: 84–97% of AI CVEs in 2020–22; OpenClaw: ~16% of 2026, almost
+all assigned by VulnCheck). `data.json` → `concentration` detects these
+(≥10% of a year and ≥25 CVEs) and the page annotates them.
+
+**Severity rule** (per CVE, first available): CNA CVSS v3.1 → CNA v4.0 → CNA
+v3.0 → CISA-ADP v3.1 → NVD (v3.1 → v4.0 → v3.0). The source is recorded
+(`sevSrc`) and shown on the page. CVSS is severity, not risk — the page pairs
+it with KEV and EPSS.
 
 ## Pipeline
 
 ```
-build.py     cvelistV5 (git)  →  data/data.json        (+ data/ai_meta.json, data/cache.json)
-sources.py   KEV, OSV, NVD, npm/pypistats → data/{kev,ai_packages,nvd,downloads,severity}.json
+build.py     cvelistV5 (git) → data/data.json, data/ai_meta.json   (+ data/cache.json)
+sources.py   KEV, Project Zero, OSV (advisories + malicious), EPSS, npm/pypistats, NVD fallback
+               → data/{kev,zerodays,malicious,epss,ai_packages,downloads,severity}.json
+                 (+ data/cvss.json cache)
 index.html   static page (CSP-locked) reading data/*.json via same-origin fetch
 ```
 
-- First run clones the repo (~4.5 GB) and parses all ~414k records (~1 min).
-  Parsed `(state, published, reserved, isAi)` rows are cached in
-  `data/cache.json`.
-- Later runs `git fetch` only the changed files (a few MB) and re-parse just
-  those (~6 s) — the repo publishes ~100 changed files a day.
-- Set `CVE_CLONE_DIR` to relocate the clone (CI uses the runner temp dir).
-- NVD lookups for the 30-entry feed are cached in `data/orgs.json`.
-- `build.py` also emits `data/ai_meta.json` (every AI CVE id + publish date),
-  which `sources.py` uses for the incremental NVD CVSS join (cached in
-  `data/cvss.json`, aggregated to `data/severity.json`). First CVSS run is
-  ~2250 NVD requests (~50 min anonymous); later runs only fetch new AI CVEs.
+- First run clones the repo (~4.5 GB) and parses all ~414k records with a
+  process pool (~30 s on 8 cores). Parsed rows are cached in
+  `data/cache.json`, tagged with `PARSER_VERSION` — bump it in `build.py`
+  when the matcher or extracted fields change, and the next run re-parses all.
+- Later runs `git fetch` only the changed files and re-parse just those (~6 s).
+- `CVE_CLONE_DIR` relocates the clone (CI uses the runner temp dir);
+  `CVE_DATA_DIR` redirects every data file both scripts read/write (handy for
+  experiments without touching `data/`).
+- `sources.py` options: `SOURCES_ONLY=kev,zerodays,malicious,epss,osv,downloads,cvss` runs a
+  subset; `CVSS_LIMIT=20` caps NVD requests; `NVD_API_KEY` (free) raises the
+  NVD rate limit ~10×.
 
 ### Run it
 
 ```bash
 python3 build.py      # incremental (full on first run; --full to force)
-python3 sources.py    # KEV/OSV/NVD/downloads ~1.5 min + AI CVSS join
-                      #   (first CVSS run ~50 min; CVSS_LIMIT=20 for a quick slice)
+python3 sources.py    # KEV / EPSS / OSV / downloads + NVD fallback (~2–10 min)
 python3 -m http.server 8080
 open http://localhost:8080
 ```
 
-Dev loop: `python3 test_build.py` (unit tests, no network),
-`./tools/check.sh` (headless-Chrome smoke test: data + render + no overflow;
-needs Chrome, set `CHROME` env if needed), and
+Dev loop: `python3 test_build.py` and `python3 test_sources.py` (unit tests,
+no network), `python3 tools/eval_ai.py` (matcher precision/recall),
+`./tools/check.sh` (headless-Chrome smoke test at desktop and phone width:
+data + render + no overflow; needs Chrome, set `CHROME` env if needed), and
 `python3 tools/cdp_probe.py <url> "<js-expression>"` (ad-hoc DOM probe).
 
 ## Hosting (public)
@@ -109,9 +193,12 @@ The site is fully static — `index.html`, `css/`, `js/`, `vendor/uPlot.*`,
 Netlify, a reverse proxy).
 
 **GitHub Pages + daily rebuild**: `.github/workflows/daily.yml` is wired for
-it — a cron job rebuilds the data, commits `data/`, and the push triggers
-the Pages deploy of a clean `dist/` (no clone, no caches). Enable Pages with
-“GitHub Actions” as the source.
+it — a cron job runs the unit tests, rebuilds the data, commits `data/`, and
+deploys a clean `dist/` (no clone, no caches) to Pages — every run deploys,
+since a push made with `GITHUB_TOKEN` doesn't trigger another workflow. Enable
+Pages with “GitHub Actions” as the source. Optionally add an `NVD_API_KEY`
+repository secret ([free key](https://nvd.nist.gov/developers/request-an-api-key))
+to speed up the NVD steps.
 
 **Any host**: serve the repo root and set these headers:
 
@@ -139,28 +226,22 @@ Cache-Control: public, max-age=3600   (for data/*.json)
 How each graph is actually built — useful if you are poking at `js/app.js` or
 the rendered DOM:
 
-- **X-axis data units differ per chart.** The time charts (cves, severity, KEV,
-  AI packages, adoption) index x in **days from epoch** (e.g. 20727 =
-  2026-10-23); the hourly chart uses **seconds from epoch**. uPlot's `time`
-  scale does not convert units — it passes the *raw data units* through to the
-  axis `values` formatter and only uses them for positioning — so each chart's
-  formatter converts to a `Date` with its own multiplier (`86400e3` for days,
-  `1e3` for seconds).
+- **X-axis is days from epoch** on every time chart (e.g. 20727 =
+  2026-10-23). uPlot's `time` scale assumes *seconds* for tick placement and
+  passes raw data units to the label formatter, so the app places ticks
+  itself: `dayAxis()` supplies `axes[].splits` on clean boundaries (Jan 1,
+  first of month, or day, depending on span) and a matching `values`
+  formatter (at most one label per year, so long spans never repeat a year).
 - **Label formatter is `axes[].values`, not `ticks`.** `values:
   (self, vals) => [..labels]` receives the tick values (in data units) and
   returns one string per tick (empty string hides the label). `ticks` only
   styles the tick marks. (The app wraps this as the `tick(fn)` helper.)
-- **Label density is span-aware.** Long spans get year-only labels (e.g.
-  "2004, 2009, 2014…" across 27 years); short spans get "YYYY-MM" or
-  "MM-DD". This lives in the per-chart `values` closures and `monthTick()`.
-- **The hourly chart uses seconds**, because uPlot's time-scale tick *placement*
-  (a discrete increment list of clean day/month steps) assumes
-  second-magnitude values; hour-magnitude values produced only ~1 misplaced
-  tick. At a 41-day second-scale range it places midnight-aligned ticks every
-  5 days (verified: 09-13, 09-18, 09-23…).
-- **y2 "updates" series**: the hourly chart plots record-updates on a second
-  y-scale (`y2`) whose range is `max*3` — i.e. the line is drawn at 1/3 scale
-  and the cursor tooltip shows true counts. The axis is hidden.
+- **Stacked bars are hand-made**: uPlot 1.6 has no stacking, so
+  `stackedBars()` draws each series with `uPlot.paths.bars` from 0 to its
+  *cumulative* height, topmost layer first, so lower layers overpaint the
+  bottoms of the bars above. Legend/cursor values show raw counts; hiding a
+  series in the legend re-stacks. On narrow screens, monthly bars thinner
+  than ~3 px are re-bucketed to quarters, then years (`coarsenMonthly()`).
 - **Sizing**: uPlot takes a fixed `width` (no `clientWidth` reading
   internally). `makeChart` measures the *host element's* `clientWidth`
   (not the panel's — the panel's includes its padding, which used to make the
@@ -174,9 +255,7 @@ the rendered DOM:
   cell (`th`) toggles the series natively (the row/table itself is not the
   target). The main chart mirrors that toggle into its custom checkboxes +
   state via a delegated click listener on `.u-legend` (bound on a rAF: the
-  legend DOM only exists after the first layout frame). The hourly chart
-  shows a cursor-driven `.htip` text line instead; the severity chart keeps
-  its legend off (a stacked mix shouldn't be partially toggled).
+  legend DOM only exists after the first layout frame).
 - **Headless verification**: `tools/cdp_probe.py` drives headless Chrome over
   CDP; the charts expose themselves as `document.querySelector("#chart-*")._u`
   (uPlot instance), whose `axes[n]._values` is the exact label array uPlot
@@ -192,9 +271,12 @@ js/app.js             charts + tables (uPlot, defensive)
 logo.svg              Turrican sprite logo (generated; see below)
 art/                  reference sprite art used to generate logo.svg
 vendor/uPlot.*        pinned uPlot 1.6.32 (self-hosted)
-build.py              cvelistV5 → data/data.json + data/ai_meta.json
-sources.py            KEV / OSV / NVD / npm / pypistats → data/*.json (+ severity.json, cvss.json cache)
-test_build.py         unit tests for the heuristics + parser
+build.py              cvelistV5 → data/data.json + data/ai_meta.json (AI matcher, layers, severity)
+sources.py            KEV / Project Zero / OSV / EPSS / npm / pypistats / NVD fallback → data/*.json
+test_build.py         unit tests: matcher, parser, severity, aggregation
+test_sources.py       unit tests: KEV, EPSS, OSV dedupe/fix, severity fallback
+tools/ai_labels.json  hand-labeled sample for measuring the matcher
+tools/eval_ai.py      precision/recall of the matcher against ai_labels.json
 tools/check.sh        headless smoke test (data + render + overflow)
 tools/cdp_probe.py    headless-Chrome probe helper (dev only)
 tools/check_expr.js   JS assertions used by check.sh
@@ -215,17 +297,27 @@ background. Regenerate with `python3 tools/make_logo.py` (or pass an alternate
 
 ## Ideas / extensions
 
-- **PyPI download history** via the public BigQuery
-  `pypi.file_downloads` dataset (needs a GCP service account) for a log-scale
-  PyPI mirror of the npm adoption chart.
-- **CNA org names** at scale: the CVE Services orgs API; per-CVE NVD
-  `sourceIdentifier` is used today for the 30-entry feed only.
-- **arXiv cs.CR + ML paper counts** as a research-activity proxy.
-- **HuggingFace model count** as an AI-surface proxy (API needs paging).
+- **"Check your stack"**: paste a `requirements.txt` / `package.json` and
+  match it in the browser against OSV advisories with fixed versions (needs
+  OSV affected ranges kept in `ai_packages.json`).
+- **Malicious AI packages** (OSV `MAL-*` records) and malicious models — a
+  large real-world AI supply-chain risk that CVEs don't cover.
+- **OWASP Top 10 for LLM Apps / MITRE ATLAS** mapping of AI CVEs.
+- **VulnCheck KEV** (free token) as a wider exploitation signal than CISA KEV.
+- **Internet exposure** of default-unauthenticated AI servers (needs a
+  Shodan/Censys key).
 
 ## Caveats
 
-- “AI-related” is a keyword heuristic (see methodology).
-- NVD-based enrichment lags the CVE list by hours–days.
-- `deltaLog.json` covers only 30 days (upstream rolling window).
-- npm downloads count = package installs, not unique users.
+- Origins are vendor/product/package rules — sampled precision 93–100%,
+  but edge and platform boundaries are judgment calls (see Origins).
+- The zero-day proxy undercounts recent years (CISA confirms some
+  exploitation later); malicious-package counts include mass spam waves
+  (npm 2025) — the page clips and labels such outlier years.
+- “AI-related” is a product/keyword heuristic — precise, but recall is
+  uncertain, so counts are a lower bound (see methodology).
+- Single-product bulk disclosures (TensorFlow 2020–22, OpenClaw 2026) and
+  new CNAs move the curve; read trends with the page's annotations.
+- CISA KEV is a lower bound of exploitation; EPSS is a model estimate.
+- NVD (severity fallback) lags the CVE list by hours–days.
+- npm downloads count package installs (largely CI), not users or exposure.

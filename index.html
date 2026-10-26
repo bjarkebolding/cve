@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AI × Cybersecurity — live CVE dashboard</title>
-<meta name="description" content="How AI is changing the cybersecurity landscape: AI-related CVEs from the official CVE list, hourly activity, AI package vulnerabilities, and adoption signals — rebuilt daily from public sources.">
-<meta property="og:title" content="AI × Cybersecurity — live CVE dashboard">
-<meta property="og:description" content="AI-related CVEs, hourly CVE activity, AI package vulnerabilities, adoption and exploitation signals — rebuilt daily from public sources.">
+<title>The vulnerability surge — and how much of it is AI</title>
+<meta name="description" content="Published CVEs, exploited vulnerabilities (CISA KEV) and zero-days — and where they originate: AI software and MCP agents, open-source packages, CMS plugins, edge devices, core platforms. Rebuilt daily from public data.">
+<meta property="og:title" content="The vulnerability surge — and how much of it is AI">
+<meta property="og:description" content="CVE volume, exploitation and zero-days by origin — AI/MCP, supply chain, plugins, edge devices, platforms — rebuilt daily from the CVE list, CISA KEV, EPSS and OSV.">
 <meta property="og:type" content="website">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#000000">
@@ -20,39 +20,171 @@
 <body>
 <noscript><p class="noscript-msg">This dashboard needs JavaScript to render its charts. Data is committed in <code>data/*.json</code> and the pipeline in <code>build.py</code>/<code>sources.py</code>.</p></noscript>
 <main>
-  <header>
-    <img class="logo" src="logo.svg" alt="Turrican pixel-art hero firing his blaster" width="58" height="72">
-    <div>
-      <h1>AI <span class="x">×</span> Cybersecurity</h1>
-      <p class="tag">How AI is reshaping the vulnerability landscape — built daily from public data.</p>
-      <p class="stamp" id="stamp" aria-live="polite">loading…</p>
+  <nav class="topnav" aria-label="page sections">
+    <a href="#summary">Summary</a><a href="#risk">Risk</a><a href="#detail">Detail</a><a href="#method">Method</a>
+  </nav>
+
+  <div class="tier tier1" id="summary">
+    <header>
+      <img class="logo" src="logo.svg" alt="Turrican pixel-art hero firing his blaster" width="58" height="72">
+      <div>
+        <h1>The vulnerability surge <span class="x">—</span> and how much of it is AI</h1>
+        <p class="tag">Every published CVE, what attackers exploit, and where it comes from — AI &amp; MCP, open-source projects, plugins, edge devices, platforms, enterprise software.</p>
+        <p class="stamp" id="stamp" aria-live="polite">loading…</p>
+      </div>
+    </header>
+    <p class="tier-label"><span>Tier 1</span> Executive summary</p>
+    <p class="headline" id="headline"></p>
+    <p class="subhead" id="subhead"></p>
+    <div class="kpis" id="kpis" aria-label="key indicators"></div>
+    <div class="sumgrid">
+      <div class="panel hero">
+        <h2 id="h-hero">CVEs per year, by origin</h2>
+        <p class="hint" id="hero-sub">Published CVEs per calendar year, stacked by origin.</p>
+        <div id="chart-hero" class="chart"></div>
+        <p class="note" id="hero-note"></p>
+      </div>
+      <div class="panel where" aria-labelledby="h-where">
+        <h2 id="h-where">Where exploitation happens</h2>
+        <p class="hint" id="where-hint">CISA KEV additions this year, by origin.</p>
+        <div id="where-bars"></div>
+      </div>
     </div>
-  </header>
+  </div>
 
-  <section class="cards" id="cards" aria-label="key statistics"></section>
+  <div class="tier tier2" id="risk">
+    <p class="tier-label"><span>Tier 2</span> Where the risk is</p>
 
-  <section class="panel">
-    <h2>CVE issuance — all vs AI-related</h2>
-    <p class="hint">Published CVE records from the official CVE list, 1999 → now. AI = keyword/packaged match on descriptions, affected products and PURLs.</p>
-    <div id="chart-cves"></div>
+  <section class="panel" id="exploitation" aria-labelledby="h-exploitation">
+    <h2 id="h-exploitation">Exploitation by origin (CISA KEV)</h2>
+    <p class="hint" id="kev-origin-hint">Vulnerabilities added to CISA's Known Exploited Vulnerabilities catalog per year, by origin (2022+; the catalog launched in Nov 2021 with a backlog).</p>
+    <div id="chart-kev-origin" class="chart"></div>
+    <div class="duo">
+      <div class="sub">
+        <h3 id="h-zd">Exploited at disclosure (zero-day proxy)</h3>
+        <p class="hint" id="zd-hint">KEV entries added at most one day after the CVE was published, by publication year.</p>
+        <div id="chart-zeroday" class="chart"></div>
+      </div>
+      <div class="sub">
+        <h3 id="h-zdlist">Recent zero-days</h3>
+        <p class="hint" id="zd-list-hint">Latest vulnerabilities exploited at or before disclosure.</p>
+        <div class="tablewrap">
+          <table id="tbl-zd">
+            <thead><tr><th scope="col">CVE</th><th scope="col">Product</th><th scope="col">Origin</th><th scope="col">Date (UTC)</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="group" id="ai">
+    <h2 class="group-h">AI &amp; MCP deep dive</h2>
+    <div class="duo ai-lead">
+      <div class="panel exploited-strip" aria-labelledby="h-strip">
+        <h3 id="h-strip">Exploited AI products</h3>
+        <div class="chips" id="kev-chips"></div>
+        <p class="hint" id="kev-chips-hint">AI products with CVEs in CISA's Known Exploited Vulnerabilities catalog.</p>
+      </div>
+      <div class="panel todo" aria-labelledby="h-todo">
+        <h3 id="h-todo">What to do</h3>
+        <ul class="todo-list" id="todo-list"></ul>
+      </div>
+    </div>
+  <section class="panel" id="exploited" aria-labelledby="h-exploited">
+    <h2 id="h-exploited">Exploited AI software (CISA KEV)</h2>
+    <p class="hint" id="kev-hint">AI-software CVEs in CISA's Known Exploited Vulnerabilities catalog — confirmed in-the-wild exploitation. KEV is a lower bound: most exploitation is never catalogued.</p>
+    <div class="tablewrap">
+      <table id="tbl-kev">
+        <thead><tr><th scope="col">CVE</th><th scope="col">Product</th><th scope="col">Layer</th><th scope="col">Published (UTC)</th><th scope="col">Added to KEV (UTC)</th><th scope="col" class="num" title="days from CVE publication to KEV addition">Days to KEV (days)</th><th scope="col" class="num" title="FIRST EPSS: probability of exploitation activity in the next 30 days">EPSS (30-day prob.)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" id="layers" aria-labelledby="h-layers">
+    <h2 id="h-layers">AI CVEs by stack layer, per month (2018+)</h2>
+    <p class="hint" id="layers-hint">Each AI-related CVE is assigned to one layer of the AI stack (first matching rule wins — see methodology). Click a legend entry to hide a layer; the stack re-flows.</p>
+    <div id="chart-layers" class="chart"></div>
+    <p class="note" id="layers-note">Note: 2021–22 is dominated by TensorFlow (framework layer) — one project's bulk disclosure of hundreds of fuzzing-found crash bugs, not a sudden rise in exploitable AI software. Hide the framework layer to see the rest of the stack.</p>
+  </section>
+
+  <section class="panel" id="patch" aria-labelledby="h-patch">
+    <h2 id="h-patch">Patch first — AI CVEs most likely to be exploited</h2>
+    <p class="hint" id="epss-hint">Top 20 AI-related CVEs by FIRST EPSS score (estimated probability of exploitation activity in the next 30 days).</p>
+    <div class="tablewrap">
+      <table id="tbl-epss">
+        <thead><tr><th scope="col">CVE</th><th scope="col">Product</th><th scope="col">Layer</th><th scope="col">Severity (CVSS)</th><th scope="col" class="num">EPSS (30-day prob.)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+  </div>
+
+  <section class="panel" id="supply" aria-labelledby="h-supply">
+    <h2 id="h-supply">Supply chain: open-source projects &amp; packages</h2>
+    <div class="duo">
+      <div class="sub">
+        <h3 id="h-supply-cves">Open-source CVEs per year</h3>
+        <p class="hint" id="supply-hint">CVEs whose affected product is an open-source package (npm, PyPI, Maven, Go, crates.io, …).</p>
+        <div id="chart-supply" class="chart"></div>
+      </div>
+      <div class="sub">
+        <h3 id="h-mal">Malicious packages per year</h3>
+        <p class="hint" id="mal-hint">Malicious open-source packages reported to OSV (MAL-* advisories), by ecosystem. These are not CVEs.</p>
+        <div id="chart-malicious" class="chart"></div>
+      </div>
+    </div>
+  </section>
+  </div>
+
+  <div class="tier tier3" id="detail">
+    <p class="tier-label"><span>Tier 3</span> Analyst detail</p>
+  <section class="panel" id="breaks" aria-labelledby="h-breaks">
+    <h2 id="h-breaks">How AI software breaks — AI vs all CVEs</h2>
+    <p class="hint" id="breaks-hint">Weakness classes and severity of AI-related CVEs compared with all CVEs.</p>
+    <div class="duo">
+      <div class="sub">
+        <h3 id="h-sevcmp">Severity distribution</h3>
+        <p class="hint" id="sevcmp-sub">Share of rated CVEs by CVSS severity, AI vs all.</p>
+        <div id="sev-compare"></div>
+      </div>
+      <div class="sub">
+        <h3 id="h-cwe">Top weakness classes (CWE)</h3>
+        <p class="hint" id="cwe-hint">Share of CVEs carrying each CWE.</p>
+        <div id="cwe-compare"></div>
+      </div>
+    </div>
+    <div class="sub">
+      <h3 id="h-sevmix">AI CVE severity mix per month (2018+)</h3>
+      <p class="hint" id="sev-hint">Severity of AI-related CVEs over time.</p>
+      <div id="chart-sev" class="chart"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="issuance" aria-labelledby="h-issuance">
+    <h2 id="h-issuance">AI-related vs all CVEs</h2>
+    <p class="hint" id="issuance-hint">Published CVE records from the official CVE list. Default range starts in 2018: earlier "AI" matches are mostly false positives (package names matching unrelated products).</p>
+    <div id="chart-cves" class="chart"></div>
     <div class="controls" id="ctl-cves">
       <span class="grp"><span class="lbl">Agg</span>
-        <button data-agg="day">Day</button>
-        <button data-agg="week">Week</button>
-        <button data-agg="month" class="on">Month</button>
-        <button data-agg="year">Year</button>
+        <button type="button" data-agg="day">Day</button>
+        <button type="button" data-agg="week">Week</button>
+        <button type="button" data-agg="month" class="on">Month</button>
+        <button type="button" data-agg="year">Year</button>
       </span>
       <span class="grp"><span class="lbl">Range</span>
-        <button data-range="30d">30D</button>
-        <button data-range="1y">1Y</button>
-        <button data-range="5y">5Y</button>
-        <button data-range="10y">10Y</button>
-        <button data-range="all" class="on">All</button>
+        <button type="button" data-range="30d">30D</button>
+        <button type="button" data-range="1y">1Y</button>
+        <button type="button" data-range="5y">5Y</button>
+        <button type="button" data-range="2018" class="on">2018+</button>
+        <button type="button" data-range="10y">10Y</button>
+        <button type="button" data-range="all">All</button>
       </span>
       <span class="grp"><span class="lbl">Mode</span>
-        <button data-mode="count" class="on">Count</button>
-        <button data-mode="cum">Cumulative</button>
-        <button data-mode="share">AI share %</button>
+        <button type="button" data-mode="count">Count</button>
+        <button type="button" data-mode="cum">Cumulative</button>
+        <button type="button" data-mode="share" class="on">AI share %</button>
       </span>
       <span class="grp"><span class="lbl">Series</span>
         <label class="chk"><input type="checkbox" id="ser-all" checked>All</label>
@@ -61,81 +193,86 @@
     </div>
   </section>
 
-  <section class="panel">
-    <h2>Hourly activity — new: 40 days · updates: 30 days</h2>
-    <p class="hint">New / AI-new CVE records per hour (published timestamps, 40-day window) plus upstream record updates per 7-minute sync, aggregated per hour (cvelistV5 deltaLog, 30-day rolling window).</p>
-    <div id="chart-hours"></div>
-  </section>
-
-  <section class="duo">
-    <div class="panel">
-      <h2>AI/ML package vulnerabilities</h2>
-      <p class="hint">Security advisories for AI/ML software packages (PyPI + npm) per month, via OSV.dev.</p>
-      <div id="chart-aipkgs"></div>
-      <div id="adv-recent" class="adv-recent" aria-label="recent AI package advisories"></div>
-    </div>
-    <div class="panel">
-      <h2>AI software adoption (npm)</h2>
-      <p class="hint">Monthly npm downloads of AI SDK/framework packages — a proxy for growing attack surface.</p>
-      <div id="chart-adoption"></div>
-    </div>
-  </section>
-
-  <section class="panel">
-    <h2>AI CVE severity mix (NVD, per month)</h2>
-    <p class="hint" id="sev-hint">Primary CVSS severity of AI-related CVEs over time (NVD-rated, stacked bars).</p>
-    <div id="chart-sev"></div>
-  </section>
-
-  <section class="panel">
-    <h2>How AI CVEs break &mdash; top CWEs (NVD)</h2>
-    <p class="hint" id="cwe-hint">Weakness classes behind AI-related CVEs (NVD CWE mappings).</p>
-    <div id="cwe-list"></div>
-  </section>
-
-  <section class="panel">
-    <h2>Known-exploited additions per month (CISA KEV)</h2>
-    <p class="hint">When vulnerabilities made it into CISA's Known-Exploited catalog — the exploited-in-the-wild landscape across all products.</p>
-    <div id="chart-kev"></div>
-  </section>
-
-  <section class="panel">
-    <h2>Latest AI-related CVEs</h2>
-    <p class="hint">Last 30 AI-matched published records. <b>KEV</b> = also in CISA's Known-Exploited catalog.</p>
-    <div class="tbltools"><input id="ai-filter" type="search" placeholder="filter by CVE id, keyword or CNA…" autocomplete="off"></div>
+  <section class="panel" id="latest" aria-labelledby="h-latest">
+    <h2 id="h-latest">Latest AI-related CVEs</h2>
+    <p class="hint" id="latest-hint">Last 30 AI-matched published records, newest first. <b>KEV</b> = also in CISA's Known Exploited catalog. Severity badge = record CVSS (hover for version and source).</p>
+    <div class="tbltools"><label class="sr-only" for="ai-filter">Filter latest AI CVEs</label><input id="ai-filter" type="search" placeholder="filter by CVE id, keyword, product or CNA…" autocomplete="off"></div>
     <div class="tablewrap">
       <table id="tbl-ai">
-        <thead><tr><th>CVE</th><th>Published</th><th>CNA</th><th>Description</th></tr></thead>
+        <thead><tr><th scope="col">CVE</th><th scope="col">Published (UTC)</th><th scope="col">Layer / product</th><th scope="col">CNA</th><th scope="col">Description</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
   </section>
 
-  <section class="panel">
-    <h2>AI-related known-exploited (CISA KEV)</h2>
-    <div class="tablewrap">
-      <table id="tbl-kev">
-        <thead><tr><th>CVE</th><th>Added</th><th>Product</th><th>Description</th></tr></thead>
-        <tbody></tbody>
-      </table>
+  <section class="panel" id="cna" aria-labelledby="h-cna">
+    <h2 id="h-cna">Who reports AI CVEs</h2>
+    <p class="hint" id="cna-hint">AI-related CVEs per year by assigning CNA (top assigners, rest grouped as "other"). Why it matters: counts depend on who files them — when a new CNA such as VulnCheck or huntr starts bulk-assigning AI CVEs, the curve rises without any change in the software itself.</p>
+    <div id="chart-cna" class="chart"></div>
+  </section>
+
+  <section class="context" aria-labelledby="h-context">
+    <h2 id="h-context" class="ctx-h">Context</h2>
+    <div class="duo">
+      <div class="panel">
+        <h3 id="h-aipkgs">AI package advisories (OSV)</h3>
+        <p class="hint" id="aipkgs-hint">Security advisories for AI/ML packages per month, via OSV.dev.</p>
+        <div id="chart-aipkgs" class="chart"></div>
+        <div id="adv-recent" class="adv-recent" aria-label="recent AI package advisories"></div>
+      </div>
+      <div class="panel">
+        <h3 id="h-adoption">Adoption context: npm AI SDK downloads (log scale)</h3>
+        <p class="hint" id="adoption-hint">Monthly npm downloads of AI SDK/framework packages (log scale). Adoption context only — downloads are not attack surface and are not used in any count above.</p>
+        <div id="chart-adoption" class="chart"></div>
+      </div>
     </div>
   </section>
+  </div>
+
+  <div class="tier tier4" id="method">
+    <p class="tier-label"><span>Method</span> How this is measured</p>
+  <section class="panel" id="method-panel" aria-labelledby="h-method">
+    <h2 id="h-method">Methodology</h2>
+    <h3>Origins</h3>
+    <p class="hint">Every published CVE gets exactly one origin; the first matching rule wins. Rules are checked in this order, except that CMS plugins are checked before open-source packages, so a WordPress plugin with a package URL counts as a plugin:</p>
+    <ul class="origin-list" id="method-origins"></ul>
+    <h3>Zero-day proxy</h3>
+    <p class="mtext" id="method-zd">"Exploited at disclosure" = a CISA KEV entry added at most one day after its CVE was published. It undercounts true zero-days (exploitation CISA confirms later is missed) and is bucketed by CVE publication year; KEV additions are bucketed by date added.</p>
+    <h3>What counts as AI software</h3>
+    <p class="hint">A CVE is "AI-related" when its description, affected vendor/product or package identifiers match AI-software rules. Each one is placed in the first matching layer:</p>
+    <ul class="layer-list" id="method-layers"></ul>
+    <h3>How accurate is the matching</h3>
+    <p id="method-eval" class="mtext"></p>
+    <h3>Severity</h3>
+    <p class="mtext">One CVSS family per CVE, from the CVE record: the CNA's CVSS v3.1, else CNA v4.0, else CNA v3.0, else CISA-ADP (Vulnrichment) v3.1; only if the record has none, NVD's score (v3.1 → v4.0 → v3.0, never v2). The source and version are kept per CVE (hover the severity badges).</p>
+    <h3>Caveats</h3>
+    <ul class="caveats">
+      <li>The AI flag is a keyword / product heuristic: expect misses and false matches (see the measured precision and recall).</li>
+      <li>NVD enrichment lags weeks to months behind publication; record-based severity avoids most of that lag, but some new CVEs are still unrated.</li>
+      <li>Counts reflect the CNA mix — new or very active assigners (VulnCheck, huntr, GitHub) change the curve independently of the underlying software.</li>
+      <li>CISA KEV is a lower bound of exploitation: it lists only exploitation CISA has confirmed and judged actionable, and it favours products US agencies run (Microsoft, Cisco, Fortinet…).</li>
+      <li>Origins are rules over vendor, product and package identifiers. "Enterprise &amp; other software" is the largest bucket (about two in five CVEs this year and the largest KEV origin): mostly enterprise products such as Oracle, Adobe, IBM, SAP, Atlassian, SolarWinds and Apache, plus many small PHP web apps.</li>
+      <li>"Open-source projects &amp; packages" includes every GitHub-assigned (GitHub_M) record. GitHub's CNA issued far more CVEs in 2026 than in 2025, so part of that origin's growth is a reporting change, not only more vulnerable code.</li>
+      <li>EPSS is a model estimate, not an observation; it is shown to prioritise, not to prove exploitation.</li>
+    </ul>
+  </section>
+  </div>
 
   <footer>
     <div>
       <b>Sources</b> (all public, refreshed daily):
       <ul>
-        <li><a href="https://github.com/CVEProject/cvelistV5">CVEProject/cvelistV5</a> — official CVE list (records, hourly timestamps, 30-day delta log)</li>
-        <li><a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog">CISA KEV</a> — known exploited vulnerabilities</li>
-        <li><a href="https://osv.dev">OSV.dev</a> — package security advisories (GitHub / PyPI / npm)</li>
-        <li><a href="https://api.npmjs.org/downloads">npm downloads API</a> + <a href="https://pypistats.org">pypistats</a> — adoption signals</li>
-        <li><a href="https://services.nvd.nist.gov/rest/json/cves/2.0">NVD API 2.0</a> — CVSS severity, CWE mappings, CNA names (enrichment only)</li>
+        <li><a href="https://github.com/CVEProject/cvelistV5" target="_blank" rel="noopener">CVEProject/cvelistV5</a> — official CVE list (records, CNA/ADP CVSS, CWE)</li>
+        <li><a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank" rel="noopener">CISA KEV</a> — known exploited vulnerabilities</li>
+        <li><a href="https://www.first.org/epss/" target="_blank" rel="noopener">FIRST EPSS</a> — exploit prediction scores</li>
+        <li><a href="https://osv.dev" target="_blank" rel="noopener">OSV.dev</a> — package security advisories</li>
+        <li><a href="https://services.nvd.nist.gov/rest/json/cves/2.0" target="_blank" rel="noopener">NVD API 2.0</a> — severity fallback only</li>
+        <li><a href="https://api.npmjs.org/downloads" target="_blank" rel="noopener">npm downloads API</a> — adoption context</li>
       </ul>
-      <b>Method</b>: “AI-related” = heuristic keyword match (ML terms, AI frameworks, AI package names) on CVE descriptions, affected products and PURLs — approximate, expect small error both ways. Month projection = so-far ÷ median cumulative fraction at same day-of-month, last 12 complete months.
     </div>
     <div>
       Static site · no third-party runtime dependencies · CSP-locked + SRI ·
-      raw data: <a href="data/data.json">data.json</a> · heuristic AI matching (see method).
+      raw data: <a href="data/data.json">data.json</a>, <a href="data/kev.json">kev.json</a>.
     </div>
   </footer>
 </main>
