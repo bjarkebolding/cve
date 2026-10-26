@@ -1208,17 +1208,36 @@ function buildAiHeadline(ctx, F, S) {
 }
 function buildAiKpis(ctx, F, S) {
   const tiles = [];
+  const M = lastMonths(F, 24);
+  const sparkTitle = "monthly, last 24 complete months";
+  const core = ctx.core;
   const a = S.aiShare;
   if (a && a.of) tiles.push({ k: `AI-related CVEs ${F.year} YTD`, v: num.format(a.n), cls: "ai",
-    d: `${pct(a.n / a.of, 1)} of all CVEs` + (F.ytd && F.ytd.prev ? ` · ×${(F.ytd.cur / F.ytd.prev).toFixed(1)} vs same period ${F.prevYear}` : "") });
-  const ry = relYtd(ctx.core, F);
-  if (ry && ry.agent) tiles.push({ k: `MCP & agent CVEs ${F.year}`, v: num.format(ry.agent.cur), cls: "ai",
-    d: `${num.format(ry.agent.prev)} in all of ${F.prevYear}` });
+    delta: F.ytd ? growthDelta(F.ytd.cur, F.ytd.prev, F.prevYear) : null,
+    spark: Array.isArray(core.aiMonths) ? { vals: monthSeries(M, core.months, core.aiMonths), title: sparkTitle } : null,
+    d: `${pct(a.n / a.of, 1)} of all CVEs` + (F.ytd && F.ytd.prev ? ` · ${num.format(F.ytd.prev)} by this date in ${F.prevYear}` : "") });
+  const ry = relYtd(core, F);
+  const mcp = core.layerMonths && core.layerMonths.mcp;
+  if (ry && ry.agent) {
+    // same complete months on both sides (the relation counts are whole years)
+    const ym = mcp ? ytdMonths(core, mcp, F) : null;
+    const delta = ym ? growthDelta(ym.cur, ym.prev, F.prevYear) : null;
+    if (delta) delta.title = `MCP-layer CVEs, ${ym.label} ${F.year} vs ${ym.label} ${F.prevYear}`;
+    tiles.push({ k: `MCP & agent CVEs ${F.year}`, v: num.format(ry.agent.cur), cls: "ai", delta,
+      spark: mcp ? { vals: monthSeries(M, core.months, mcp), title: sparkTitle } : null,
+      d: `${num.format(ry.agent.prev)} in all of ${F.prevYear}` });
+  }
   const k = S.kev;
-  if (k && F.kevAi) tiles.push({ k: `Exploited AI-related (KEV) ${F.year}`, v: num.format(k.aiCur), cls: "warn",
-    d: `${pct(k.cur ? k.aiCur / k.cur : 0, 1)} of ${F.year} KEV additions · ${num.format(F.kevAi.length)} all time` });
-  if (ry && ry.found) tiles.push({ k: `Found by AI ${F.year}`, v: num.format(ry.found.cur), cls: "sc",
-    d: `CVEs crediting an AI tool or AI lab · ${num.format(ry.found.prev)} in ${F.prevYear}` });
+  if (k && F.kevAi) {
+    const md = F.asOf.slice(5);
+    const prevSame = F.kevAi.filter((e) => String(e.added).startsWith(F.prevYear) && String(e.added).slice(5) <= md).length;
+    tiles.push({ k: `Exploited AI-related (KEV) ${F.year}`, v: num.format(k.aiCur), cls: "warn",
+      delta: growthDelta(k.aiCur, prevSame, F.prevYear),
+      spark: { vals: countByMonth(M, F.kevAi, (e) => e.added), title: sparkTitle },
+      d: `${pct(k.cur ? k.aiCur / k.cur : 0, 1)} of ${F.year} KEV additions · ${num.format(F.kevAi.length)} all time` });
+  }
+  if (ry && ry.found) tiles.push({ k: `Found by AI ${F.year}`, v: num.format(ry.found.cur),
+    d: `CVEs crediting an AI tool or AI lab · ${num.format(ry.found.prev)} in all of ${F.prevYear}` });
   kpiTiles($("#ai-kpis"), tiles, "AI indicators are not available for this data build.");
 }
 function buildRelations(ctx, F) {
