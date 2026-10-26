@@ -907,18 +907,12 @@ function buildBrief(ctx, F, S) {
   const items = [];
   const add = (fn) => { try { const r = fn(); if (r && clean(r.why)) items.push(r); } catch (e) { /* skip */ } };
   const OL = originLabel(ctx.core);
+  // 1. find the signal: exploitation first (Gartner: "find the threat signal in all the noise")
   add(() => {
-    const t = S.total;
-    if (!t || !t.prev) return null;
-    const doy = Math.max(1, Math.round(daysBetween(F.year + "-01-01", F.asOf) + 1));
-    return { act: "Size for the volume: automate intake and triage.", href: "#volume",
-      why: `${num.format(t.cur)} CVEs so far in ${F.year}, ×${fmtX(t.cur / t.prev)} the same period of ${F.prevYear}: about ${num.format(Math.round(t.cur / doy))} a day. Manual review of every advisory does not scale.` };
-  });
-  add(() => {
-    const k = S.kev, t = S.total;
-    if (!k || !k.cur || !S.hc || !fin(S.hc.cur) || !t) return null;
-    return { act: "Rank the patch queue by exploitation, not by CVSS.", href: "#next",
-      why: `${pct(S.hc.cur)} of this year's rated CVEs are HIGH or CRITICAL, but only ${num.format(k.cur)} vulnerabilities were confirmed exploited (CISA KEV). Patch KEV first, then the highest EPSS scores.` };
+    const st = signalStages(ctx);
+    if (!st || !st.hc || !st.kev) return null;
+    return { act: "Rank the patch queue by exploitation, not by severity.", href: "#signal",
+      why: `In the last 12 months ${pct(st.hc / st.base)} of new CVEs were rated HIGH or CRITICAL, but only ${oneIn(st.kev, st.base)} is confirmed exploited (CISA KEV)${st.epss ? ` and ${oneIn(st.epss, st.base)} is likely to be (EPSS ≥ 10%)` : ""}. Patch KEV first, then high EPSS, then the rest by severity and exposure.` };
   });
   add(() => {
     const ents = (ctx.kev && ctx.kev.entries || []).filter((e) => e && String(e.added).startsWith(F.year) && fin(e.daysToKev));
@@ -930,10 +924,19 @@ function buildBrief(ctx, F, S) {
       why: `${pct(week / ents.length)} of this year's newly exploited vulnerabilities were exploited within a week of disclosure.${tail} Keep an emergency-change path and reduce exposed management interfaces.` };
   });
   add(() => {
-    if (!S.supply) return null;
-    const mal = fin(S.malYtd) && S.malYtd ? ` and ${num.format(S.malYtd)} malicious packages were published` : "";
-    return { act: "Control what enters the software supply chain.", href: "#supply",
-      why: `${num.format(S.supply.n)} CVEs this year are in open-source projects and packages${mal}. Keep SBOMs current, pin versions and allow-list package sources.` };
+    const t = S.total;
+    if (!t || !t.prev) return null;
+    const doy = Math.max(1, Math.round(daysBetween(F.year + "-01-01", F.asOf) + 1));
+    return { act: "Size for the volume: automate intake and triage.", href: "#volume",
+      why: `${num.format(t.cur)} CVEs so far in ${F.year}, ×${fmtX(t.cur / t.prev)} the same period of ${F.prevYear}: about ${num.format(Math.round(t.cur / doy))} a day. Manual review of every advisory does not scale.` };
+  });
+  add(() => {
+    const kev = (ctx.kev && ctx.kev.entries) || [];
+    const share = (y) => { const a = kev.filter((e) => String(e.added).startsWith(y)); return a.length ? { n: a.filter((e) => e.origin === "supplychain").length, of: a.length } : null; };
+    const cur = share(F.year), prev = share(F.prevYear);
+    if (!cur || !cur.n) return null;
+    return { act: "Control what enters the software supply chain.", href: "#supply", tag: "Software supply chain",
+      why: `${pct(cur.n / cur.of, 1)} of this year's exploited vulnerabilities are in open-source projects and packages${prev ? `, up from ${pct(prev.n / prev.of, 1)} in ${F.prevYear}` : ""}. Require SBOMs (and AI-BOMs for models) from vendors, pull code, containers and models from curated repositories, and sign build artifacts.` };
   });
   add(() => {
     const a = S.aiShare;
@@ -942,14 +945,23 @@ function buildBrief(ctx, F, S) {
     const ag = ry && ry.agent;
     const agent = ag && ag.cur && ag.prev && ag.cur > ag.prev ? ` MCP and agent CVEs are already ×${fmtX(ag.cur / ag.prev)} last year's total.` : "";
     const exp = S.kev && fin(S.kev.aiCur) ? `, ${num.format(S.kev.aiCur)} of them confirmed exploited` : "";
-    return { act: "Bring AI agents, MCP servers and AI features into scope.", href: "#ai",
-      why: `${num.format(a.n)} CVEs this year (${pct(a.n / a.of, 1)}) are AI-related${exp}.${agent} Inventory them, assign owners and limit what they can reach.` };
+    return { act: "Bring AI apps, agents and MCP servers into scope.", href: "#ai", tag: "AI application compromise",
+      why: `${num.format(a.n)} CVEs this year (${pct(a.n / a.of, 1)}) are AI-related${exp}.${agent} Inventory them, assign owners, threat-model them and limit the data and tools they can reach.` };
+  });
+  add(() => {
+    const ry = relYtd(ctx.core, F);
+    const w = ry && ry.weakness;
+    if (!w || !w.cur) return null;
+    const ex = ((ctx.kev && ctx.kev.entries) || []).filter((e) => (e.rels || []).includes("weakness")).length;
+    return { act: "Test your own AI apps for prompt injection before release.", href: "#threats", tag: "Prompt injection",
+      why: `${num.format(w.cur)} AI-specific weaknesses (prompt injection, jailbreaks, unsafe model loading) were disclosed in shipped products this year; ${ex ? `only ${num.format(ex)} is` : "none is"} confirmed exploited, because attacks on your own AI apps never become CVEs. Add injection testing to AI releases, and runtime guardrails and monitoring in production.` };
   });
   if (!items.length) { $("#brief").remove(); return; }
   for (const it of items) {
     ol.append(h("li", null,
       h("p", { class: "act" }, h("a", { href: it.href, text: it.act })),
-      h("p", { class: "why", text: it.why })));
+      h("p", { class: "why", text: it.why }),
+      it.tag ? h("a", { class: "brief-tag", href: "#threats", text: it.tag, title: "one of Gartner's four critical threats for 2026–2027" }) : null));
   }
 }
 

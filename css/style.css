@@ -208,6 +208,11 @@ header h1 .x { color: var(--muted); font-weight: 400; }
 .brief .act { margin: 0 0 6px; font-size: 16px; line-height: 1.4; font-weight: 600; }
 .brief .act a { color: var(--ink); text-decoration: none; }
 .brief .act a:hover { color: var(--accent); }
+.brief-tag {
+  display: inline-flex; margin-top: 8px; padding: 2px 9px; border-radius: 999px;
+  border: 1px solid var(--line-2); font-size: 12px; font-weight: 500; color: var(--ink-2); text-decoration: none;
+}
+.brief-tag:hover { color: var(--accent); border-color: var(--accent); }
 .brief .why { margin: 0; font-size: 14px; line-height: 1.55; color: var(--ink-2); max-width: 60ch; }
 
 /* ---------------- Gartner's four critical threats ---------------- */
