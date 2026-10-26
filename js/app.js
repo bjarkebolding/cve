@@ -1525,6 +1525,19 @@ function buildKevChips(F) {
 }
 
 /* data-tied actions only: exploited products, next-highest EPSS, biggest layer */
+/* The year's largest single-product bulk disclosure (e.g. OpenClaw) when it
+ * sits inside one AI layer: {product, n} or null (needs >= 100 CVEs). */
+function layerBulk(ctx, F, layerId) {
+  try {
+    const core = ctx.core;
+    const top = core.concentration && core.concentration[F.year] && (core.concentration[F.year].top || [])[0];
+    if (!top) return null;
+    const key = String(top.product).toLowerCase();
+    const n = Object.values((ctx.meta && ctx.meta.ids) || {}).filter((m) => m && typeof m === "object" && String(m.d || "").startsWith(F.year)
+      && m.layer === layerId && String(m.product || "").toLowerCase().includes(key)).length;
+    return n >= 100 ? { product: top.product, n } : null;
+  } catch (e) { return null; }
+}
 function buildTodo(ctx, F) {
   const ul = $("#todo-list");
   const out = [];
@@ -1561,7 +1574,9 @@ function buildTodo(ctx, F) {
     if (!best || !best.cur) return null;
     const layered = layerYtd(ctx.core, F);
     const tot = layered ? ` (${pct(best.cur / layered)} of CVEs in AI software)` : "";
-    return `Inventory your ${ctx.label(best.id)}: the largest layer in ${F.year} with ${num.format(best.cur)} CVEs so far${tot}, vs ${num.format(best.prev)} in all of ${F.prevYear}.`;
+    const bk = layerBulk(ctx, F, best.id);
+    return `Inventory your ${ctx.label(best.id)}: the largest layer in ${F.year} with ${num.format(best.cur)} CVEs so far${tot}, vs ${num.format(best.prev)} in all of ${F.prevYear}`
+      + (bk ? `; ${num.format(bk.n)} of them are one ${prettyProduct(bk.product)} bulk disclosure, but even without it the layer is already ${fmtX((best.cur - bk.n) / Math.max(1, best.prev))}× all of ${F.prevYear}.` : ".");
   });
   if (!out.length) { note(ul.parentElement, "Not enough data for recommendations in this build."); ul.remove(); return; }
   for (const s of out) ul.append(h("li", { text: s }));
@@ -2401,13 +2416,18 @@ function explainAi(ctx, F) {
         const cur = core.months.reduce((s, m, i) => s + (m.startsWith(F.year) ? arr[i] || 0 : 0), 0);
         if (!big || cur > big.cur) big = { id, cur };
       }
+      const bulk = big ? layerBulk(ctx, F, big.id) : null;
+      const tot = layerYtd(core, F);
+      const share = big && tot ? big.cur / tot : 0;
       fig("#chart-layers", {
         titleEl: "#h-layers",
-        title: big && big.cur && layerYtd(core, F) ? `${ctx.label(big.id)} is the largest AI layer: ${num.format(big.cur)} of ${num.format(layerYtd(core, F))} CVEs in AI software in ${F.year} (${pct(big.cur / layerYtd(core, F))})` : null,
+        title: big && big.cur && tot ? `${ctx.label(big.id)} is the largest AI layer: ${num.format(big.cur)} of ${num.format(tot)} CVEs in AI software in ${F.year} (${pct(share)})`
+          + (bulk ? `, ${num.format(bulk.n)} of them one ${prettyProduct(bulk.product)} bulk disclosure` : "") : null,
         subEl: "#layers-hint", sub: `CVEs in AI software, MCP agents and AI features per month, 2018 → ${F.year} (${partialLabel(F)}; the last month is partial), stacked by AI stack layer. Excludes CVEs that are AI-related only as a weakness, compute or found-by-AI. Click a legend entry to hide a layer.`,
         after: "#layers-note",
         how: "Each bar = AI CVEs published that month; segments add up to the month's total. Pitfall: one project's batch disclosure can dominate a year (labelled on the chart).",
-        so: big && big.cur ? `Inventory where ${lcFirst(ctx.label(big.id))} run in your estate — that is where most new AI CVEs land.` : null,
+        so: big && big.cur ? `Inventory where ${lcFirst(ctx.label(big.id))} run in your estate: that is where ${share > 0.5 ? "most" : "the largest share of"} new AI CVEs land`
+          + (bulk && tot - bulk.n > 0 ? ` (${pct((big.cur - bulk.n) / (tot - bulk.n))} without the ${prettyProduct(bulk.product)} batch).` : ".") : null,
         src: srcLine(ctx, ["cve"]),
       });
     }
