@@ -180,6 +180,9 @@ if page:
         mb = re.search(r"([\d,]+) by this date", t_.get("d") or "")
         if "×" in (t_.get("delta") or "") and mb:
             check(num(mb.group(1)) >= 10, f"page: tile {t_['k']!r} shows {t_['delta']} on a base of {mb.group(1)}")
+    if y and y.get("ai") and y["ai"]["prev"] - y["ai"]["bulkPrev"] > 0:
+        rax = round((y["ai"]["cur"] - y["ai"]["bulkCur"]) / (y["ai"]["prev"] - y["ai"]["bulkPrev"]), 1)
+        check(f"×{rax}" in page["aiHeadline"], f"page: AI headline lacks growth without bulk filers ×{rax}")
     k = tile("Exploited (")
     check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
     check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")

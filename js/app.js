@@ -1406,8 +1406,10 @@ function buildAiHeadline(ctx, F, S) {
     const a = S.aiShare;
     if (a && a.of) {
       const r = F.ytd && F.ytd.prev ? F.ytd.cur / F.ytd.prev : null;
+      const ra = ytdRatio(ctx.core, "ai"), rall = ytdRatio(ctx.core);
+      const both = ra && rall && ra.rx && rall.rx ? ` Without bulk filing by ${BULK_NAMES}: ×${fmtX(ra.rx)} against ×${fmtX(rall.rx)}.` : "";
       head = `${num.format(a.n)} of this year's ${num.format(a.of)} CVEs are AI-related (${pct(a.n / a.of, a.n / a.of < 0.1 ? 1 : 0)})`
-        + (r && r >= 1.15 ? ` — ×${fmtX(r)} on the same period last year, against ×${fmtX(S.total.cur / S.total.prev)} for all CVEs.` : ".");
+        + (r && r >= 1.15 ? ` — ×${fmtX(r)} on the same period last year, against ×${fmtX(S.total.cur / S.total.prev)} for all CVEs.${both}` : ".");
     }
   } catch (e) { head = null; }
   head = clean(head);
@@ -1442,7 +1444,8 @@ function buildAiKpis(ctx, F, S) {
   if (a && a.of) tiles.push({ k: `AI-related CVEs ${F.year} YTD`, v: num.format(a.n), cls: "ai",
     delta: F.ytd ? growthDelta(F.ytd.cur, F.ytd.prev, F.prevYear) : null,
     spark: Array.isArray(core.aiMonths) ? { vals: monthSeries(M, core.months, core.aiMonths), title: sparkTitle } : null,
-    d: `${pct(a.n / a.of, 1)} of all CVEs` + (F.ytd && F.ytd.prev ? ` · ${num.format(F.ytd.prev)} by this date in ${F.prevYear}` : "") });
+    d: `${pct(a.n / a.of, 1)} of all CVEs` + (F.ytd && F.ytd.prev ? ` · ${num.format(F.ytd.prev)} by this date in ${F.prevYear}` : "")
+      + (() => { const ra = ytdRatio(core, "ai"); return ra && ra.rx ? ` · ×${fmtX(ra.rx)} without ${BULK_NAMES}` : ""; })() });
   const ry = relYtd(core, F);
   const mcp = core.layerMonths && core.layerMonths.mcp;
   if (ry && ry.agent) {
@@ -2157,7 +2160,7 @@ function srcLine(ctx, names) {
  * years), overall or for one origin, with and without the bulk filers. */
 function ytdRatio(core, origin) {
   const y = core && core.ytd;
-  const c = y && (origin ? (y.origins || {})[origin] : y.all);
+  const c = y && (origin === "ai" ? y.ai : origin ? (y.origins || {})[origin] : y.all);
   if (!c || !c.prev) return null;
   const xc = c.cur - c.bulkCur, xp = c.prev - c.bulkPrev;
   return { cur: c.cur, prev: c.prev, r: c.cur / c.prev, rx: xp > 0 ? xc / xp : null, xcur: xc, xprev: xp,

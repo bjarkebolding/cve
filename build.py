@@ -960,27 +960,28 @@ BULK_CNAS = ("GitHub_M", "VulnCheck")
 
 
 def ytd_filers(rows, today, bulk=BULK_CNAS):
-    """Year-to-date vs the same days last year, overall and per origin, with the
-    bulk filers' share: {window, prevWindow, bulkCnas, all, origins}; each count
+    """Year-to-date vs the same days last year, overall, AI-related and per
+    origin, with the bulk filers' share: {window, prevWindow, bulkCnas, all, ai,
+    origins}; each count
     is {cur, prev, bulkCur, bulkPrev}. rows: (day, sev, cwe, cna, vendor, origin,
     rels) per published CVE. One window for every ratio a title prints."""
     cy, py = str(today.year), str(today.year - 1)
     md = today.strftime("%m-%d")
     zero = lambda: {"cur": 0, "prev": 0, "bulkCur": 0, "bulkPrev": 0}
-    tot, by = zero(), defaultdict(zero)
-    for day, _sev, _cwe, cna, _vend, origin, _rels in rows:
+    tot, ai, by = zero(), zero(), defaultdict(zero)
+    for day, _sev, _cwe, cna, _vend, origin, rels in rows:
         if day[5:] > md:
             continue
         k = "cur" if day[:4] == cy else "prev" if day[:4] == py else None
         if not k:
             continue
         b = "bulkCur" if k == "cur" else "bulkPrev"
-        for c in (tot, by[origin or "other"]):
+        for c in (tot, by[origin or "other"]) + ((ai,) if is_ai_risk(rels) else ()):
             c[k] += 1
             if cna in bulk:
                 c[b] += 1
     return {"window": [f"{cy}-01-01", today.isoformat()], "prevWindow": [f"{py}-01-01", f"{py}-{md}"],
-            "bulkCnas": list(bulk), "all": tot, "origins": dict(by)}
+            "bulkCnas": list(bulk), "all": tot, "ai": ai, "origins": dict(by)}
 
 
 def landscape(rows, months, today, since="2018", top=12):
