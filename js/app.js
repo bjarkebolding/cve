@@ -886,6 +886,7 @@ function buildThreats(ctx, F, S) {
     const prods = [...new Set(app.map((e) => shortProduct(e.product)).filter(Boolean))].slice(0, 4);
     const a = S.aiShare;
     cards.push({ id: "app", name: "AI application compromise", signal: "strong", href: "#exploited",
+      action: "Inventory AI apps, agents and MCP servers, give each an owner, threat-model them and limit the data and tools they can reach.",
       v: num.format(cur), unit: `exploited flaws in AI apps & agents, ${F.year}`, delta: growthDelta(cur, prevSame, F.prevYear),
       spark: { vals: countByMonth(M, app, (e) => e.added), title: "exploited AI app & agent flaws added to CISA KEV per month, last 24 complete months" },
       foot: (prods.length ? `${listJoin(prods)}: conventional code-execution and access flaws in AI tooling, not attacks on the model.` : "")
@@ -897,6 +898,7 @@ function buildThreats(ctx, F, S) {
     const prev = kevAll.filter((e) => String(e.added).startsWith(F.prevYear));
     const sc = (arr) => arr.filter((e) => e.origin === "supplychain").length;
     if (cur.length) cards.push({ id: "supply", name: "Software supply chain", signal: "strong", href: "#supply", src: "Source: CISA KEV + CVE List + OSV",
+      action: "Require SBOMs (and AI-BOMs for models), pull code, containers and models from curated repositories, and sign build artifacts.",
       v: pct(sc(cur) / cur.length, 1), unit: `of ${F.year}'s exploited vulnerabilities are open source (${num.format(sc(cur))} of ${num.format(cur.length)})`,
       delta: prev.length ? (() => {
         const z = propZ(sc(cur), cur.length, sc(prev), prev.length);
@@ -915,6 +917,7 @@ function buildThreats(ctx, F, S) {
     if (w) {
       const exploited = kevAll.filter((e) => (e.rels || []).includes("weakness")).length;
       cards.push({ id: "pi", name: "Prompt injection", signal: "partial", href: "#relations",
+        action: "Test your own AI apps for prompt injection before release; add runtime guardrails and monitoring in production.",
         v: num.format(w.cur), unit: `disclosed AI-specific weaknesses, ${F.year}`,
         delta: null,
         foot: `Prompt injection, jailbreaks and unsafe model loading in shipped products (${num.format(w.prev)} in all of ${F.prevYear}). ${exploited ? num.format(exploited) : "None"} confirmed exploited: attacks on your own AI apps never reach CVE data, so test them before release.` });
@@ -927,16 +930,19 @@ function buildThreats(ctx, F, S) {
 
   const SIG = { strong: "Strong signal", partial: "Partial signal", none: "Outside CVE scope" };
   for (const c of cards) {
-    const delta = c.delta ? h("span", { class: "delta" + (c.delta.up ? " up" : " down"), text: (c.delta.up ? "▲ " : "▼ ") + c.delta.text, title: c.delta.title || null }) : null;
+    // a change within noise is shown neutral: no arrow, no alarm colour
+    const flat = c.delta && /not significant/.test(c.delta.text);
+    const delta = c.delta ? h("span", { class: "delta" + (flat ? " flat" : c.delta.up ? " up" : " down"), text: (flat ? "" : c.delta.up ? "▲ " : "▼ ") + c.delta.text, title: c.delta.title || null }) : null;
     const spark = c.spark && c.spark.vals.some((v) => v > 0) ? h("div", { class: "kspark", title: c.spark.title }, sparkline(c.spark.vals, c.id === "app" ? "ai" : "")) : null;
     const body = [
-      h("div", { class: "th-eyebrow", text: "Gartner critical threat · 2026–27" }),
+      h("div", { class: "th-eyebrow", text: "Gartner threat · 2026–27" }),
       h("div", { class: "th-head" }, h("span", { class: "th-name", text: c.name }), h("span", { class: "th-sig " + c.signal, text: SIG[c.signal] })),
       c.statement ? h("div", { class: "th-statement", text: c.statement })
         : h("div", { class: "vrow" }, h("span", { class: "v", text: c.v }), delta),
       c.unit ? h("div", { class: "th-unit", text: c.unit }) : null,
       spark,
       h("p", { class: "th-foot", text: c.foot.trim() }),
+      c.action ? h("p", { class: "th-action" }, h("b", { text: "Action: " }), document.createTextNode(c.action)) : null,
       c.href ? h("a", { class: "th-link", href: c.href, text: "Evidence →" }) : null,
       h("div", { class: "ksrc", text: `${c.src || "Source: CVE List + CISA KEV"} · ${String((core && core.generatedAt) || "").slice(0, 10)} · ${SITE} · mapping not by Gartner` }),
     ];
@@ -986,34 +992,9 @@ function buildBrief(ctx, F, S) {
     return { act: "Size for the volume: automate intake and triage.", href: "#volume",
       why: `${num.format(t.cur)} CVEs so far in ${F.year}, ×${fmtX(t.cur / t.prev)} the same period of ${F.prevYear}: about ${num.format(Math.round(t.cur / doy))} a day. Manual review of every advisory does not scale.` };
   });
-  add(() => {
-    const kev = (ctx.kev && ctx.kev.entries) || [];
-    const share = (y) => { const a = kev.filter((e) => String(e.added).startsWith(y)); return a.length ? { n: a.filter((e) => e.origin === "supplychain").length, of: a.length } : null; };
-    const cur = share(F.year), prev = share(F.prevYear);
-    if (!cur || !cur.n) return null;
-    return { act: "Control what enters the software supply chain.", href: "#supply", tag: "Software supply chain",
-      why: `${pct(cur.n / cur.of, 1)} of this year's exploited vulnerabilities are in open-source projects and packages${prev ? (() => { const z = propZ(cur.n, cur.of, prev.n, prev.of); return z != null && Math.abs(z) >= 1.96 ? `, ${cur.n / cur.of > prev.n / prev.of ? "up" : "down"} from ${pct(prev.n / prev.of, 1)} in ${F.prevYear}` : ` (${pct(prev.n / prev.of, 1)} in ${F.prevYear}; a change within statistical noise at these numbers)`; })() : ""}. Require SBOMs (and AI-BOMs for models) from vendors, pull code, containers and models from curated repositories, and sign build artifacts.` };
-  });
-  add(() => {
-    const a = S.aiShare;
-    if (!a || !a.n) return null;
-    const ry = relYtd(ctx.core, F);
-    const ag = ry && ry.agent;
-    const yr = ytdRel(ctx.core, "agent");
-    const agent = yr && yr.cur > yr.prev ? ` MCP and agent CVEs are ×${fmtX(yr.cur / yr.prev)} the same period last year${yr.rx ? ` (×${fmtX(yr.rx)} without bulk filing by ${BULK_NAMES})` : ""}.` : "";
-    const exp = S.kev && fin(S.kev.aiCur) ? `, ${num.format(S.kev.aiCur)} of them confirmed exploited` : "";
-    return { act: "Bring AI apps, agents and MCP servers into scope.", href: "#ai", tag: "AI application compromise",
-      why: `${num.format(a.n)} CVEs this year (${pct(a.n / a.of, 1)}) are AI-related${exp}.${agent} Inventory them, assign owners, threat-model them and limit the data and tools they can reach.` };
-  });
-  add(() => {
-    const ry = relYtd(ctx.core, F);
-    const w = ry && ry.weakness;
-    if (!w || !w.cur) return null;
-    const ex = ((ctx.kev && ctx.kev.entries) || []).filter((e) => (e.rels || []).includes("weakness")).length;
-    return { act: "Test your own AI apps for prompt injection before release.", href: "#threats", tag: "Prompt injection",
-      why: `${num.format(w.cur)} AI-specific weaknesses (prompt injection, jailbreaks, unsafe model loading) were disclosed in shipped products this year; ${ex ? `only ${num.format(ex)} is` : "none is"} confirmed exploited, because attacks on your own AI apps never become CVEs. Add injection testing to AI releases, and runtime guardrails and monitoring in production.` };
-  });
   if (!items.length) { $("#brief").remove(); return; }
+  ol.after(h("p", { class: "brief-more" }, document.createTextNode("Actions for AI applications, the software supply chain and prompt injection are on the "),
+    h("a", { href: "#threats", text: "four Gartner threat cards" }), document.createTextNode(" below.")));
   for (const it of items) {
     ol.append(h("li", null,
       h("p", { class: "act" }, h("a", { href: it.href, text: it.act })),
@@ -1661,7 +1642,9 @@ function buildKevChips(F) {
 
 /* data-tied actions only: exploited products, next-highest EPSS, biggest layer */
 /* The year's largest single-product bulk disclosure (e.g. OpenClaw) when it
- * sits inside one AI layer: {product, n} or null (needs >= 100 CVEs). */
+ * sits inside one AI layer: {product, n} or null (needs >= 100 CVEs). Matches
+ * the exact product name (case-insensitive), like build.concentration, so
+ * forks and plugins of the product are not counted. */
 function layerBulk(ctx, F, layerId) {
   try {
     const core = ctx.core;
@@ -1669,7 +1652,7 @@ function layerBulk(ctx, F, layerId) {
     if (!top) return null;
     const key = String(top.product).toLowerCase();
     const n = Object.values((ctx.meta && ctx.meta.ids) || {}).filter((m) => m && typeof m === "object" && String(m.d || "").startsWith(F.year)
-      && m.layer === layerId && String(m.product || "").toLowerCase().includes(key)).length;
+      && m.layer === layerId && String(m.product || "").trim().toLowerCase() === key).length;  // same exact-product key as the build's concentration
     return n >= 100 ? { product: top.product, n } : null;
   } catch (e) { return null; }
 }

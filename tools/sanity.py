@@ -239,7 +239,7 @@ if page:
     if kev_cur and pk:
         pp = (a_ + b_) / (len(kev_cur) + len(pk)); se = _m.sqrt(pp * (1 - pp) * (1 / len(kev_cur) + 1 / len(pk))) or 1
         z = (a_ / len(kev_cur) - b_ / len(pk)) / se
-        sup = next((b for b in page["brief"] if b.startswith("Control what enters")), "")
+        sup = next((t_["unit"] + " " + t_["v"] for t_ in page["threats"] if t_["name"] == "Software supply chain"), "")
         if abs(z) < 1.96:
             check("up from" not in sup, f"page: supply-chain Brief calls a non-significant change (z={z:.2f}) a rise")
     k = tile("Exploited (")

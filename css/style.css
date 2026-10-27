@@ -783,3 +783,10 @@ footer a { color: var(--ink-2); }
   /* phone tiles: the change badge always sits on its own line, so numbers align across tiles */
   .kpi .vrow { flex-direction: column; align-items: flex-start; gap: 4px; }
 }
+
+.th-action { margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--ink); padding-left: 10px; border-left: 2px solid var(--line-2); }
+.th-action b { font-weight: 600; }
+.brief-more { margin: 20px 0 0; font-size: 13.5px; color: var(--ink-2); }
+
+.threat .delta.flat { color: var(--ink-2); background: var(--track); }
+.th-eyebrow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
