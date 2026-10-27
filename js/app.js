@@ -667,6 +667,34 @@ const wordClip = (s, n) => { if (!s) return s; if (s.length < n) return s; const
 const lcFirst = (s) => (/^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
 const clean = (s) => (typeof s === "string" && s && !/NaN|undefined|null|Infinity/.test(s) ? s : null);
 
+/* the page's message in three lines — what changed, where the risk is, what to do —
+ * each computed from this build (the Brief and cards below carry the evidence) */
+function buildBottomLine(ctx, F, S) {
+  const host = $("#bottomline");
+  if (!host) return;
+  const items = [];
+  try {
+    const yr = ytdRatio(ctx.core), os = ytdRatio(ctx.core, "supplychain");
+    if (yr && fin(yr.rx)) items.push(["What changed", `CVE volume ×${fmtX(yr.r)}, ×${fmtX(yr.rx)} without bulk filing${fin(yr.bulkShare) ? ` (${pct(yr.bulkShare)} of the rise is ${BULK_NAMES} filing, not more flaws)` : ""}${os && fin(os.rx) && os.rx >= 2 ? `; open-source component CVEs rose ×${fmtX(os.rx)} even without it` : ""}.`]);
+  } catch (e) { /* skip */ }
+  try {
+    const k = S.kev, OL = originLabel(ctx.core);
+    const pubK = ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.published || "").startsWith(F.year) && e.origin);
+    const yo = (ctx.core.ytd && ctx.core.ytd.origins) || {}, ya = ctx.core.ytd && ctx.core.ytd.all;
+    const base = ya ? ya.cur - (ya.bulkCur || 0) : 0, ed = pubK.filter((e) => e.origin === "edge").length;
+    const es = yo.edge && base ? (yo.edge.cur - (yo.edge.bulkCur || 0)) / base : null;
+    const by = {};
+    for (const e of ((ctx.kev && ctx.kev.entries) || []).filter((x) => String(x.added).startsWith(F.year))) by[e.vendor] = (by[e.vendor] || 0) + 1;
+    // top 3, plus anyone tied with the third (Apple and Fortinet can share a count)
+    const ranked = Object.entries(by).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const cut = ranked.length >= 3 ? ranked[2][1] : 0;
+    const top = ranked.filter(([, n], i) => i < 3 || n === cut).slice(0, 5).map(([v]) => v);
+    if (k && k.cur && k.prevSame) items.push(["Where the risk is", `CISA KEV additions ${k.cur / k.prevSame >= 1.05 ? `up ${pct(k.cur / k.prevSame - 1)}` : "level"}; ${pubK.length >= 50 && fin(es) ? `${oShort("edge", OL)} are ${pct(ed / pubK.length)} of newly exploited CVEs from ${pct(es, 1)} of new CVEs` : "exploitation is concentrated"}${top.length ? `; ${listJoin(top)} lead the list` : ""}.`]);
+  } catch (e) { /* skip */ }
+  items.push(["What to do", "Patch what CISA KEV lists first, edge devices within days, and re-scan the whole estate against KEV every week."]);
+  if (items.length < 2) { host.remove(); return; }
+  for (const [k, v] of items) host.append(h("div", { class: "bl-item" }, h("span", { class: "bl-k", text: k }), h("p", { class: "bl-v", text: clean(v) })));
+}
 function buildHeadline(ctx, F, S) {
   const el = $("#headline"), sub = $("#subhead");
   const OL = originLabel(ctx.core);
@@ -1244,13 +1272,6 @@ function ttkCohort(ctx, origin) {
   // recent cohort's slow listings have not happened yet
   const cur = stat(w.cur), prev = stat(w.prev, w.prev[1]), full = stat(w.prev);
   return cur ? { cur, prev, full, from: w.cur[0] } : null;
-}
-/* "level, then trend" sentence for the share listed within a week */
-function ttkText(c, what) {
-  const lvl = `${pct(c.full.wk / c.full.n)} of ${what} published 13–24 months ago reached KEV within a week of publication (median ${daysText(c.full.median)}; fully followed up)`;
-  const d = c.cur.wk / c.cur.n - c.prev.wk / c.prev.n;
-  const trend = Math.abs(d) < 0.05 ? "steady" : d > 0 ? "faster" : "slower";
-  return `${lvl}; like-for-like the pace is ${trend} (${pct(c.cur.wk / c.cur.n)} for the last 12 months vs ${pct(c.prev.wk / c.prev.n)} the year before, same follow-up)`;
 }
 /* this year's KEV additions whose CVE is old: >1 year and >3 years since publication */
 /* CISA's BOD 22-01 deadline (KEV dueDate - dateAdded) for this year's additions */
@@ -2652,6 +2673,7 @@ function infoize() {
   const panels = [
     // Part 1: all CVEs
     ["headline", () => buildHeadline(ctx, F, S)],
+    ["bottom line", () => buildBottomLine(ctx, F, S)],
     ["KPIs", () => buildKpis(ctx, F, S)],
     ["signal vs noise", () => buildSignal(ctx)],
     ["brief", () => buildBrief(ctx, F, S)],

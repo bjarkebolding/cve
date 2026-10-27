@@ -314,6 +314,10 @@ if page:
     if _pk >= 20 and W.get("prevN"):
         _f = f"1 in {round(W['prevN'] / _pk):,}"
         check(_f in page.get("signalTitle", ""), f"page: signal title should give the fully followed KEV rate {_f}")
+    _a = d["ytd"]["all"]
+    if _a["cur"] > _a["prev"]:
+        _bs = f"{round(100 * (_a['bulkCur'] - _a['bulkPrev']) / (_a['cur'] - _a['prev']))}% of the rise is"
+        check(_bs in page["body"], f"page: bottom line should give the bulk-filing share of the rise ({_bs})")
     sig = [num(v) for v in page["sig"]]
     want = [exp["signal_base"], exp["signal_hc"], exp["signal_epss"], exp["signal_kev"]]
     check(sig == want, f"page: signal bars {sig} != data {want}")
