@@ -230,17 +230,18 @@ if page:
     if rn:
         check(f"About {round(100 * rr / rn)}%" in page.get("ransomTitle", ""), f"page: ransomware title {page.get('ransomTitle')!r} != {round(100 * rr / rn)}% settled share")
     W = L["all"]["window"]
-    # speed: one cohort (published in the 12-month window, in KEV), same figure on card and Brief
+    # speed: the LEVEL comes from the fully followed earlier cohort (published in the prior
+    # 12-month window, all its KEV additions); the trend compares cohorts at equal follow-up
+    pct_ = lambda c: f"{round(100 * sum(1 for e in c if e['daysToKev'] <= 7) / len(c))}%"
+    full = [e for e in ents if e.get("published") and W["prev"][0] <= e["published"] <= W["prev"][1] and e.get("daysToKev") is not None]
     co = [e for e in ents if e.get("published") and W["cur"][0] <= e["published"] <= W["cur"][1] and e.get("daysToKev") is not None]
-    if len(co) >= 20:
-        wk = f"{round(100 * sum(1 for e in co if e['daysToKev'] <= 7) / len(co))}%"
-        check(page.get("ttkTitle", "").startswith(wk), f"page: speed card {page.get('ttkTitle')!r} != cohort {wk}")
-        check(any(b.startswith("Patch internet-facing") and wk in b for b in page["brief"]), f"page: Brief speed item does not use the cohort {wk}")
-        # the earlier cohort must have equal follow-up (KEV additions made by the end of its window)
-        pv = [e for e in ents if e.get("published") and W["prev"][0] <= e["published"] <= W["prev"][1] and e.get("daysToKev") is not None and e["added"] <= W["prev"][1]]
-        if pv:
-            pw = f"({round(100 * sum(1 for e in pv if e['daysToKev'] <= 7) / len(pv))}% the 12 months before, same follow-up)"
-            check(pw in page.get("ttkTitle", ""), f"page: speed card prior cohort should read {pw}: {page.get('ttkTitle')!r}")
+    pv = [e for e in full if e["added"] <= W["prev"][1]]
+    if len(full) >= 20 and co and pv:
+        lv = pct_(full)
+        check(page.get("ttkTitle", "").startswith(lv), f"page: speed card {page.get('ttkTitle')!r} should lead with the fully followed level {lv}")
+        tr = f"({pct_(co)} for the last 12 months vs {pct_(pv)} the year before, same follow-up)"
+        check(any(b.startswith("Patch internet-facing") and b.find(lv) >= 0 and tr in b for b in page["brief"]),
+              f"page: Brief speed item should give level {lv} and trend {tr}")
     old3 = sum(1 for e in kev_cur if (e.get("daysToKev") or 0) > 1095)
     if old3:
         check(any(b.startswith("Re-check the whole estate") and f"{old3:,} (" in b for b in page["brief"]),
