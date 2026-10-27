@@ -238,9 +238,8 @@ if page:
     if len(full) >= 20 and co and pv:
         lv = pct_(full)
         check(page.get("ttkTitle", "").startswith(lv), f"page: speed card {page.get('ttkTitle')!r} should lead with the fully followed level {lv}")
-        tr = f"({pct_(co)} for the last 12 months vs {pct_(pv)} the year before, same follow-up)"
-        check(any(b.startswith("Patch internet-facing") and b.find(lv) >= 0 and tr in b for b in page["brief"]),
-              f"page: Brief speed item should give level {lv} and trend {tr}")
+        check(any(b.startswith("Patch internet-facing") and f"{lv} of exploited CVEs reach CISA KEV within a week" in b for b in page["brief"]),
+              f"page: Brief speed item should give the fully followed level {lv}")
     old3 = sum(1 for e in kev_cur if (e.get("daysToKev") or 0) > 1095)
     if old3:
         check(any(b.startswith("Re-check the whole estate") and f"{old3:,} (" in b for b in page["brief"]),
@@ -251,7 +250,7 @@ if page:
     if len(dls) >= 20:
         med = _st.median(dls)
         mtxt = "under a day" if med < 1 else "1 day" if med == 1 else f"{int(med) if med == int(med) else med} days"
-        check(any(b.startswith("Patch internet-facing") and f"last 90 days CISA gave US federal agencies a median of {mtxt}" in b for b in page["brief"]),
+        check(any(b.startswith("Patch internet-facing") and f"CISA's deadline (median {mtxt} in the last 90 days)" in b for b in page["brief"]),
               f"page: Brief should state CISA's current (90-day) median deadline {mtxt}")
     # over-representation headline: one cohort (CVEs published this year), base without bulk filers
     yr = asof[:4]; pk = [e for e in ents if str(e.get("published", "")).startswith(yr)]

@@ -901,7 +901,7 @@ function buildBrief(ctx, F, S) {
     const st = signalStages(ctx);
     if (!st || !st.hc || !st.kev) return null;
     return { act: "Rank the patch queue by exploitation, not by severity.", href: "#signal",
-      why: `In the last 12 months ${pct(st.hc / st.base)} of new CVEs were rated HIGH or CRITICAL, but only ${oneIn(st.kev, st.base)} is in CISA KEV so far${st.kevFull ? ` (${oneIn(st.kevFull.k, st.kevFull.n)} once fully followed up, judging by the year before)` : ""}${st.epss ? `, and ${oneIn(st.epss, st.base)} has an elevated exploit probability (EPSS ≥ 10%)` : ""}. Patch KEV first, then rank the rest by EPSS, severity and exposure${st.recall ? `. EPSS gives little advance warning: the day before listing, only ${pct(st.recall.caught / st.recall.of)} of the CVEs CISA confirmed as exploited scored 10% or more` : ""}.` };
+      why: `In the last 12 months ${pct(st.hc / st.base)} of new CVEs were rated HIGH or CRITICAL, but only ${oneIn(st.kev, st.base)} is in CISA KEV so far${st.kevFull ? ` (${oneIn(st.kevFull.k, st.kevFull.n)} once fully followed up, judging by the year before)` : ""}${st.epss ? `, and ${oneIn(st.epss, st.base)} has an elevated exploit probability (EPSS ≥ 10%)` : ""}. Patch KEV first, then rank the rest by EPSS, severity and exposure.` };
   });
   add(() => {
     const ents = (ctx.kev && ctx.kev.entries || []).filter((e) => e && String(e.added).startsWith(F.year) && fin(e.daysToKev));
@@ -910,12 +910,12 @@ function buildBrief(ctx, F, S) {
     const edge = S.kev && S.kev.origin && S.kev.origin.edge;
     const tail = fin(edge) && edge ? ` ${oShort("edge", OL).replace(/^./, (c) => c.toUpperCase())} alone account for ${num.format(edge)}.` : "";
     const ec = ttkCohort(ctx, "edge");
-    const edgeTxt = ec && ec.full && ec.full.n >= 15
-      ? ` Edge devices are faster: ${pct(ec.full.wk / ec.full.n)} within a week, median ${daysText(ec.full.median)} (same fully followed cohort, ${num.format(ec.full.n)} CVEs).` : tail;
-    return { act: "Patch internet-facing systems in days, not monthly cycles.", href: "#exploit",
-      why: (() => { const c = ttkCohort(ctx); return c && c.full && c.full.n >= 20 && c.prev ? `${ttkText(c, "exploited CVEs")}.` : `${pct(week / ents.length)} of this year's KEV additions came within a week of the CVE's publication.`; })()
-        + `${edgeTxt} Keep an emergency-change path and reduce exposed management interfaces.`
-        + (() => { const dl = kevDeadlines(ctx, F); return dl ? ` Benchmark: in the last 90 days CISA gave US federal agencies a median of ${daysText(dl.median)} to fix a newly listed vulnerability (${pct(dl.wk / dl.n)} within a week${fin(dl.early) ? `; ${daysText(dl.early)} at the start of ${F.year}` : ""}). Board metric: the share of KEV entries on your estate fixed within CISA's deadline.` : ""; })() };
+    const edgeTxt = ec && ec.full && ec.full.n >= 15 ? `; edge devices ${pct(ec.full.wk / ec.full.n)} (median ${daysText(ec.full.median)})` : "";
+    // one finding + one action; the like-for-like trend lives on the time-to-listing card
+    return { act: "Patch internet-facing systems in days, not monthly cycles.", href: "#speed",
+      why: (() => { const c = ttkCohort(ctx); return c && c.full && c.full.n >= 20 ? `${pct(c.full.wk / c.full.n)} of exploited CVEs reach CISA KEV within a week of publication (median ${daysText(c.full.median)})${edgeTxt}.` : `${pct(week / ents.length)} of this year's KEV additions came within a week of the CVE's publication.${tail}`; })()
+        + " Keep an emergency-change path and take management interfaces off the internet."
+        + (() => { const dl = kevDeadlines(ctx, F); return dl ? ` Board metric: KEV entries fixed within CISA's deadline (median ${daysText(dl.median)} in the last 90 days).` : ""; })() };
   });
   add(() => {
     const o = oldKev(ctx, F);
@@ -2140,7 +2140,7 @@ function explainSummary(ctx, F, S) {
       subEl: "#hero-sub", sub: `Published CVEs per calendar year, 2018 → ${F.year} (${partialLabel(F)}), stacked by origin (what kind of software). Y-axis: CVEs per year.`,
       after: "#hero-note",
       how: "Each bar is one year's published CVE records; the coloured segments add up to the year's total. Pitfall: the last bar is a partial year, and CVE counts measure disclosure volume, not risk.",
-      so: t && t.prev && t.cur / t.prev >= 1.3 ? "Triage capacity has to scale with volume: prioritise by exploitation (KEV), then EPSS, and only then by CVSS — a CVSS-first queue cannot keep up." : null,
+      so: t && t.prev && t.cur / t.prev >= 1.3 ? "Expect the intake to keep growing: automate CVE intake, de-duplication and matching to your asset inventory, and judge risk by exploitation, not by count." : null,
       src: srcLine(ctx, ["cve"]),
     });
   } catch (e) { /* keep static */ }
@@ -2361,9 +2361,7 @@ function explainPart1(ctx, F, S) {
         subEl: "#ttk-hint", sub: `CISA KEV additions per year (by date added), 2022 → ${F.year} (${partialLabel(F)}), stacked by days from CVE publication to KEV addition.`,
         how: "Bars: KEV additions per year by days from CVE publication to KEV addition; red/orange = within a week, grey = old CVEs newly confirmed as exploited. The title uses cohorts instead: the level comes from CVEs published 13–24 months ago (fully followed up; recent CVEs that will be listed slowly are not listed yet), the trend compares the last 12 months with the year before at equal follow-up. Pitfall: this is time to KEV listing, not time to first exploitation; attacks often started earlier.",
         so: (() => { const c = ttkCohort(ctx); const share = c && c.full && c.full.n >= 20 ? c.full.wk / c.full.n : n ? wk / n : 0;
-          const o = oldKev(ctx, F);
-          const old = o && o.y3 ? ` And ${num.format(o.y3)} of ${F.year}'s additions are CVEs over three years old${o.oldestYear ? ` (back to ${o.oldestYear})` : ""}: re-scan the whole estate against KEV every week, not only new advisories.` : "";
-          return share >= 0.25 ? `A monthly patch cycle is too slow for ${pct(share)} of exploited CVEs: keep an emergency path that can ship a fix or mitigation within days.${old}` : old.trim() || null; })(),
+          return share >= 0.25 ? `A monthly patch cycle is too slow for ${pct(share)} of exploited CVEs: keep an emergency path that can ship a fix or mitigation within days.` : null; })(),
         src: srcLine(ctx, ["kev", "cve"]),
       });
     }
@@ -2413,7 +2411,7 @@ function explainPart1(ctx, F, S) {
         })(),
         subEl: "#sevall-hint", sub: `Published CVEs per year, 2018 → ${F.year} (${partialLabel(F)}), stacked by CVSS severity from the CVE record (CNA, else CISA-ADP).`,
         how: "Segments add up to the year's CVEs, CRITICAL at the bottom, unrated on top. Severity is the vendor's CVSS base score: worst-case impact, not likelihood of attack.",
-        so: S.hc && fin(S.hc.cur) && S.hc.cur >= 0.4 ? "With this many HIGH/CRITICAL CVEs, severity alone cannot order the queue — use KEV and EPSS first." : null,
+        so: S.hc && fin(S.hc.cur) && S.hc.cur >= 0.4 ? `A severity-based SLA ("all HIGH within 30 days") now covers ${S.hc.cur > 0.5 ? "more than half of" : "about half of"} new CVEs: tie remediation SLAs to exploitation and exposure instead.` : null,
         src: srcLine(ctx, ["cve"]),
       });
     }
