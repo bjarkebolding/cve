@@ -854,7 +854,7 @@ function buildSignal(ctx) {
   if (!st) { $("#signal").remove(); return; }
   const rows = [
     { label: "Published", sub: "all CVEs", n: st.base, cls: "all" },
-    st.hc != null && { label: "Rated HIGH or CRITICAL", sub: "record CVSS; unrated CVEs count as not", n: st.hc, cls: "hc" },
+    st.hc != null && { label: "Rated HIGH or CRITICAL", sub: "all CVEs incl. Linux; unrated count as not", n: st.hc, cls: "hc" },
     st.epss != null && { label: "Elevated exploit probability", sub: "EPSS ≥ 10% (30-day model estimate)", n: st.epss, cls: "epss" },
     st.kev != null && { label: "Confirmed exploited", sub: "in CISA KEV", n: st.kev, cls: "kev" },
   ].filter(Boolean);
@@ -2463,10 +2463,17 @@ function explainSummary(ctx, F, S) {
         const lead = Object.entries(k.origin).sort((a, b) => b[1] - a[1]).slice(0, 3);
         if (lead.length) {
           const n = lead.reduce((t, [, x]) => t + x, 0);
-          title = `${listJoin(lead.map(([id]) => oShort(id, OL)))} make up ${pct(n / k.cur)} of ${F.year}'s exploited vulnerabilities`; title = title[0].toUpperCase() + title.slice(1);
-          const edge = k.origin.edge || 0, ye = core.ytd && core.ytd.origins && core.ytd.origins.edge, ya = core.ytd && core.ytd.all;
-          so = edge && ye && ya && ya.cur
-            ? `Edge devices are ${pct(edge / k.cur)} of exploited vulnerabilities but only ${pct(ye.cur / ya.cur, 1)} of new CVEs: put internet-facing appliances on a days-not-weeks patch track and take their management interfaces off the internet.`
+          // lead with the origin most over-represented among exploited CVEs vs new CVEs
+          const yo = (core.ytd && core.ytd.origins) || {}, ya = core.ytd && core.ytd.all;
+          const over = ya && ya.cur ? Object.entries(k.origin).filter(([id, x]) => x >= 10 && yo[id] && yo[id].cur)
+            .map(([id, x]) => ({ id, ks: x / k.cur, cs: yo[id].cur / ya.cur })).map((o) => ({ ...o, r: o.ks / o.cs })).sort((a, b) => b.r - a.r)[0] : null;
+          if (over && over.r >= 2) {
+            title = `${oShort(over.id, OL).replace(/^./, (c) => c.toUpperCase())} are ${pct(over.ks)} of ${F.year}'s exploited vulnerabilities but only ${pct(over.cs, 1)} of new CVEs: about ${fmtX(over.r)} times their share`;
+          } else {
+            title = `${listJoin(lead.map(([id]) => oShort(id, OL)))} make up ${pct(n / k.cur)} of ${F.year}'s exploited vulnerabilities`; title = title[0].toUpperCase() + title.slice(1);
+          }
+          so = over && over.id === "edge"
+            ? "Put internet-facing appliances on a days-not-weeks patch track and take their management interfaces off the internet."
             : `Keep emergency patching and attack-surface monitoring focused on ${listJoin(lead.map(([id]) => oShort(id, OL)))}.`;
         }
       }
@@ -2872,7 +2879,7 @@ function explainPart2(ctx, F, S) {
       const vb = shareRiser(vr, L.window, 20);
       fig("#vendai", {
         so: "Ask your main AI vendors for their disclosure and patch timelines; one product can dominate the count.",
-        titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months (all its products)` + (vb && vb !== vr[0] ? `; ${vb.label} grew fastest (${growthText(vb.gn, vb.gprev)} against ×${fmtX(vb.base)} for all AI-related CVEs${vb.ex ? ", without bulk filers" : ""})` : "") : null,
+        titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months (all its products)` + (vb && vb !== vr[0] ? `; among vendors with 20+ AI CVEs a year earlier, ${vb.label} grew fastest (${growthText(vb.gn, vb.gprev)} against ×${fmtX(vb.base)})` : "") : null,
         how: "Bar = last 12 months, tick = the 12 months before; text = count · change. 'new' = none the year before.",
         src: srcLine(ctx, ["cve"]),
       });

@@ -237,7 +237,8 @@ header h1 .x { color: var(--muted); font-weight: 400; }
 .brief { margin: 48px 0 0; padding: 28px 0 4px; border-top: 1px solid var(--line-2); }
 .brief h2 { font-size: 22px; line-height: 1.3; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 20px; }
 .brief-list { list-style: none; counter-reset: brief; margin: 0; padding: 0;
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px 40px; }
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 48px; }
+@media (max-width: 760px) { .brief-list { grid-template-columns: 1fr; } }
 .brief-list li { counter-increment: brief; position: relative; padding-left: 36px; }
 .brief-list li::before {
   content: counter(brief); position: absolute; left: 0; top: 1px;
