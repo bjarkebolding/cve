@@ -193,7 +193,7 @@ if page:
     check(not tile("Zero-days"), "page: KEV at-disclosure proxy labelled 'Zero-days'")
     if zd and zd.get("byYear", {}).get(year) is not None:
         zt = tile("KEV-listed at disclosure")
-        check(zt and f"Project Zero: {zd['byYear'][year]:,}" in zt["d"], "page: at-disclosure tile lacks the Project Zero count")
+        check(zt and f"Project Zero: {zd['byYear'][year]:,} confirmed zero-days" in zt["d"], "page: at-disclosure tile lacks the Project Zero count")
     # no ×N growth multiple on a base below 10
     for t_ in page["tiles"] + page["aiTiles"]:
         mb = re.search(r"([\d,]+) by this date", t_.get("d") or "")

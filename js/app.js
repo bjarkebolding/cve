@@ -803,7 +803,9 @@ function buildKpis(ctx, F, S) {
     tiles.push({ k: `KEV-listed at disclosure ${F.year}`, v: num.format(k.zd), cls: "warn",
       spark: { vals: countByMonth(M, ents.filter((e) => e.zeroDay), (e) => e.published), title: sparkTitle },
       d: [fin(k.zdPrevSame) ? `${num.format(k.zdPrevSame)} by this date in ${F.prevYear}` : null,
-        zb && fin(zb[F.year]) ? `Project Zero: ${num.format(zb[F.year])} in-the-wild zero-days patched (${num.format(zb[F.prevYear] || 0)} in all of ${F.prevYear})` : null].filter(Boolean).join(" · ") });
+        // why two zero-day numbers: Project Zero confirms a curated set of true zero-days; this
+        // proxy also counts flaws attacked as soon as they were disclosed, in any product
+        zb && fin(zb[F.year]) ? `broader than Project Zero: ${num.format(zb[F.year])} confirmed zero-days (${num.format(zb[F.prevYear] || 0)} in all of ${F.prevYear}); this proxy also counts flaws attacked as soon as they were disclosed` : null].filter(Boolean).join(" · ") });
   }
   if (S.supply || fin(S.malYtd)) {
     const om = ctx.core.originMonths && ctx.core.originMonths.supplychain;
