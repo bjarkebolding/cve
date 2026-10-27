@@ -1225,7 +1225,9 @@ function buildKevVendors(ctx, F) {
     const r = rows[i];
     cell.textContent = [num.format(r.n), r.zd ? `${num.format(r.zd)} at disclosure` : null, r.ransom ? `${num.format(r.ransom)} ransomware` : null].filter(Boolean).join(" · ");
   });
-  const top3 = rows.slice(0, 3), n3 = top3.reduce((t, r) => t + r.n, 0);
+  // name every vendor tied with the third, so the cut-off is not alphabetical
+  const cut = rows.length >= 3 ? rows[2].n : 0;
+  const top3 = rows.filter((r, i) => i < 3 || r.n === cut), n3 = top3.reduce((t, r) => t + r.n, 0);
   fig(el, {
     titleEl: "#h-kevvend",
     title: `${listJoin(top3.map((r) => r.name))} account for ${pct(n3 / ents.length)} of ${F.year}'s exploited vulnerabilities`,
@@ -1267,7 +1269,8 @@ function buildRansom(ctx, F) {
   const since = String(+F.year - 2);
   const vc = new Map();
   for (const e of ents) if (e.ransomware && String(e.added) >= since) { const v = (e.vendor || "").trim(); if (v) vc.set(v, (vc.get(v) || 0) + 1); }
-  const lead = [...vc.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 4);
+  const ranked = [...vc.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const lead = ranked.filter(([, n], i) => i < 3 || (ranked[2] && n === ranked[2][1]));
   const share = sn ? sr / sn : null;
   fig(el, {
     titleEl: "#h-ransom",
@@ -1275,7 +1278,7 @@ function buildRansom(ctx, F) {
     subEl: "#ransom-hint",
     sub: `Share of each year's CISA KEV additions flagged "known ransomware campaign use", ${years[0]} → ${F.year} (${partialLabel(F)}). CISA adds the flag when a campaign is attributed, often months later, so the last ${RANSOM_SETTLE_YEARS} years (lighter bars) will rise.` + (lead.length ? ` Since ${since}: ${lead.map(([v, n]) => `${v} ${n}`).join(", ")}.` : ""),
     how: "Bar length = share of that year's KEV additions with the ransomware flag; text = share · flagged of all. Pitfall: a falling share in the newest years is a reporting lag, not a falling threat.",
-    so: `Treat any KEV entry for software you run as a potential ransomware entry point${lead.length ? `, especially ${listJoin(lead.slice(0, 3).map(([v]) => v))}` : ""}: patch it on an emergency timeline and check for compromise, because ransomware crews reuse these flaws for months.`,
+    so: `Treat any KEV entry for software you run as a potential ransomware entry point${lead.length ? `, especially ${listJoin(lead.map(([v, n]) => `${v} (${n})`))}, the vendors with the most ransomware-linked entries since ${since}` : ""}: patch it on an emergency timeline and check for compromise, because ransomware crews reuse these flaws for months.`,
     src: srcLine(ctx, ["kev"]),
   });
 }
@@ -2550,7 +2553,7 @@ function explainAi(ctx, F) {
       const share = big && tot ? big.cur / tot : 0;
       fig("#chart-layers", {
         titleEl: "#h-layers",
-        title: big && big.cur && tot ? `${ctx.label(big.id)} is the largest AI layer: ${num.format(big.cur)} of ${num.format(tot)} CVEs in AI software in ${F.year} (${pct(share)})`
+        title: big && big.cur && tot ? `Within AI software, ${lcFirst(ctx.label(big.id))} are the largest layer: ${num.format(big.cur)} of ${num.format(tot)} CVEs in ${F.year} (${pct(share)})`
           + (bulk ? `, ${num.format(bulk.n)} of them one ${prettyProduct(bulk.product)} bulk disclosure` : "") : null,
         subEl: "#layers-hint", sub: `CVEs in AI software, MCP agents and AI features per month, 2018 → ${F.year} (${partialLabel(F)}; the last month is partial), stacked by AI stack layer. Excludes CVEs that are AI-related only as a weakness, compute or found-by-AI. Click a legend entry to hide a layer.`,
         after: "#layers-note",

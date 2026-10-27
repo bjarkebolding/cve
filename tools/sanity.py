@@ -263,6 +263,9 @@ if page:
     vc = Counter((e.get("vendor") or "").strip().lower() for e in kev_cur)
     top3 = sorted(vc.items(), key=lambda t: (-t[1], t[0]))[:3]
     if top3 and exp["kev_cur"]:
+        # vendors tied with the third are named too
+        allv = sorted(vc.items(), key=lambda t: (-t[1], t[0]))
+        top3 = [x for i, x in enumerate(allv) if i < 3 or x[1] == allv[2][1]]
         share = round(100 * sum(n for _, n in top3) / exp["kev_cur"])
         check(page.get("kevVendTitle", "").find(f"{share}%") >= 0,
               f"page: vendor card title {page.get('kevVendTitle')!r} != top-3 share {share}%")
