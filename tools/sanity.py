@@ -219,7 +219,8 @@ if page:
     Wa = L["all"]["window"]
     if "nx" in Wa and L["all"].get("surgeCnas"):
         add_ = (Wa["n"] - Wa["nx"]) - (Wa["prevN"] - Wa["prevNx"])
-        check(f"{len(L['all']['surgeCnas'])} bulk filers added {add_:,} CVEs" in page.get("cnaTitle", ""),
+        _sw = "bulk filers" if all(c in ("GitHub_M", "VulnCheck") for c in L["all"]["surgeCnas"]) else "surge filers"
+        check(f"{len(L['all']['surgeCnas'])} {_sw} added {add_:,} CVEs" in page.get("cnaTitle", ""),
               f"page: CNA title should state the bulk filers' {add_:,} added CVEs: {page.get('cnaTitle')!r}")
     # ransomware share over settled years (the newest two still fill in)
     st_years = [str(yy) for yy in range(2023, int(year) - 1)]
@@ -308,7 +309,7 @@ if page:
     if best and best[0] > 1.05:
         check(best[1] in page.get("cweTitle", ""), f"page: fastest-growing weakness title {page.get('cweTitle')!r} should name {best[1]}")
         if ux:
-            check("without the year's bulk filers" in page.get("cweTitle", ""), "page: weakness growth title should say it excludes bulk filers")
+            check(re.search(r"without the year's (bulk|surge) filers", page.get("cweTitle", "")), "page: weakness growth title should say it excludes bulk/surge filers")
     # the KEV rate is right-censored: the signal title must give the fully followed rate beside it
     _pk = sum(1 for e in ents if e.get("published") and W["prev"][0] <= e["published"] <= W["prev"][1])
     if _pk >= 20 and W.get("prevN"):

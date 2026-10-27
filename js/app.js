@@ -1403,7 +1403,7 @@ function exRows(rows) {
   if (!rows.length || !rows.every((r) => fin(r.nx))) return rows;
   return rows.map((r) => ({ ...r, n: r.nx, prev: r.prevx })).sort((a, b) => b.n - a.n || String(a.label).localeCompare(String(b.label)));
 }
-const exKey = (L) => `Counts exclude the year's bulk filers (${surgeNames(L) || "none"}). Bar = last 12 months; tick = the 12 months before; text = count · change.`;
+const exKey = (L) => `Counts exclude the year's ${surgeWord(L)} (${surgeDef(L)}). Bar = last 12 months; tick = the 12 months before; text = count · change.`;
 function cweRows(top, names, n) {
   return (top || []).slice(0, n || 10).map((r) => withX(r, { label: names[r.id] ? `${names[r.id]} (${r.id})` : r.id, title: r.id, n: r.n, prev: r.prev }));
 }
@@ -1439,6 +1439,15 @@ function shareRiser(rows, w, minPrev) {
   return best;
 }
 const surgeNames = (L) => listJoin((L && L.surgeCnas || []).map((c) => prettyCna(c)));
+/* "bulk filers" = third parties filing for others in bulk (GitHub, VulnCheck); a surge
+ * set that also holds vendors now filing their own CVEs (Oracle, Chrome…) is "surge filers" */
+const THIRD_PARTY_FILERS = new Set(["GitHub_M", "VulnCheck"]);
+const surgeWord = (L) => ((L && L.surgeCnas || []).every((c) => THIRD_PARTY_FILERS.has(c)) ? "bulk filers" : "surge filers");
+const surgeDef = (L) => {
+  const all = (L && L.surgeCnas) || [], tp = all.filter((c) => THIRD_PARTY_FILERS.has(c)), own = all.filter((c) => !THIRD_PARTY_FILERS.has(c));
+  return own.length ? `CNAs whose filing grew at least ×4 to 1,000+: ${listJoin(tp.map(prettyCna))} filing for others in bulk, and ${listJoin(own.map(prettyCna))} now filing many more CVEs for their own products`
+    : `${listJoin(tp.map(prettyCna)) || "none"}, filing for others in bulk`;
+};
 const baseX = (w) => (w && w.prevN ? `×${fmtX(w.n / w.prevN)}` : null);
 const topRiser = (rows) => rows.reduce((b, r) => (r.n - (r.prev || 0) > (b ? b.n - (b.prev || 0) : 0) ? r : b), null);
 function buildTops(ctx) {
@@ -2479,17 +2488,17 @@ function explainPart1(ctx, F, S) {
       const cw = shareRiser(cweRows(L.cweTop, names), w, 100);
       fig("#cweall", {
         so: "Fund fixes that remove whole weakness classes (authorization checks, input handling, memory safety) instead of patching one CVE at a time.",
-        titleEl: "#h-cweall", title: cw ? `Fastest-growing weakness: ${cw.label}, ${growthText(cw.gn, cw.gprev)} against ×${fmtX(cw.base)} for all CVEs${cw.ex ? " (both without the year's bulk filers)" : ""}`
+        titleEl: "#h-cweall", title: cw ? `Fastest-growing weakness: ${cw.label}, ${growthText(cw.gn, cw.gprev)} against ×${fmtX(cw.base)} for all CVEs${cw.ex ? ` (both without the year's ${surgeWord(L)})` : ""}`
           : baseX(w) ? `No top weakness class outgrew all CVEs (${baseX(w)})` : null,
         subEl: "#cweall-hint", sub: `CVEs per weakness class (first CWE in the record), ${span} vs the 12 months before. Top 10.`,
-        how: `Bar = last 12 months, tick = the 12 months before. 'Fastest-growing' = largest rise in share of all CVEs, among classes with at least 100 CVEs the year before, computed without the year's bulk filers (CNAs whose filing grew at least ×4 to 1,000+: ${surgeNames(L) || "none"}). Pitfall: a CVE counts once, under its first CWE; many records have none.`,
+        how: `Bar = last 12 months, tick = the 12 months before. 'Fastest-growing' = largest rise in share of all CVEs, among classes with at least 100 CVEs the year before, computed without the year's ${surgeWord(L)} (${surgeDef(L)}). Pitfall: a CVE counts once, under its first CWE; many records have none.`,
         src: srcLine(ctx, ["cve"]),
       });
       const vr = exRows(vendorRows(L.vendorTop));
       const vb = shareRiser(vr, w, 100);
       fig("#vendall", {
         so: "Counts reflect product footprint and reporting practice: use them to plan vendor patch cadence, not to rank vendor security.",
-        titleEl: "#h-vendall", title: vr.length ? `${vr[0].label} leads with ${num.format(vr[0].n)} CVEs` + (vb && vb !== vr[0] ? `; ${vb.label} grew fastest (${growthText(vb.gn, vb.gprev)} against ×${fmtX(vb.base)}${vb.ex ? ", without bulk filers" : ""})` : "") : null,
+        titleEl: "#h-vendall", title: vr.length ? `${vr[0].label} leads with ${num.format(vr[0].n)} CVEs` + (vb && vb !== vr[0] ? `; ${vb.label} grew fastest (${growthText(vb.gn, vb.gprev)} against ×${fmtX(vb.base)}${vb.ex ? `, without ${surgeWord(L)}` : ""})` : "") : null,
         subEl: "#vendall-hint", sub: `CVEs per vendor (first affected vendor in the record), ${span} vs the 12 months before. Top 10.`,
         how: "Bar = last 12 months, tick = the 12 months before. Pitfall: vendors that file their own CVEs (Linux, Microsoft, Oracle) look larger than vendors whose bugs go unreported.",
         src: srcLine(ctx, ["cve"]),
@@ -2499,11 +2508,11 @@ function explainPart1(ctx, F, S) {
       const sn = (L.surgeCnas || []).length, bulkAdd = fin(w.nx) ? (w.n - w.nx) - (w.prevN - w.prevNx) : null;
       fig("#cnaall", {
         titleEl: "#h-cnaall", title: sn && fin(bulkAdd) && w.prevNx
-          ? `Who files moves the curve: ${sn} bulk filers added ${num.format(bulkAdd)} CVEs in the last 12 months; everyone else grew ${growthText(w.nx, w.prevNx)}`
+          ? `Who files moves the curve: ${sn} ${surgeWord(L)} added ${num.format(bulkAdd)} CVEs in the last 12 months; everyone else grew ${growthText(w.nx, w.prevNx)}`
           : cb ? `Who files moves the curve: ${cb.label} filed ${num.format(cb.n)} CVEs in the last 12 months (${growthText(cb.n, cb.prev)}, against ${baseX(w)} for all CVEs)` : null,
-        subEl: "#cnaall-hint", sub: `CVEs per CVE Numbering Authority (assigner), ${span} vs the 12 months before: the year's bulk filers (CNAs whose filing grew at least ×4 to 1,000+: ${surgeNames(L) || "none"}) that rank in the top 12, and everyone else combined.`,
+        subEl: "#cnaall-hint", sub: `CVEs per CVE Numbering Authority (assigner), ${span} vs the 12 months before: the year's ${surgeWord(L)} (${surgeDef(L)}) that rank in the top 12, and everyone else combined.`,
         how: "Bar = last 12 months, tick = the 12 months before. A CNA is whoever assigned the CVE id — a vendor, a bug-bounty platform or a coordinator.",
-        so: cb && cb.n / Math.max(1, cb.prev) >= 3 ? "Before reading the surge as more vulnerable software, discount the new bulk filers: their growth is a reporting change." : null,
+        so: cb && cb.n / Math.max(1, cb.prev) >= 3 ? "Before reading the surge as more vulnerable software, discount these filers: their growth is largely a change in who files CVEs and how many, not in how much software is vulnerable." : null,
         src: srcLine(ctx, ["cve"]),
       });
     }
