@@ -23,7 +23,7 @@
 <noscript><p class="noscript-msg">This dashboard needs JavaScript to render its charts. Data is committed in <code>data/*.json</code> and the pipeline in <code>build.py</code>/<code>sources.py</code>.</p></noscript>
 <main>
   <nav class="topnav" aria-label="page sections">
-    <a href="#summary">Overview</a><a href="#brief">Brief</a><a href="#volume">Volume</a><a href="#exploit">Exploitation</a><a href="#ai">AI-related</a><a href="#method">Method</a>
+    <a href="#summary">Overview</a><a href="#brief">Brief</a><a href="#exploit">Exploitation</a><a href="#volume">Volume</a><a href="#ai">AI-related</a><a href="#method">Method</a>
     <span class="theme-switch" role="group" aria-label="colour theme"><button type="button" data-theme-set="auto">Auto</button><button type="button" data-theme-set="light">Light</button><button type="button" data-theme-set="dark">Dark</button></span>
   </nav>
 
@@ -74,55 +74,8 @@
     </section>
   </div>
 
-  <div class="tier tier3" id="volume">
-    <p class="tier-label"><span>Part 1 · Volume</span> Volume, severity &amp; weaknesses — all CVEs</p>
-
-  <section class="panel" id="sevyears" aria-labelledby="h-sevall">
-    <h2 id="h-sevall">Severity per year</h2>
-    <p class="hint" id="sevall-hint">Published CVEs per year by CVSS severity (from the CVE record).</p>
-    <div id="chart-sevall" class="chart"></div>
-  </section>
-
-  <section class="panel" id="tops" aria-labelledby="h-cweall">
-    <div class="duo">
-      <div class="sub">
-        <h3 id="h-cweall">Top weakness classes (CWE)</h3>
-        <p class="hint" id="cweall-hint">Last 12 months vs the 12 months before.</p>
-        <div id="cweall"></div>
-      </div>
-      <div class="sub">
-        <h3 id="h-vendall">Top vendors</h3>
-        <p class="hint" id="vendall-hint">Last 12 months vs the 12 months before.</p>
-        <div id="vendall"></div>
-      </div>
-    </div>
-    <div class="sub">
-      <h3 id="h-cnaall">Who files the CVEs (CNAs)</h3>
-      <p class="hint" id="cnaall-hint">Last 12 months vs the 12 months before.</p>
-      <div id="cnaall"></div>
-    </div>
-  </section>
-
-  <section class="panel" id="supply" aria-labelledby="h-supply">
-    <h2 id="h-supply">Supply chain: open-source projects &amp; packages</h2>
-    <div class="duo">
-      <div class="sub">
-        <h3 id="h-supply-cves">Open-source CVEs per year</h3>
-        <p class="hint" id="supply-hint">CVEs whose affected product is an open-source package (npm, PyPI, Maven, Go, crates.io, …).</p>
-        <div id="chart-supply" class="chart"></div>
-      </div>
-      <div class="sub">
-        <h3 id="h-mal">Malicious packages per year</h3>
-        <p class="hint" id="mal-hint">Malicious open-source packages reported to OSV (MAL-* advisories), by ecosystem. These are not CVEs.</p>
-        <div id="chart-malicious" class="chart"></div>
-      </div>
-    </div>
-  </section>
-  </div>
-
-  <!-- ===================== PART 2: AI-RELATED ===================== -->
   <div class="tier tier2" id="exploit">
-    <p class="tier-label"><span>Part 2 · Exploitation</span> Exploitation &amp; zero-days — all CVEs</p>
+    <p class="tier-label"><span>Part 1 · Exploitation</span> Exploitation &amp; zero-days — all CVEs</p>
 
   <section class="panel" id="kev-vendors" aria-labelledby="h-kevvend">
     <h2 id="h-kevvend">Exploited vulnerabilities by vendor</h2>
@@ -186,6 +139,53 @@
   </section>
   </div>
 
+  <div class="tier tier3" id="volume">
+    <p class="tier-label"><span>Part 2 · Volume</span> Volume, severity &amp; weaknesses — all CVEs</p>
+
+  <section class="panel" id="sevyears" aria-labelledby="h-sevall">
+    <h2 id="h-sevall">Severity per year</h2>
+    <p class="hint" id="sevall-hint">Published CVEs per year by CVSS severity (from the CVE record).</p>
+    <div id="chart-sevall" class="chart"></div>
+  </section>
+
+  <section class="panel" id="tops" aria-labelledby="h-cweall">
+    <div class="duo">
+      <div class="sub">
+        <h3 id="h-cweall">Top weakness classes (CWE)</h3>
+        <p class="hint" id="cweall-hint">Last 12 months vs the 12 months before.</p>
+        <div id="cweall"></div>
+      </div>
+      <div class="sub">
+        <h3 id="h-vendall">Top vendors</h3>
+        <p class="hint" id="vendall-hint">Last 12 months vs the 12 months before.</p>
+        <div id="vendall"></div>
+      </div>
+    </div>
+    <div class="sub">
+      <h3 id="h-cnaall">Who files the CVEs (CNAs)</h3>
+      <p class="hint" id="cnaall-hint">Last 12 months vs the 12 months before.</p>
+      <div id="cnaall"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="supply" aria-labelledby="h-supply">
+    <h2 id="h-supply">Supply chain: open-source projects &amp; packages</h2>
+    <div class="duo">
+      <div class="sub">
+        <h3 id="h-supply-cves">Open-source CVEs per year</h3>
+        <p class="hint" id="supply-hint">CVEs whose affected product is an open-source package (npm, PyPI, Maven, Go, crates.io, …).</p>
+        <div id="chart-supply" class="chart"></div>
+      </div>
+      <div class="sub">
+        <h3 id="h-mal">Malicious packages per year</h3>
+        <p class="hint" id="mal-hint">Malicious open-source packages reported to OSV (MAL-* advisories), by ecosystem. These are not CVEs.</p>
+        <div id="chart-malicious" class="chart"></div>
+      </div>
+    </div>
+  </section>
+  </div>
+
+  <!-- ===================== PART 2: AI-RELATED ===================== -->
   <div class="tier tier-ai" id="ai">
     <p class="tier-label"><span>Part 3 · AI-related</span> Which of them are AI-related</p>
     <p class="headline" id="ai-headline"></p>

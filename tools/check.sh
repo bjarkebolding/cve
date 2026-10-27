@@ -72,7 +72,7 @@ for label, mobile in (("desktop", None), ("phone 390px", True)):
     if d["removed"]: problems.append(f"removed panels present: {d['removed']}")
     if len(d["headline"]) < 20: problems.append("no headline statement")
     if d["kpis"] < 2: problems.append(f"only {d['kpis']} KPI tiles")
-    if d["tiers"] != 5 or not d["tierOrder"]: problems.append("section structure (summary/volume/exploit/ai/method) missing or out of order")
+    if d["tiers"] != 5 or not d["tierOrder"]: problems.append("section structure (summary/exploit/volume/ai/method) missing or out of order")
     if d.get("textOverflow"): problems.append(f"text spills out of its card: {d['textOverflow']}")
     if d["navLinks"] != 6: problems.append("top nav links broken")
     if d.get("slides", 0) < 20 or d.get("slideGaps"): problems.append(f"slide cards incomplete: {d.get('slideGaps')} (of {d.get('slides')})")
