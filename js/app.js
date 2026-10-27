@@ -855,6 +855,14 @@ function signalStages(ctx) {
     hc: sw ? (sw.CRITICAL || 0) + (sw.HIGH || 0) : null,
     epss: dist && fin(dist.ge10) ? dist.ge10 : null,
     kev: ctx.kev && ctx.kev.entries ? kev.length : null,
+    // KEV is right-censored for recent CVEs: the year-earlier cohort, with 12+ months
+    // of follow-up, gives the settled rate ("1 in N so far" alone understates it)
+    kevFull: (() => {
+      const [a, b] = L.window.prev || [], n = L.window.prevN;
+      if (!a || !n) return null;
+      const k = ((ctx.kev && ctx.kev.entries) || []).filter((e) => e.published && e.published >= a && e.published <= b).length;
+      return k >= 20 ? { k, n } : null;
+    })(),
   };
 }
 const oneIn = (n, base) => (n > 0 ? `1 in ${num.format(Math.round(base / n))}` : "none");
@@ -866,7 +874,7 @@ function buildSignal(ctx) {
     { label: "Published", sub: "all CVEs", n: st.base, cls: "all" },
     st.hc != null && { label: "Rated HIGH or CRITICAL", sub: "all CVEs incl. Linux; unrated count as not", n: st.hc, cls: "hc" },
     st.epss != null && { label: "Elevated exploit probability", sub: "EPSS ≥ 10% (30-day model estimate)", n: st.epss, cls: "epss" },
-    st.kev != null && { label: "Confirmed exploited", sub: "in CISA KEV", n: st.kev, cls: "kev" },
+    st.kev != null && { label: "Confirmed exploited", sub: "in CISA KEV so far (a lower bound)", n: st.kev, cls: "kev" },
   ].filter(Boolean);
   const list = h("div", { class: "sig", role: "list" });
   for (const r of rows) {
@@ -882,10 +890,10 @@ function buildSignal(ctx) {
   const ratio = st.hc && st.kev ? st.hc / st.kev : null;
   fig(el, {
     titleEl: "#h-signal",
-    title: st.hc && st.kev ? `Last 12 months: severity flags ${pct(st.hc / st.base)} of new CVEs; exploitation evidence flags ${oneIn(st.kev, st.base)}` : null,
+    title: st.hc && st.kev ? `Last 12 months: severity flags ${pct(st.hc / st.base)} of new CVEs; CISA KEV lists ${oneIn(st.kev, st.base)} so far${st.kevFull ? ` (${oneIn(st.kevFull.k, st.kevFull.n)} for the year before, fully followed)` : ""}` : null,
     subEl: "#signal-hint",
     sub: `Every bar counts the same CVEs: the ${num.format(st.base)} published from ${fmtDay(st.from)} to ${fmtDay(st.to)}. Bars are shares of that one base, not a funnel: an exploited CVE can be rated MEDIUM. EPSS is a model estimate; KEV is confirmed exploitation and lags.`,
-    so: ratio ? `A severity-first queue is about ${num.format(Math.round(ratio))} times larger than the confirmed-exploited list. Patch KEV first, then rank the rest by EPSS, severity and exposure`
+    so: ratio ? `A severity-first queue is about ${num.format(Math.round(ratio))} times larger than the confirmed-exploited list so far${st.kevFull ? `, and still about ${num.format(Math.round(st.hc / (st.base * st.kevFull.k / st.kevFull.n)))} times larger at the fully followed rate` : ""}. Patch KEV first, then rank the rest by EPSS, severity and exposure`
       + (st.recall ? `. EPSS is not an early warning: the day before CISA listed them, only ${num.format(st.recall.caught)} of these ${num.format(st.recall.of)} exploited CVEs (${pct(st.recall.caught / st.recall.of)}) had an EPSS of 10% or more, and ${pct(st.recall.unscored / st.recall.of)} had no score yet.` : ".") : null,
     src: srcLine(ctx, ["cve", "epss", "kev"]),
   });
@@ -904,7 +912,7 @@ function buildBrief(ctx, F, S) {
     const st = signalStages(ctx);
     if (!st || !st.hc || !st.kev) return null;
     return { act: "Rank the patch queue by exploitation, not by severity.", href: "#signal",
-      why: `In the last 12 months ${pct(st.hc / st.base)} of new CVEs were rated HIGH or CRITICAL, but only ${oneIn(st.kev, st.base)} is confirmed exploited (CISA KEV)${st.epss ? `, and ${oneIn(st.epss, st.base)} has an elevated exploit probability (EPSS ≥ 10%)` : ""}. Patch KEV first, then rank the rest by EPSS, severity and exposure${st.recall ? `. EPSS gives little advance warning: the day before listing, only ${pct(st.recall.caught / st.recall.of)} of the CVEs CISA confirmed as exploited scored 10% or more` : ""}.` };
+      why: `In the last 12 months ${pct(st.hc / st.base)} of new CVEs were rated HIGH or CRITICAL, but only ${oneIn(st.kev, st.base)} is in CISA KEV so far${st.kevFull ? ` (${oneIn(st.kevFull.k, st.kevFull.n)} once fully followed up, judging by the year before)` : ""}${st.epss ? `, and ${oneIn(st.epss, st.base)} has an elevated exploit probability (EPSS ≥ 10%)` : ""}. Patch KEV first, then rank the rest by EPSS, severity and exposure${st.recall ? `. EPSS gives little advance warning: the day before listing, only ${pct(st.recall.caught / st.recall.of)} of the CVEs CISA confirmed as exploited scored 10% or more` : ""}.` };
   });
   add(() => {
     const ents = (ctx.kev && ctx.kev.entries || []).filter((e) => e && String(e.added).startsWith(F.year) && fin(e.daysToKev));

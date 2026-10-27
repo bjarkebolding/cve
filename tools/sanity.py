@@ -303,6 +303,11 @@ if page:
         check(best[1] in page.get("cweTitle", ""), f"page: fastest-growing weakness title {page.get('cweTitle')!r} should name {best[1]}")
         if ux:
             check("without the year's bulk filers" in page.get("cweTitle", ""), "page: weakness growth title should say it excludes bulk filers")
+    # the KEV rate is right-censored: the signal title must give the fully followed rate beside it
+    _pk = sum(1 for e in ents if e.get("published") and W["prev"][0] <= e["published"] <= W["prev"][1])
+    if _pk >= 20 and W.get("prevN"):
+        _f = f"1 in {round(W['prevN'] / _pk):,}"
+        check(_f in page.get("signalTitle", ""), f"page: signal title should give the fully followed KEV rate {_f}")
     sig = [num(v) for v in page["sig"]]
     want = [exp["signal_base"], exp["signal_hc"], exp["signal_epss"], exp["signal_kev"]]
     check(sig == want, f"page: signal bars {sig} != data {want}")
