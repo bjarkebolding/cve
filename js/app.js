@@ -2054,7 +2054,7 @@ function srcLine(ctx, names) {
     cve: ["CVE List (cvelistV5)", d(ctx.core && ctx.core.generatedAt)],
     kev: ["CISA KEV", d(ctx.kev && ctx.kev.generatedAt)],
     epss: ["FIRST EPSS", ctx.epss && (ctx.epss.modelDate || d(ctx.epss.generatedAt))],
-    osv: ["OSV.dev", d((ctx.ap && ctx.ap.generatedAt) || (ctx.mal && ctx.mal.generatedAt))],
+    osv: ["OSV.dev", d(ctx.mal && ctx.mal.generatedAt)],
     zd: [ctx.zd && ctx.zd.source ? ctx.zd.source : "zero-day tracker", d(ctx.zd && ctx.zd.generatedAt)],
     sev: ["CVE record CVSS (CNA/ADP), NVD fallback", d(ctx.sev && ctx.sev.generatedAt)],
   };
@@ -2714,11 +2714,10 @@ function infoize() {
 (async () => {
   const stamp = $("#stamp");
   const opt = (n) => loadJSON(n).catch(() => null);
-  let core, meta, kev, ap, dl, sev, epss, mal, zd, epssPrior;
+  let core, meta, kev, sev, epss, mal, zd, epssPrior;
   try {
-    [core, meta, kev, ap, dl, sev, epss, mal, zd, epssPrior] = await Promise.all([
-      loadJSON("data.json"), opt("ai_meta.json"), opt("kev.json"), opt("ai_packages.json"),
-      opt("downloads.json"), opt("severity.json"), opt("epss.json"), opt("malicious.json"), opt("zerodays.json"), opt("epss_prior.json"),
+    [core, meta, kev, sev, epss, mal, zd, epssPrior] = await Promise.all([
+      loadJSON("data.json"), opt("ai_meta.json"), opt("kev.json"), opt("severity.json"), opt("epss.json"), opt("malicious.json"), opt("zerodays.json"), opt("epss_prior.json"),
     ]);
   } catch (err) {
     stamp.textContent = "error: " + err.message;
@@ -2736,7 +2735,7 @@ function infoize() {
   const layers = layerList(core, meta);
   const rels = relList(core, meta);
   setFilers(core);
-  const ctx = { core, meta, kev, ap, dl, sev, epss, mal, zd, epssPrior, layers, label: makeLayerLabel(layers), metaOf: metaLookup(meta), rels, relLabel: makeRelLabel(rels) };
+  const ctx = { core, meta, kev, sev, epss, mal, zd, epssPrior, layers, label: makeLayerLabel(layers), metaOf: metaLookup(meta), rels, relLabel: makeRelLabel(rels) };
   let F = {};
   try { F = computeFacts(ctx); } catch (e) { F = { asOf: new Date().toISOString().slice(0, 10) }; F.year = F.asOf.slice(0, 4); F.prevYear = String(+F.year - 1); }
   ctx.F = F;

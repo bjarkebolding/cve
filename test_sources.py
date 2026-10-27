@@ -62,35 +62,6 @@ def test_primary_cvss():
     check("layer_of_text returns an id", isinstance(sources.layer_of_text("vLLM server"), str))
 
 
-def test_osv():
-    print("sources.dedupe_advisories / _advisory_row / osv_fixed")
-    pysec = {"id": "PYSEC-2026-1", "aliases": ["CVE-2026-9", "GHSA-aaaa"],
-             "published": "2026-10-15T00:00:00Z"}
-    ghsa = {"id": "GHSA-aaaa", "aliases": ["CVE-2026-9"], "summary": "vLLM: DoS",
-            "published": "2026-10-05T00:00:00Z",
-            "severity": [{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N"}],
-            "affected": [{"ranges": [{"type": "ECOSYSTEM",
-                                      "events": [{"introduced": "0"}, {"fixed": "0.6.2"}]}]}]}
-    via_cve = {"id": "GHSA-bbbb", "aliases": ["CVE-2026-9"], "published": "2026-10-20T00:00:00Z"}
-    other = {"id": "GHSA-cccc", "aliases": ["CVE-2026-10"], "published": "2026-10-01T00:00:00Z",
-             "affected": [{"ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}]}]}]}
-    groups = sources.dedupe_advisories([pysec, ghsa, via_cve, other])
-    check("PYSEC+GHSA (+shared CVE alias) merged", sorted(len(g) for g in groups) == [1, 3])
-    row = sources._advisory_row(next(g for g in groups if len(g) == 3), "PyPI:vllm", "inference")
-    check("row prefers GHSA with summary", row["id"] == "GHSA-aaaa" and row["summary"] == "vLLM: DoS")
-    check("row takes earliest published", row["published"] == "2026-10-05")
-    check("row CVE + severity", row["cve"] == "CVE-2026-9" and row["severity"].startswith("CVSS:3.1"))
-    check("row layer", row["layer"] == "inference")
-    check("fixed event in any duplicate -> fixed", row["fixed"] is True)
-    check("introduced only -> not fixed", sources.osv_fixed([other]) is False)
-    check("no affected -> not fixed", sources.osv_fixed([via_cve]) is False)
-    check("package list has layers",
-          all(len(p) == 3 and p[2] in {"mcp", "gateway", "inference", "mlops", "llmapp",
-                                        "model", "cloud", "framework", "other"}
-              for p in sources.OSV_PKGS))
-    check("package list unique", len({p[:2] for p in sources.OSV_PKGS}) == len(sources.OSV_PKGS))
-
-
 def test_cvss_settled():
     print("sources.cvss_settled")
     today = dt.date(2026, 10, 25)
@@ -397,7 +368,6 @@ def main():
     test_zerodays_ytd()
     test_kev_origin_consistent()
     test_primary_cvss()
-    test_osv()
     test_cvss_settled()
     test_meta_shapes()
     test_kev()

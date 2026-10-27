@@ -1,7 +1,7 @@
 (async () => {
   const out = {};
   const j = (n) => fetch("data/" + n, { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-  const [core, kev, sev, ap, dl, mal] = await Promise.all([j("data.json"), j("kev.json"), j("severity.json"), j("ai_packages.json"), j("downloads.json"), j("malicious.json")]);
+  const [core, kev, sev, mal] = await Promise.all([j("data.json"), j("kev.json"), j("severity.json"), j("malicious.json")]);
   out.overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
   out.width = document.documentElement.clientWidth;
   // a chart is REQUIRED when the data it is built from exists
