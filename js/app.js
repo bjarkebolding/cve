@@ -47,7 +47,8 @@ const P = {
   sand: tok("c-sand", "#d9c79f", "#b39d6a"),
   mauve: tok("c-mauve", "#b07cb8", "#a2559f"),
   sky: tok("c-sky", "#8cc8e8", "#7fbde0"),
-  plum: tok("c-plum", "#7a5a9a", "#4f3f7a"),
+  plum: tok("c-plum", "#6c64c8", "#4f3f7a"),
+  navy: tok("c-navy", "#c3cdff", "#1d2c80"),
   neutral: tok("c-neutral", "#c9ced6", "#4b5563"),
   grey: tok("c-grey", "#646c7a", "#a3aab5"),
   slate: tok("c-slate", "#4e5767", "#c2c8d2"),
@@ -81,7 +82,7 @@ const SEV_COLORS = { CRITICAL: P.red, HIGH: P.orange, MEDIUM: P.amber, LOW: P.du
  * only a fallback for lookups — the data's own `layers` list is
  * authoritative. */
 const LAYER_COLORS = {
-  mcp: P.sand,
+  mcp: P.navy,              /* = the agent relation */
   gateway: P.sky,
   inference: P.teal,
   mlops: P.sage,
@@ -106,7 +107,6 @@ function tint(hex, a) {
   if (!c || !b) return hex;
   return "#" + c.map((v, i) => Math.round(v * a + b[i] * (1 - a)).toString(16).padStart(2, "0")).join("");
 }
-const CAT_COLORS = [P.blue, P.sand, P.teal, P.mauve, P.sage, P.sky, P.neutral, P.plum];
 const OTHER_COLOR = P.slate;
 
 async function loadJSON(name) {
@@ -470,7 +470,7 @@ function computeFacts(ctx) {
 const ORIGIN_COLORS = {
   supplychain: P.teal,
   plugin: P.mauve,
-  edge: P.sand,
+  edge: P.plum,
   platform: P.sage,
   other: P.slate,          /* the large remainder stays quiet */
 };
@@ -498,13 +498,15 @@ const originLabel = (core) => {
   return (id) => m[id] || ORIGIN_FALLBACK[id] || id;
 };
 /* AI relations (multi-label tags; Part 2). Ids fixed by build.py AI_RELATIONS. */
+/* AI relations stay in the AI blue family plus greys, so no relation shares a
+ * colour with an origin (teal/mauve/plum/sage) or a severity (warm) */
 const REL_COLORS = {
-  agent: P.sand,
+  agent: P.navy,
   product: P.blue,
   feature: P.neutral,
-  weakness: P.mauve,
-  compute: P.sage,
-  found: P.teal,
+  weakness: P.steel,
+  compute: P.sky,
+  found: P.grey,
 };
 const REL_FALLBACK = {
   agent: "MCP servers & AI agents", product: "AI software & ML libraries",
@@ -2081,8 +2083,10 @@ function buildCnaChart(ctx) {
   for (const y of years) for (const [c, n] of Object.entries(cy[y] || {})) if (c !== "other" && fin(n)) tot[c] = (tot[c] || 0) + n;
   const top = Object.entries(tot).sort((a, b) => b[1] - a[1]).slice(0, 7).map((x) => x[0]);
   const topSet = new Set(top);
-  const groups = top.map((c, i) => ({ label: prettyCna(c), color: CAT_COLORS[i % CAT_COLORS.length], data: years.map((y) => (cy[y] || {})[c] || 0) }));
-  groups.push({ label: "other CNAs", color: OTHER_COLOR, data: years.map((y) =>
+  // filers are not a category with a meaning elsewhere: one quiet steel ramp, largest darkest
+  const ramp = [1, 0.84, 0.7, 0.58, 0.47, 0.38, 0.3];
+  const groups = top.map((c, i) => ({ label: prettyCna(c), color: tint(P.steel, ramp[i] || 0.3), data: years.map((y) => (cy[y] || {})[c] || 0) }));
+  groups.push({ label: "other CNAs", color: tint(P.steel, 0.18), data: years.map((y) =>
     Object.entries(cy[y] || {}).reduce((s, [c, n]) => s + (!topSet.has(c) && fin(n) ? n : 0), 0)) });
   // top assigner of the latest complete year → one data-driven sentence
   const hint = $("#cna-hint");
