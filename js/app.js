@@ -876,7 +876,7 @@ function buildSignal(ctx) {
   if (!st) { $("#signal").remove(); return; }
   const rows = [
     { label: "Published", sub: "all CVEs", n: st.base, cls: "all" },
-    st.hc != null && { label: "Rated HIGH or CRITICAL", sub: "all CVEs incl. Linux; unrated count as not", n: st.hc, cls: "hc" },
+    st.hc != null && { label: "Rated HIGH or CRITICAL", sub: "share of all published CVEs; unrated counted as not", n: st.hc, cls: "hc" },
     st.epss != null && { label: "Elevated exploit probability", sub: "EPSS ≥ 10% (30-day model estimate)", n: st.epss, cls: "epss" },
     st.kev != null && { label: "Confirmed exploited", sub: "in CISA KEV so far (a lower bound)", n: st.kev, cls: "kev" },
   ].filter(Boolean);
@@ -896,7 +896,7 @@ function buildSignal(ctx) {
     titleEl: "#h-signal",
     title: st.hc && st.kev ? `Last 12 months: severity flags ${pct(st.hc / st.base)} of new CVEs; CISA KEV lists ${oneIn(st.kev, st.base)} so far${st.kevFull ? ` (${oneIn(st.kevFull.k, st.kevFull.n)} for the year before, fully followed)` : ""}` : null,
     subEl: "#signal-hint",
-    sub: `Every bar counts the same CVEs: the ${num.format(st.base)} published from ${fmtDay(st.from)} to ${fmtDay(st.to)}. Bars are shares of that one base, not a funnel: an exploited CVE can be rated MEDIUM. EPSS is a model estimate; KEV is confirmed exploitation and lags.`,
+    sub: `Every bar counts the same CVEs: the ${num.format(st.base)} published from ${fmtDay(st.from)} to ${fmtDay(st.to)}. Bars are shares of that one base, not a funnel: an exploited CVE can be rated MEDIUM. EPSS is a model estimate; KEV is confirmed exploitation and lags. The severity card further down shows a higher share because it counts only rated CVEs, per calendar year, and leaves out the Linux kernel's selective ratings.`,
     so: ratio ? `A severity-first queue is about ${num.format(Math.round(ratio))} times larger than the confirmed-exploited list so far${st.kevFull ? `, and still about ${num.format(Math.round(st.hc / (st.base * st.kevFull.k / st.kevFull.n)))} times larger at the fully followed rate` : ""}. Patch KEV first, then rank the rest by EPSS, severity and exposure`
       + (st.recall ? `. EPSS is not an early warning: the day before CISA listed them, only ${num.format(st.recall.caught)} of these ${num.format(st.recall.of)} exploited CVEs (${pct(st.recall.caught / st.recall.of)}) had an EPSS of 10% or more, and ${pct(st.recall.unscored / st.recall.of)} had no score yet.` : ".") : null,
     src: srcLine(ctx, ["cve", "epss", "kev"]),
