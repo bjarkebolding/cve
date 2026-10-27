@@ -2773,7 +2773,7 @@ function slideify() {
  * that opens on hover (mouse), on tap (touch) and on focus (keyboard). */
 let infoSeq = 0;
 function infoize() {
-  const heads = document.querySelectorAll("main h2[id^='h-'], main h3[id^='h-'], main p.headline");
+  const heads = document.querySelectorAll("main h2[id^='h-'], main h3[id^='h-'], main .headline");
   for (const t of heads) {
     if (t.closest("#method") || t.closest(".todo") || t.closest(".exploited-strip")) continue;
     const BLOCK = ".sub, .panel, section, .tier";
@@ -2782,7 +2782,7 @@ function infoize() {
     const items = [...block.querySelectorAll("p.hint, p.subhead, p.note, .figfoot > p.how")]
       .filter((el) => el.parentElement.closest(BLOCK) === block && !el.closest(".info-body") && el.textContent.trim() && !el.classList.contains("toplegend"));
     // a headline's info is only its own subhead
-    const pick = t.matches("p.headline") ? items.filter((el) => el.matches(".subhead")) : items.filter((el) => !el.matches(".subhead"));
+    const pick = t.matches(".headline") ? items.filter((el) => el.matches(".subhead")) : items.filter((el) => !el.matches(".subhead"));
     if (!pick.length) continue;
     const id = "info-" + (++infoSeq);
     const body = h("div", { class: "info-body", id, role: "note" });
@@ -2832,11 +2832,9 @@ function infoize() {
     const gen = new Date(core.generatedAt);
     const ageH = (Date.now() - gen.getTime()) / 3600e3;
     const stale = ageH > 48 ? ` · data ${Math.round(ageH / 24)}d old — rebuild` : "";
-    stamp.textContent = `Data as of ${gen.toISOString().slice(0, 16).replace("T", " ")} UTC · ` +
-      (kev && kev.generatedAt ? `KEV ${String(kev.generatedAt).slice(0, 10)} · ` : "") +
-      (epss && epss.modelDate ? `EPSS ${epss.modelDate} · ` : "") + "rebuilt daily" + stale;
-    if (stale) stamp.classList.add("err");
-  } catch (e) { stamp.textContent = "data loaded"; }
+    // no title bar: the stamp only speaks up when the data is stale (every card carries its own date)
+    if (stale) { stamp.textContent = `Data as of ${gen.toISOString().slice(0, 10)}${stale}`; stamp.classList.add("err"); }
+  } catch (e) { /* cards carry their own dates */ }
 
   const layers = layerList(core, meta);
   const rels = relList(core, meta);
