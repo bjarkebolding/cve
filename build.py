@@ -976,9 +976,13 @@ def surge_cnas(cur, prev, min_n=SURGE_MIN, x=SURGE_X):
 
 def _windowed_top(cur, prev, n, names=None, ex=None):
     """[{"id", "n", "prev"[, "name"][, "nx", "prevx"]}] for the n largest keys of
-    cur; nx/prevx = the same counts without the surge filers (ex = (cur, prev))."""
+    cur; nx/prevx = the same counts without the surge filers (ex = (cur, prev)).
+    With ex, the ranking is on nx too (keys with nx = 0 are dropped), so a list
+    shown without the surge filers is the real top n on that basis."""
     out = []
-    for k, v in sorted(cur.items(), key=lambda kv: (-kv[1], kv[0]))[:n]:
+    key = (lambda kv: (-ex[0].get(kv[0], 0), kv[0])) if ex else (lambda kv: (-kv[1], kv[0]))
+    items = [kv for kv in cur.items() if not ex or ex[0].get(kv[0], 0) > 0]
+    for k, v in sorted(items, key=key)[:n]:
         row = {"id": k, "n": v, "prev": prev.get(k, 0)}
         if ex:
             row["nx"], row["prevx"] = ex[0].get(k, 0), ex[1].get(k, 0)

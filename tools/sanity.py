@@ -84,6 +84,13 @@ ytd_prev = sum(c for day, c in zip(d["days"], d["dayCounts"]) if day.startswith(
 ratio = ytd / ytd_prev if ytd_prev else None
 check(ratio is None or 0.3 < ratio < 6, f"data: YTD growth ×{ratio:.2f} implausible", warn=True)
 
+# top lists shown without the surge filers must be ranked on that basis (no "0 · new" rows)
+for _k in ("all", "ai"):
+    for _f in ("vendorTop", "cweTop"):
+        _r = ((d.get("landscape") or {}).get(_k) or {}).get(_f) or []
+        if _r and all("nx" in x for x in _r):
+            check(all(x["nx"] > 0 for x in _r) and [x["nx"] for x in _r] == sorted((x["nx"] for x in _r), reverse=True),
+                  f"landscape.{_k}.{_f}: not ranked on counts without surge filers")
 ents = kev["entries"]
 check(len({e["cve"] for e in ents}) == len(ents), "kev: duplicate CVE entries")
 check(all(e["ai"] == bool(set(e.get("rels") or []) - {"found"}) for e in ents if e["ai"]),

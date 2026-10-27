@@ -512,6 +512,7 @@ def main():
     test_relations()
     test_landscape()
     test_ytd_filers()
+    test_windowed_top_ranks_on_ex()
     test_surge_cnas()
     test_is_ai_blob()
     test_parse_file()
@@ -522,6 +523,16 @@ def main():
     test_data_dir_env()
     print(f"\n{PASS} passed, {FAIL} failed")
     raise SystemExit(1 if FAIL else 0)
+
+
+def test_windowed_top_ranks_on_ex():
+    cur = {"Oracle": 4000, "Linux": 900, "Acme": 50}
+    prev = {"Oracle": 100, "Linux": 800, "Acme": 40}
+    exc = {"Oracle": 0, "Linux": 900, "Acme": 50}
+    rows = build._windowed_top(cur, prev, 2, ex=(exc, prev))
+    check("ex ranking: surge-only volume does not rank", [r["id"] for r in rows] == ["Linux", "Acme"])
+    check("ex ranking keeps raw n beside nx", rows[0]["n"] == 900 and rows[0]["nx"] == 900)
+    check("no ex: ranking on raw counts", [r["id"] for r in build._windowed_top(cur, prev, 2)] == ["Oracle", "Linux"])
 
 
 if __name__ == "__main__":
