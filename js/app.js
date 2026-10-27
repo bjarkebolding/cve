@@ -1711,23 +1711,6 @@ function buildTodo(ctx, F) {
     }
     return names.length ? `Next, check ${listJoin(names)}: the AI software with the highest exploit-probability (EPSS) CVEs of the last 12 months that are not yet in KEV.` : null;
   });
-  add(() => {
-    const lm = ctx.core.layerMonths;
-    if (!lm || !Array.isArray(ctx.core.months)) return null;
-    let best = null;
-    for (const [id, arr] of Object.entries(lm)) {
-      if (!Array.isArray(arr) || id === "other") continue;
-      let cur = 0, prev = 0;
-      ctx.core.months.forEach((m, i) => { if (m.startsWith(F.year)) cur += arr[i] || 0; if (m.startsWith(F.prevYear)) prev += arr[i] || 0; });
-      if (!best || cur > best.cur) best = { id, cur, prev };
-    }
-    if (!best || !best.cur) return null;
-    const layered = layerYtd(ctx.core, F);
-    const tot = layered ? ` (${pct(best.cur / layered)} of CVEs in AI software)` : "";
-    const bk = layerBulk(ctx, F, best.id);
-    return `Inventory your ${ctx.label(best.id)}: the largest layer in ${F.year} with ${num.format(best.cur)} CVEs so far${tot}, vs ${num.format(best.prev)} in all of ${F.prevYear}`
-      + (bk ? `; ${num.format(bk.n)} of them are one ${prettyProduct(bk.product)} bulk disclosure, but even without it the layer is already ${fmtX((best.cur - bk.n) / Math.max(1, best.prev))} times all of ${F.prevYear}.` : ".");
-  });
   if (!out.length) { note(ul.parentElement, "Not enough data for recommendations in this build."); ul.remove(); return; }
   for (const s of out) ul.append(h("li", { text: s }));
 }
@@ -2119,7 +2102,7 @@ function buildAiPkgs(ctx) {
   } else note(el, "No monthly advisory counts.");
   // recent advisories list
   const box = $("#adv-recent");
-  const items = (ap.recent || []).slice(0, 8);
+  const items = (ap.recent || []).slice(0, 5);
   if (!items.length) return;
   box.append(h("div", { class: "adv-head", text: `Recent advisories (${items.length} of ${ap.recent.length})` }));
   for (const it of items) {
@@ -2127,7 +2110,6 @@ function buildAiPkgs(ctx) {
       h("span", { class: "adv-date", text: String(it.published || "").slice(0, 10) }),
       h("span", { class: "adv-pkg", text: it.package || it.id || "" }),
       h("span", { class: "adv-cve", text: it.cve || it.id || "" }),
-      h("span", { class: "adv-sum", text: it.summary || "", title: it.summary || null }),
       h("span", { class: "adv-fix" }, typeof it.fixed === "boolean" ? badge(it.fixed ? "FIX" : "NO FIX", it.fixed ? "ok" : "", it.fixed ? "a fixed version is listed" : "no fixed version listed") : null));
     box.append(row);
   }
@@ -2597,7 +2579,7 @@ function explainAi(ctx, F) {
       const share = big && tot ? big.cur / tot : 0;
       fig("#chart-layers", {
         titleEl: "#h-layers",
-        title: big && big.cur && tot ? `Within AI software, ${lcFirst(ctx.label(big.id))} are the largest layer: ${num.format(big.cur)} of ${num.format(tot)} CVEs in ${F.year} (${pct(share)})`
+        title: big && big.cur && tot ? `Within AI software, ${lcFirst(ctx.label(big.id))} are the largest layer: ${num.format(big.cur)} of the ${num.format(tot)} AI-related CVEs with a stack layer in ${F.year} (${pct(share)})`
           + (bulk ? `, ${num.format(bulk.n)} of them one ${prettyProduct(bulk.product)} bulk disclosure` : "") : null,
         subEl: "#layers-hint", sub: `CVEs in AI software, MCP agents and AI features per month, 2018 → ${F.year} (${partialLabel(F)}; the last month is partial), stacked by AI stack layer. Excludes CVEs that are AI-related only as a weakness, compute or found-by-AI. Click a legend entry to hide a layer.`,
         after: "#layers-note",
