@@ -17,7 +17,6 @@
     "chart-malicious": !!(mal && mal.byYear && Object.keys(mal.byYear).length),
     "chart-cves": !!(core && core.days),
     "chart-layers": !!(core && core.layerMonths && core.layers),
-    "chart-sev": !!(core && core.landscape && core.landscape.ai),
     "chart-cna": !!(core && core.cnaYears),
     "chart-aipkgs": !!(ap && ap.months && Object.keys(ap.months).length),
     "chart-adoption": !!(dl && dl.npmMonthly),

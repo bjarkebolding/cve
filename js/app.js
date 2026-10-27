@@ -1990,11 +1990,6 @@ function buildCweCompare(ctx) {
   }
   el.append(list);
 }
-function buildSevChart(ctx) {
-  const L = ctx.core.landscape && ctx.core.landscape.ai;
-  sevYearsChart($("#chart-sev"), L && L.sevYears, { year: ctx.F.year, height: 220, yLabel: "AI-related CVEs per year",
-    ariaLabel: "AI-related CVEs per year stacked by CVSS severity, CRITICAL at the bottom, unrated on top" });
-}
 
 /* ================= patch first (EPSS) ================= */
 function buildEpssTable(ctx, F) {
@@ -2647,20 +2642,6 @@ function explainDetail(ctx, F, S) {
     }
   } catch (e) { /* skip */ }
   try {
-    const sy = core.landscape && core.landscape.ai && core.landscape.ai.sevYears;
-    const o = sy && sy[F.year];
-    if (o) {
-      const r = SEV_KEYS.reduce((t, k) => t + (o[k] || 0), 0), hc = (o.CRITICAL || 0) + (o.HIGH || 0);
-      fig("#chart-sev", {
-        so: r ? `${pct(hc / r)} of rated AI-related CVEs are HIGH or CRITICAL, so severity alone cannot order the work: rank them in the same KEV-first queue as everything else.` : null,
-        titleEl: "#h-sevmix", title: r ? `${num.format(hc)} HIGH/CRITICAL AI-related CVEs in ${F.year} so far (${pct(hc / r)} of ${num.format(r)} rated)` : null,
-        subEl: "#sev-hint", sub: `AI-related CVEs per year, 2018 → ${F.year} (${partialLabel(F)}), stacked by CVSS severity from the CVE record.`,
-        how: "Segments add up to the year's AI-related CVEs, CRITICAL at the bottom, unrated on top. Severity is the vendor's CVSS, not risk.",
-        src: srcLine(ctx, ["cve"]),
-      });
-    }
-  } catch (e) { /* skip */ }
-  try {
     const ya = core.ytd && core.ytd.ai, yall = core.ytd && core.ytd.all;
     const ytd = ya ? { cur: ya.cur, prev: ya.prev } : null, all = yall ? { cur: yall.cur, prev: yall.prev } : null;
     fig("#chart-cves", {
@@ -2879,7 +2860,7 @@ function explainPart2(ctx, F, S) {
       const vb = shareRiser(vr, L.window, 20);
       fig("#vendai", {
         so: "Ask your main AI vendors for their disclosure and patch timelines; one product can dominate the count.",
-        titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months` + (vb && vb !== vr[0] ? `; ${vb.label} grew fastest (${growthText(vb.gn, vb.gprev)} against ×${fmtX(vb.base)} for all AI-related CVEs${vb.ex ? ", without bulk filers" : ""})` : "") : null,
+        titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months (all its products)` + (vb && vb !== vr[0] ? `; ${vb.label} grew fastest (${growthText(vb.gn, vb.gprev)} against ×${fmtX(vb.base)} for all AI-related CVEs${vb.ex ? ", without bulk filers" : ""})` : "") : null,
         how: "Bar = last 12 months, tick = the 12 months before; text = count · change. 'new' = none the year before.",
         src: srcLine(ctx, ["cve"]),
       });
@@ -3077,7 +3058,6 @@ function infoize() {
     ["severity compare", () => buildSevCompare(ctx)],
     ["CWE compare", () => buildCweCompare(ctx)],
     ["AI vendors", () => buildVendAi(ctx)],
-    ["severity chart", () => buildSevChart(ctx)],
     ["layer chart", () => buildLayerChart(ctx)],
     ["AI CVE table", () => { buildRecentAiTable(ctx); wireAiFilter(); }],
     ["CNA chart", () => buildCnaChart(ctx)],
