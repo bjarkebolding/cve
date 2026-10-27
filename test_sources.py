@@ -383,7 +383,17 @@ def test_zerodays_ytd():
     check("zero-days: like-for-like year to date", z["byYearToDate"] == {"2025": 1, "2026": 1} and z["byYear"]["2025"] == 2)
 
 
+def test_unify_product_origins():
+    es = [{"product": "RARLAB WinRAR", "origin": "edge"}, {"product": "RARLAB WinRAR", "origin": "other"},
+          {"product": "rarlab winrar", "origin": "other"}, {"product": "Sangoma FreePBX", "origin": "supplychain"},
+          {"product": "Sangoma FreePBX", "origin": "other"}]
+    sources.unify_product_origins(es)
+    check("one origin per product: majority", all(e["origin"] == "other" for e in es[:3]))
+    check("one origin per product: tie goes to the specific origin", all(e["origin"] == "supplychain" for e in es[3:]))
+
+
 def main():
+    test_unify_product_origins()
     test_zerodays_ytd()
     test_kev_origin_consistent()
     test_primary_cvss()

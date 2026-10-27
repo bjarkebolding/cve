@@ -435,8 +435,25 @@ def kev_entries(vulns, meta, records=None, ai_match=is_ai_text,
             "daysToKev": days,
             "zeroDay": days is not None and days <= ZERO_DAY_MAX,
         })
+    unify_product_origins(entries)
     entries.sort(key=lambda e: e["added"], reverse=True)
     return entries, sum(1 for e in entries if e["ai"])
+
+
+def unify_product_origins(entries):
+    """One origin per KEV (vendor, product): the majority of its entries, ties to
+    a specific origin over "other" (record-level signals still vary by filing)."""
+    groups = {}
+    for e in entries:
+        groups.setdefault(e["product"].strip().lower(), []).append(e)
+    for es in groups.values():
+        counts = {}
+        for e in es:
+            counts[e["origin"]] = counts.get(e["origin"], 0) + 1
+        if len(counts) > 1:
+            best = max(counts, key=lambda o: (counts[o], o != "other", o))
+            for e in es:
+                e["origin"] = best
 
 
 def kev_by_year(entries):
