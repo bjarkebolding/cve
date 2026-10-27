@@ -1014,7 +1014,7 @@ function hbars(el, rows, opts) {
     list.append(h("div", { class: "hb-row" + (r.hi ? " hi" : ""), role: "listitem", "aria-label": `${r.label}: ${r.n}` },
       h("span", { class: "hb-lab", text: r.label, title: r.label }),
       h("span", { class: "hb-bar" }, fill),
-      h("span", { class: "hb-n", text: num.format(r.n) + (opts && opts.of ? ` · ${pct(r.n / opts.of)}` : "") })));
+      h("span", { class: "hb-n", text: r.txt || num.format(r.n) + (opts && opts.of ? ` · ${pct(r.n / opts.of)}` : "") })));
   }
   el.append(list);
 }
@@ -1437,14 +1437,6 @@ function buildTops(ctx) {
 }
 
 /* ================= Part 2: AI-related summary ================= */
-/* CVEs this year that sit in an AI stack layer (AI software, agents, features) */
-function layerYtd(core, F) {
-  const lm = core.layerMonths;
-  if (!lm || !Array.isArray(core.months)) return 0;
-  let n = 0;
-  for (const arr of Object.values(lm)) if (Array.isArray(arr)) core.months.forEach((m, i) => { if (m.startsWith(F.year)) n += arr[i] || 0; });
-  return n;
-}
 /* AI-risk relations per year (this year, last year). "found" is left out:
  * an AI tool finding a bug in curl is discovery, not AI attack surface. */
 function relYtd(core, F) {
@@ -1535,34 +1527,19 @@ function buildAiKpis(ctx, F, S) {
   tiles.forEach((t, i) => { t.src = t.src || SRC[i] || tileSrc(ctx, "CVE List"); });
   kpiTiles($("#ai-kpis"), tiles, "AI indicators are not available for this data build.");
 }
+/* one card per AI relation: this year's count and the change on the same days last
+ * year (the per-year lines and the stack-layer chart said the same thing again) */
 function buildRelations(ctx, F) {
   const el = $("#rel-bars");
   const ry = relYtd(ctx.core, F);
   const RL = ctx.relLabel;
-  if (!ry) { note(el, "AI relation tags are not in this data build (it predates them)."); note($("#chart-rel"), "Not available."); return; }
+  if (!ry) { note(el, "AI relation tags are not in this data build (it predates them)."); return; }
   const ids = (ctx.rels || []).map((r) => r.id).filter((id) => ry[id]);
-  hbars(el, ids.map((id) => ({ label: RL(id), n: ry[id].cur, color: REL_COLORS[id] || OTHER_COLOR })).sort((a, b) => b.n - a.n));
-  // per year, lines (multi-label: never stacked)
-  const all = ctx.core.landscape.ai.relYears;
-  const years = [...new Set(ids.flatMap((id) => Object.keys(all[id] || {})))].filter((y) => y >= "2018").sort();
-  const cel = $("#chart-rel");
-  if (!years.length) { note(cel, "No yearly counts."); return; }
-  const cur = F.year;
-  makeChart(cel, {
-    height: 220,
-    ariaLabel: "AI-related CVEs per year by relation, one line per relation (a CVE can count in several)",
-    scales: { x: { time: false } },
-    axes: [
-      { space: 34, values: tick((v) => String(v) + (String(v) === cur ? "\nYTD" : "")), incrs: [1, 2, 5], size: 44 },
-      { space: 36, label: "CVEs per year", values: tick(axisNum), size: 56 },
-    ],
-    series: [
-      { label: "year", value: (u, v) => (v == null ? "" : String(v)) },
-      ...ids.map((id) => ({ label: rShort(id), stroke: REL_COLORS[id] || OTHER_COLOR, width: 2, points: { show: true, size: 5 },
-        value: (u, v) => (v == null ? "" : num.format(v)) })),
-    ],
-    legend: { show: true },
-  }, [years.map(Number), ...ids.map((id) => years.map((y) => (all[id] || {})[y] || 0))]);
+  hbars(el, ids.map((id) => {
+    const y = ytdRel(ctx.core, id);
+    return { label: RL(id), n: ry[id].cur, color: REL_COLORS[id] || OTHER_COLOR,
+      txt: num.format(ry[id].cur) + (y ? ` · ${y.prev >= 10 ? growthText(y.cur, y.prev) + (fin(y.rx) && Math.abs(y.rx - y.cur / y.prev) >= 0.3 ? ` (×${fmtX(y.rx)} without bulk filers)` : "") : `${num.format(y.cur)} vs ${num.format(y.prev)}`}` : "") };
+  }).sort((a, b) => b.n - a.n));
 }
 function buildAiOrigin(ctx) {
   const el = $("#chart-aiorigin");
@@ -1602,21 +1579,6 @@ function buildKevChips(F) {
 }
 
 /* data-tied actions only: exploited products, next-highest EPSS, biggest layer */
-/* The year's largest single-product bulk disclosure (e.g. OpenClaw) when it
- * sits inside one AI layer: {product, n} or null (needs >= 100 CVEs). Matches
- * the exact product name (case-insensitive), like build.concentration, so
- * forks and plugins of the product are not counted. */
-function layerBulk(ctx, F, layerId) {
-  try {
-    const core = ctx.core;
-    const top = core.concentration && core.concentration[F.year] && (core.concentration[F.year].top || [])[0];
-    if (!top) return null;
-    const key = String(top.product).toLowerCase();
-    const n = Object.values((ctx.meta && ctx.meta.ids) || {}).filter((m) => m && typeof m === "object" && String(m.d || "").startsWith(F.year)
-      && m.layer === layerId && String(m.product || "").trim().toLowerCase() === key).length;  // same exact-product key as the build's concentration
-    return n >= 100 ? { product: top.product, n } : null;
-  } catch (e) { return null; }
-}
 function buildTodo(ctx, F) {
   const ul = $("#todo-list");
   const out = [];
@@ -1670,44 +1632,6 @@ function buildKevTable(F, ctx) {
 }
 
 /* ================= layer chart ================= */
-function buildLayerChart(ctx) {
-  const el = $("#chart-layers");
-  const { core, layers } = ctx;
-  if (!core.layerMonths || !Array.isArray(core.months) || !layers) {
-    note(el, "Stack-layer breakdown is not available in this data build.");
-    return;
-  }
-  const idx = new Map(core.months.map((m, i) => [m, i]));
-  const last = core.months[core.months.length - 1];
-  const ms = monthRange("2018-01", last);
-  const groups = [...layers].reverse() // contract order is priority (mcp first); put framework/other at the bottom
-    .filter((l) => Array.isArray(core.layerMonths[l.id]))
-    .map((l) => ({
-      label: l.label || l.id,
-      color: LAYER_COLORS[l.id] || OTHER_COLOR,
-      data: ms.map((m) => (idx.has(m) ? core.layerMonths[l.id][idx.get(m)] || 0 : 0)),
-    }));
-  if (!groups.length) { note(el, "Stack-layer breakdown is empty."); return; }
-  stackedBars(el, {
-    xs: ms.map(monthT), groups, height: 340, yLabel: "AI CVEs per month",
-    ariaLabel: "AI-related CVEs per month since 2018, stacked by AI stack layer",
-    draw: (() => { const F = ctx.F || {}; const n = bulkNotes(F); if (F.year) n[F.year] = (n[F.year] ? n[F.year] + " · " : "") + `${MONTHS[+F.asOf.slice(5, 7) - 1]} partial`; return yearNotes(n, true); })(), xFmt: (v) => new Date(v * 86400e3).toISOString().slice(0, 7), barMax: 14, monthly: true,
-  });
-  // replace the static TensorFlow note with the data's bulk-disclosure years
-  const conc = core.concentration;
-  const noteEl = $("#layers-note");
-  if (noteEl && conc && typeof conc === "object") {
-    const parts = Object.keys(conc).sort().map((y) => {
-      const t = conc[y].top && conc[y].top[0];
-      return t ? `${y}: ${t.product} ${(100 * t.share).toFixed(0)}% (${num.format(t.n)}, mostly via ${prettyCna(t.cna)})` : null;
-    }).filter(Boolean);
-    if (parts.length) {
-      noteEl.textContent = `Bulk disclosures by a single product inflate some years — ${parts.join(" · ")}. `
-        + "These are one project's batch of reports, not a rise across the AI stack. Click a layer in the legend to hide it.";
-    }
-  }
-}
-
 /* ================= main CVE chart (all vs AI) ================= */
 function denseDays(daysArr, counts, first, last) {
   const out = new Array(last - first + 1).fill(0);
@@ -2373,31 +2297,6 @@ function explainAi(ctx, F) {
     });
   } catch (e) { /* skip */ }
   try {
-    const lm = core.layerMonths;
-    if (lm && ctx.layers) {
-      let big = null;
-      for (const [id, arr] of Object.entries(lm)) {
-        if (id === "other" || !Array.isArray(arr)) continue;
-        const cur = core.months.reduce((s, m, i) => s + (m.startsWith(F.year) ? arr[i] || 0 : 0), 0);
-        if (!big || cur > big.cur) big = { id, cur };
-      }
-      const bulk = big ? layerBulk(ctx, F, big.id) : null;
-      const tot = layerYtd(core, F);
-      const share = big && tot ? big.cur / tot : 0;
-      fig("#chart-layers", {
-        titleEl: "#h-layers",
-        title: big && big.cur && tot ? `Within AI software, ${lcFirst(ctx.label(big.id))} are the largest layer: ${num.format(big.cur)} of the ${num.format(tot)} AI-related CVEs with a stack layer in ${F.year} (${pct(share)})`
-          + (bulk ? `, ${num.format(bulk.n)} of them one ${prettyProduct(bulk.product)} bulk disclosure` : "") : null,
-        subEl: "#layers-hint", sub: `CVEs in AI software, MCP agents and AI features per month, 2018 → ${F.year} (${partialLabel(F)}; the last month is partial), stacked by AI stack layer. Excludes CVEs that are AI-related only as a weakness, compute or found-by-AI. Click a legend entry to hide a layer.`,
-        after: "#layers-note",
-        how: "Each bar = AI CVEs published that month; segments add up to the month's total. Pitfall: one project's batch disclosure can dominate a year (labelled on the chart).",
-        so: big && big.cur ? `Inventory where ${lcFirst(ctx.label(big.id))} run in your estate: that is where ${share > 0.5 ? "most" : "the largest share of"} new AI CVEs land`
-          + (bulk && tot - bulk.n > 0 ? ` (${pct((big.cur - bulk.n) / (tot - bulk.n))} without the ${prettyProduct(bulk.product)} batch).` : ".") : null,
-        src: srcLine(ctx, ["cve"]),
-      });
-    }
-  } catch (e) { /* skip */ }
-  try {
     const ep = ctx.epss && ctx.epss.scores;
     if (ep) {
       const d = ctx.epss.dist && ctx.epss.dist.ai;
@@ -2594,17 +2493,17 @@ function explainPart2(ctx, F, S) {
     const ry = relYtd(core, F);
     if (ry) {
       const top = Object.entries(ry).sort((a, b) => b[1].cur - a[1].cur)[0];
-      const fast = Object.entries(ry).filter(([, v]) => v.prev >= 20).sort((a, b) => b[1].cur / b[1].prev - a[1].cur / a[1].prev)[0];
+      const yr = Object.keys(ry).map((id) => [id, ytdRel(core, id)]).filter(([, y]) => y && y.prev >= 20);
+      const fast = yr.sort((a, b) => b[1].cur / b[1].prev - a[1].cur / a[1].prev)[0];
       fig("#rel-bars", {
         titleEl: "#h-rel", title: top ? `${ctx.relLabel(top[0])} account for ${S.aiShare && S.aiShare.n && top[1].cur / S.aiShare.n > 0.5 ? "most" : "the largest share of"} AI-related CVEs in ${F.year} (${num.format(top[1].cur)}${S.aiShare && S.aiShare.n ? `, ${pct(top[1].cur / S.aiShare.n)}` : ""})` + (fast && fast[0] !== top[0] ? `; ${lcFirst(ctx.relLabel(fast[0]))} grew fastest` : "") : null,
         subEl: "#rel-hint", sub: `AI-related CVEs published in ${F.year} (${partialLabel(F)}) by kind of AI relation. A CVE can carry several tags, so the bars add up to more than the AI-related total.`,
-        how: "This year's count per relation; the next card shows the same per year. Pitfall: the last year is partial.",
+        how: (() => {
+          const t = core.concentration && core.concentration[F.year] && (core.concentration[F.year].top || [])[0];
+          const bulk = t && t.share >= 0.1 ? ` ${F.year} includes one bulk disclosure: ${t.product}, ${num.format(t.n)} CVEs (${pct(t.share)} of AI-related), mostly via ${prettyCna(t.cna)}.` : "";
+          return `Bar = this year's count per relation; text = count · change on the same days last year (both counts when last year had fewer than 10), and without ${BULK_NAMES} where that differs. Pitfall: one project's batch of reports can dominate a relation.${bulk}`;
+        })(),
         so: "Two different jobs: AI software and agents need asset inventory and patching like any software; AI features, weaknesses and compute need you to ask vendors how their AI is isolated.",
-        src: srcLine(ctx, ["cve"]),
-      });
-      fig("#chart-rel", {
-        how: "One line per relation (click a legend entry to hide a line and rescale). Pitfall: the last year is partial.",
-        so: "The steepest line is the attack surface growing fastest: track MCP servers and agents as their own asset class, with an owner each.",
         src: srcLine(ctx, ["cve"]),
       });
     }
@@ -2825,7 +2724,6 @@ function infoize() {
     ["severity compare", () => buildSevCompare(ctx)],
     ["CWE compare", () => buildCweCompare(ctx)],
     ["AI vendors", () => buildVendAi(ctx)],
-    ["layer chart", () => buildLayerChart(ctx)],
     ["CNA chart", () => buildCnaChart(ctx)],
     ["methodology", () => buildMethod(ctx)],
     ["framing: summary", () => explainSummary(ctx, F, S)],

@@ -12,10 +12,8 @@
     "chart-ttk": !!(kev && (kev.entries || []).some((e) => typeof e.daysToKev === "number")),
     "chart-sevall": !!(core && core.landscape && core.landscape.all),
     "chart-aiorigin": !!(core && core.landscape && core.landscape.ai),
-    "chart-rel": !!(core && core.landscape && core.landscape.ai && core.landscape.ai.relYears),
     "chart-malicious": !!(mal && mal.byYear && Object.keys(mal.byYear).length),
     "chart-cves": !!(core && core.days),
-    "chart-layers": !!(core && core.layerMonths && core.layers),
     "chart-cna": !!(core && core.cnaYears),
   };
   out.inks = [];
@@ -29,7 +27,7 @@
     out.inks.push(id + ":" + (a ? Math.max(1, Math.round((100 * a) / b)) : 0) + "%");
   }
   // removed panels must stay gone
-  out.removed = ["chart-hours", "chart-kev", "findings-list", "cards", "latest", "context", "exploitation", "chart-kev-origin", "threats", "threat-cards", "tbl-ai", "chart-aipkgs", "chart-adoption"].filter((id) => document.getElementById(id));
+  out.removed = ["chart-hours", "chart-kev", "findings-list", "cards", "latest", "context", "layers", "chart-layers", "chart-rel", "exploitation", "chart-kev-origin", "threats", "threat-cards", "tbl-ai", "chart-aipkgs", "chart-adoption"].filter((id) => document.getElementById(id));
   out.epssRows = document.querySelectorAll("#tbl-epss tbody tr").length;
   out.headline = (document.querySelector("#headline") || {}).textContent || "";
   out.kpis = document.querySelectorAll("#kpis .kpi").length;

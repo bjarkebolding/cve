@@ -671,6 +671,9 @@ footer a { color: var(--ink-2); }
 /* KEV-by-vendor: wider figure column for "40 · 18 at disclosure · 4 ransomware" */
 #kevvend-bars .hb-row, #ransom-bars .hb-row { grid-template-columns: minmax(120px, 0.8fr) minmax(0, 2fr) minmax(220px, auto); }
 #kevvend-bars .hb-n, #ransom-bars .hb-n { white-space: nowrap; }
+/* relation bars carry 'count · change (change without bulk filers)' */
+#rel-bars .hb-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(250px, auto); }
+@media (max-width: 760px) { #rel-bars .hb-row { grid-template-columns: minmax(0, 1fr) auto; } #rel-bars .hb-n { white-space: normal; text-align: right; } }
 @media (max-width: 760px) { #kevvend-bars .hb-row, #ransom-bars .hb-row { grid-template-columns: minmax(0, 1fr) auto; } #kevvend-bars .hb-n, #ransom-bars .hb-n { white-space: normal; text-align: right; } }
 
 /* figure tiles: source footers on one baseline across a row */
