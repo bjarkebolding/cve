@@ -2520,7 +2520,7 @@ function explainPart2(ctx, F, S) {
 const NAV_SUB = {
   brief: [],
   summary: [["kpis", "Key figures"], ["hero", "CVEs per year"], ["signal", "Signal vs noise"], ["where", "Where exploitation happens"]],
-  exploit: [["kev-vendors", "Exploited by vendor"], ["ransom", "Ransomware-linked"], ["speed", "Time to KEV listing"], ["kev-latest", "Latest KEV additions"], ["zerodays", "Recent zero-days"], ["next", "Patch next"]],
+  exploit: [["kev-vendors", "Exploited by vendor"], ["ransom", "Ransomware-linked"], ["speed", "Time to KEV listing"], ["kev-latest", "Latest KEV additions"], ["zerodays", "Zero-days"], ["next", "Patch next"]],
   volume: [["sevyears", "Severity per year"], ["tops", "Top weaknesses, vendors & CNAs"], ["supply", "Supply chain"]],
   ai: [["ai-kpis", "Key figures"], ["exploited", "Exploited AI vulnerabilities"], ["ai-next", "AI patch next"], ["relations", "How CVEs relate to AI"], ["issuance", "AI share of all CVEs"], ["ai-origin", "Where AI CVEs come from"], ["breaks", "AI weakness classes"], ["cna", "Who reports AI CVEs"]],
   method: [],

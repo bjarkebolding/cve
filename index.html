@@ -122,18 +122,9 @@
   </section>
 
   <section class="panel" id="speed" aria-labelledby="h-ttk">
-    <div class="duo">
-      <div class="sub">
-        <h3 id="h-zd">Listed in KEV at disclosure (zero-day proxy)</h3>
-        <p class="hint" id="zd-hint">KEV entries added at most one day after the CVE was published, by publication year.</p>
-        <div id="chart-zeroday" class="chart"></div>
-      </div>
-      <div class="sub">
-        <h3 id="h-ttk">Time from CVE publication to KEV listing</h3>
-        <p class="hint" id="ttk-hint">KEV additions per year by days from CVE publication to KEV.</p>
-        <div id="chart-ttk" class="chart"></div>
-      </div>
-    </div>
+    <h2 id="h-ttk">Time from CVE publication to KEV listing</h2>
+    <p class="hint" id="ttk-hint">KEV additions per year by days from CVE publication to KEV.</p>
+    <div id="chart-ttk" class="chart"></div>
   </section>
 
   <section class="panel" id="kev-latest" aria-labelledby="h-kevall">
@@ -147,14 +138,24 @@
     </div>
   </section>
 
-  <section class="panel" id="zerodays" aria-labelledby="h-zdlist">
-    <h2 id="h-zdlist">Recent zero-days</h2>
-    <p class="hint" id="zd-list-hint">Latest vulnerabilities exploited at or before disclosure.</p>
-    <div class="tablewrap">
-      <table id="tbl-zd">
-        <thead><tr><th scope="col">CVE</th><th scope="col">Product</th><th scope="col">Origin</th><th scope="col">Date (UTC)</th></tr></thead>
-        <tbody></tbody>
-      </table>
+  <!-- one zero-day section: the KEV proxy (broad) beside Project Zero's confirmed list (strict) -->
+  <section class="panel" id="zerodays" aria-labelledby="h-zd">
+    <div class="duo">
+      <div class="sub">
+        <h3 id="h-zd">Listed in KEV at disclosure (zero-day proxy)</h3>
+        <p class="hint" id="zd-hint">KEV entries added at most one day after the CVE was published, by publication year.</p>
+        <div id="chart-zeroday" class="chart"></div>
+      </div>
+      <div class="sub">
+        <h3 id="h-zdlist">Recent zero-days</h3>
+        <p class="hint" id="zd-list-hint">Latest vulnerabilities exploited at or before disclosure.</p>
+        <div class="tablewrap">
+          <table id="tbl-zd">
+            <thead><tr><th scope="col">CVE</th><th scope="col">Product</th><th scope="col">Origin</th><th scope="col">Date (UTC)</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </section>
 
