@@ -1043,6 +1043,18 @@ function hbars(el, rows, opts) {
   }
   el.append(list);
 }
+/* Each bar row is its own grid, so a number column must be one width per list:
+ * the widest label in that list (a fixed px column let longer text spill out of
+ * the card). Set after render, when the text is final. */
+function alignNumberColumns() {
+  for (const [list, sel] of [...document.querySelectorAll(".hbars")].map((l) => [l, ".hb-n"]).concat([...document.querySelectorAll(".sig")].map((l) => [l, ".sig-n"]))) {
+    const cells = [...list.querySelectorAll(sel)];
+    if (!cells.length) continue;
+    list.style.setProperty("--numw", "max-content");
+    const w = Math.ceil(Math.max(...cells.map((c) => c.scrollWidth)));
+    if (w > 0) list.style.setProperty("--numw", w + 1 + "px");
+  }
+}
 function buildWhere(ctx, F, S) {
   const el = $("#where-bars");
   const k = S.kev;
@@ -2733,6 +2745,7 @@ function infoize() {
     }
   }
   try { slideify(); } catch (err) { /* panels keep the plain layout */ }
+  try { alignNumberColumns(); } catch (err) { /* rows keep their own widths */ }
   try { buildNavMenus(); } catch (err) { /* plain nav links still work */ }
   try { clipTables(); } catch (err) { /* tables simply stay full length */ }
   try { infoize(); } catch (err) { /* details simply stay inline */ }

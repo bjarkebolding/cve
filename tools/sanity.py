@@ -348,7 +348,8 @@ if page:
             check(not shares or max(shares) > 50, f"page: 'most' with only {shares}%: {sent[:90]!r}")
     suffix = re.findall(r"\d×", body)
     check(not suffix, f"page: {len(suffix)} multiples written as 'N×' (use '×N' or 'N times')")
-    years = {int(y) for y in re.findall(r"\b(20\d\d)\b", body)}
+    # a year is not glued to a following % (phone-layout table cells run together: "2026-04-20" + "45%")
+    years = {int(y) for y in re.findall(r"\b(20\d\d)\b(?!%)", body)}
     check(max(years) <= int(year) + 1, f"page: mentions year {max(years)} beyond {year}")
 
 print(f"sanity: {oks} ok, {len(warns)} warn, {len(fails)} fail  (data as of {asof})")

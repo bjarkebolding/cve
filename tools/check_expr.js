@@ -33,6 +33,26 @@
   out.kpis = document.querySelectorAll("#kpis .kpi").length;
   out.whereRows = document.querySelectorAll("#where-bars .hb-row").length;
   out.tiers = ["summary", "exploit", "volume", "ai", "method"].filter((id) => document.getElementById(id)).length;
+  // text that spills out of its card (measured on the text itself, not the element box)
+  out.textOverflow = (() => {
+    const bad = [], range = document.createRange();
+    for (const b of document.querySelectorAll("main .panel, main .kpi, main .bl-item, main .brief-list > li, main .sub")) {
+      const r = b.getBoundingClientRect();
+      if (!r.width) continue;
+      const tw = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
+      let n;
+      while ((n = tw.nextNode())) {
+        if (!n.textContent.trim() || n.parentElement.closest("details:not([open])")) continue;
+        const th = n.parentElement.closest("thead");  // phone tables keep headers only for screen readers (1px clip)
+        if (th && th.getBoundingClientRect().width <= 2) continue;
+        const wrap = n.parentElement.closest(".tablewrap");
+        range.selectNodeContents(n);
+        const e = range.getBoundingClientRect(), lim = wrap ? wrap.getBoundingClientRect() : r;
+        if (e.width && (e.right > lim.right + 1 || e.left < lim.left - 1)) bad.push((b.id || b.className.split(" ")[0]) + ": " + n.textContent.trim().slice(0, 40));
+      }
+    }
+    return bad.slice(0, 5);
+  })();
   out.navLinks = [...document.querySelectorAll(".topnav a:not(.sub)")].filter((a) => document.querySelector(a.getAttribute("href"))).length;
   // tier 1 must come before tier 2/3 content
   const pos = (id) => { const e = document.getElementById(id); return e ? e.getBoundingClientRect().top + scrollY : -1; };

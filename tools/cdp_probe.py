@@ -92,7 +92,7 @@ def ws_recv(s, timeout=15):
     return json.loads(data)
 
 
-def run(url, expr, wait=4.0, mobile=None):
+def run(url, expr, wait=4.0, mobile=None, width=None):
     prof = os.environ.get("CDP_PROFILE") or "/tmp/cdp-prof"
     proc = subprocess.Popen([
         CHROME, "--headless=new", "--disable-gpu", "--no-sandbox",
@@ -110,6 +110,9 @@ def run(url, expr, wait=4.0, mobile=None):
         if mobile:
             ws_send(s, {"id": 4, "method": "Emulation.setDeviceMetricsOverride",
                         "params": {"width": 390, "height": 844, "deviceScaleFactor": 2, "mobile": True}})
+        elif width:  # desktop viewport of a given width (layout checks)
+            ws_send(s, {"id": 4, "method": "Emulation.setDeviceMetricsOverride",
+                        "params": {"width": int(width), "height": 900, "deviceScaleFactor": 1, "mobile": False}})
         exc = []
         t_end = time.time() + wait
         s.settimeout(2)

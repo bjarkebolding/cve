@@ -209,7 +209,7 @@ a:hover { color: var(--accent); text-decoration-color: currentColor; }
   box-shadow: 0 1px 2px rgba(20, 24, 32, 0.04);
 }
 .sig { display: grid; gap: 10px; margin: 6px 0 4px; }
-.sig-row { display: grid; grid-template-columns: minmax(170px, 230px) minmax(0, 1fr) 150px; gap: 16px; align-items: center; }
+.sig-row { display: grid; grid-template-columns: minmax(150px, 230px) minmax(0, 1fr) var(--numw, 150px); gap: 16px; align-items: center; }
 .sig-lab { display: flex; flex-direction: column; line-height: 1.3; }
 .sig-name { font-size: 14px; font-weight: 600; color: var(--ink); }
 .sig-sub { font-size: 12px; color: var(--muted); }
@@ -337,6 +337,8 @@ h3 { font-size: 15px; line-height: 1.4; font-weight: 600; margin: 28px 0 12px; m
 .duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 48px; }
 .duo + .duo { margin-top: 40px; }
 .duo .panel { margin-bottom: 0; }
+/* paired cards stack before their tables or bars get too narrow to fit */
+@media (max-width: 1000px) { .duo { grid-template-columns: 1fr; gap: 40px 0; } }
 .panel .duo .sub { margin-top: 0; }
 .panel > .sub { margin-top: 40px; }
 
@@ -363,8 +365,8 @@ section.slide { border-top: 1px solid var(--line); }
 }
 
 .sumgrid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; }
-/* the volume chart opens the page at full width */
-.hero.solo { margin-bottom: 16px; }
+/* the volume chart opens the page at full width; the pair below keeps the card gap */
+.hero.solo + .sumgrid { margin-top: 16px; }
 .sumgrid .panel, .hero.solo {
   margin-bottom: 0; padding: 20px 22px 18px;
   background: var(--raise); border: 1px solid var(--line); border-radius: 12px;
@@ -475,13 +477,14 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
 .tablewrap thead th {
   text-align: left; color: var(--muted); font-weight: 500; font-size: 12.5px;
   border-bottom: 1px solid var(--line-2); padding: 0 16px 8px 0;
-  white-space: nowrap;
+  vertical-align: bottom;   /* headers wrap so a table fits its card instead of scrolling */
 }
 .tablewrap tbody td { padding: 10px 16px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink); }
 .tablewrap tbody tr:last-child td { border-bottom: 0; }
 .tablewrap tbody tr:hover { background: var(--hover); }
 .tablewrap th:last-child, .tablewrap td:last-child { padding-right: 0; }
-th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.num { white-space: nowrap; }
 a.cveid, td .cveid { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
 td.desc { max-width: 46ch; color: var(--ink-2); }
 td.stack { min-width: 18ch; }
@@ -511,7 +514,7 @@ td.stack .reltags { margin-bottom: 2px; }
 .sev.nomargin { margin-left: 0; }
 
 /* phones: tables become labelled rows instead of a sideways scroll */
-@media (max-width: 700px) {
+@media (max-width: 900px) { /* tables become labelled rows before they would scroll */
   #tbl-kevall thead, #tbl-zd thead, #tbl-next thead, #tbl-kev thead, #tbl-epss thead {
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
   }
@@ -537,7 +540,7 @@ td.stack .reltags { margin-bottom: 2px; }
 
 /* ---------------- horizontal bars (DOM) ---------------- */
 .hbars { display: grid; gap: 8px; }
-.hb-row { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) 76px; gap: 12px; align-items: center; font-size: 13px; }
+.hb-row { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) var(--numw, 76px); gap: 12px; align-items: center; font-size: 13px; }
 .hb-row.hi .hb-lab { font-weight: 600; }
 /* wrap, never truncate: the name is the point of the row */
 .hb-lab { overflow-wrap: anywhere; line-height: 1.3; color: var(--ink); }
@@ -545,7 +548,7 @@ td.stack .reltags { margin-bottom: 2px; }
 .hb-fill { display: block; height: 100%; border-radius: 2px; }
 .hb-n { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 12.5px; white-space: nowrap; }
 .toplist .hb-bar { position: relative; overflow: visible; }
-.toplist .hb-row { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 100px; }
+.toplist .hb-row { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) var(--numw, 100px); }
 .hb-prev { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); border-radius: 1px; }
 .toplegend { margin: 0 0 20px; color: var(--muted); font-size: 13px; }
 
@@ -560,7 +563,7 @@ td.stack .reltags { margin-bottom: 2px; }
 .cwe-id { flex: none; color: var(--muted); font-size: 12px; margin-right: 8px; font-variant-numeric: tabular-nums; }
 .cwe-name { overflow-wrap: anywhere; line-height: 1.3; }
 .cwe-bars { display: grid; gap: 3px; min-width: 0; }
-.cwe-pair { display: grid; grid-template-columns: 1fr 48px; gap: 8px; align-items: center; }
+.cwe-pair { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
 .cwe-bar { height: 6px; background: var(--track); border-radius: 2px; overflow: hidden; }
 .cwe-fill { display: block; height: 100%; }
 .cwe-fill.ai { background: var(--c-ai); }
@@ -670,10 +673,10 @@ footer a { color: var(--ink-2); }
 @media print { .theme-switch { display: none; } }
 
 /* KEV-by-vendor: wider figure column for "40 · 18 at disclosure · 4 ransomware" */
-#kevvend-bars .hb-row, #ransom-bars .hb-row { grid-template-columns: minmax(120px, 0.8fr) minmax(0, 2fr) minmax(220px, auto); }
+#kevvend-bars .hb-row, #ransom-bars .hb-row { grid-template-columns: minmax(120px, 0.8fr) minmax(0, 2fr) var(--numw, 220px); }
 #kevvend-bars .hb-n, #ransom-bars .hb-n { white-space: nowrap; }
 /* relation bars carry 'count · change (change without bulk filers)' */
-#rel-bars .hb-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(250px, auto); }
+#rel-bars .hb-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) var(--numw, 250px); }
 @media (max-width: 760px) { #rel-bars .hb-row { grid-template-columns: minmax(0, 1fr) auto; } #rel-bars .hb-n { white-space: normal; text-align: right; } }
 @media (max-width: 760px) { #kevvend-bars .hb-row, #ransom-bars .hb-row { grid-template-columns: minmax(0, 1fr) auto; } #kevvend-bars .hb-n, #ransom-bars .hb-n { white-space: normal; text-align: right; } }
 
