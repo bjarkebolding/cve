@@ -794,7 +794,8 @@ function buildKpis(ctx, F, S) {
     tiles.push(S.supply
       ? { k: "Open-source CVEs (supply chain)", v: num.format(ym ? ym.cur : S.supply.n), delta,
           spark: om ? { vals: monthSeries(M, ctx.core.months, om), title: sparkTitle } : null,
-          d: fin(S.malYtd) && S.malYtd ? `plus ${num.format(S.malYtd)} malicious packages` : `${F.year} YTD` }
+          d: (ym && ym.cur && ym.bulkShare != null ? `${pct((ctx.core.ytd.origins.supplychain.bulkCur) / ym.cur)} filed by ${BULK_NAMES}` : `${F.year} YTD`)
+            + (fin(S.malYtd) && S.malYtd ? ` · plus ${num.format(S.malYtd)} malicious packages` : "") }
       : { k: "Malicious packages", v: num.format(S.malYtd), d: `${F.year} YTD, OSV MAL advisories` });
   }
   const SRC = [tileSrc(ctx, "CVE List"), tileSrc(ctx, "CISA KEV"), tileSrc(ctx, "CISA KEV"), tileSrc(ctx, "CVE List + OSV")];
@@ -897,9 +898,14 @@ function buildThreats(ctx, F, S) {
     const sc = (arr) => arr.filter((e) => e.origin === "supplychain").length;
     if (cur.length) cards.push({ id: "supply", name: "Software supply chain", signal: "strong", href: "#supply", src: "Source: CISA KEV + CVE List + OSV",
       v: pct(sc(cur) / cur.length, 1), unit: `of ${F.year}'s exploited vulnerabilities are open source (${num.format(sc(cur))} of ${num.format(cur.length)})`,
-      delta: prev.length ? { up: sc(cur) / cur.length >= sc(prev) / prev.length, text: `from ${pct(sc(prev) / prev.length, 1)}`, title: `share of KEV additions, all of ${F.prevYear}` } : null,
+      delta: prev.length ? (() => {
+        const z = propZ(sc(cur), cur.length, sc(prev), prev.length);
+        const sig = z != null && Math.abs(z) >= 1.96;
+        return { up: sc(cur) / cur.length >= sc(prev) / prev.length, text: `from ${pct(sc(prev) / prev.length, 1)}${sig ? "" : ", not significant"}`,
+          title: `share of KEV additions, all of ${F.prevYear}; two-proportion test z = ${z == null ? "n/a" : z.toFixed(2)} (${sig ? "significant" : "within noise"} at 95%)` };
+      })() : null,
       spark: { vals: countByMonth(M, kevAll.filter((e) => e.origin === "supplychain"), (e) => e.added), title: "open-source vulnerabilities added to CISA KEV per month, last 24 complete months" },
-      foot: `${S.supply ? num.format(S.supply.n) + " open-source CVEs this year, much of the rise from more filing by GitHub and VulnCheck" : ""}`
+      foot: `${S.supply ? num.format(S.supply.n) + ` open-source CVEs this year, ${(() => { const o = ctx.core.ytd && ctx.core.ytd.origins && ctx.core.ytd.origins.supplychain; return o && o.cur ? pct(o.bulkCur / o.cur) + " of them filed by " + BULK_NAMES : "much of the rise from more filing by " + BULK_NAMES; })()}` : ""}`
         + (fin(S.malYtd) && S.malYtd ? `; ${num.format(S.malYtd)} malicious packages (2025 was inflated by an npm spam flood).` : ".") });
   } catch (e) { /* skip */ }
   // 3. Prompt injection: disclosed AI-specific weaknesses (exploitation not observable)
@@ -986,7 +992,7 @@ function buildBrief(ctx, F, S) {
     const cur = share(F.year), prev = share(F.prevYear);
     if (!cur || !cur.n) return null;
     return { act: "Control what enters the software supply chain.", href: "#supply", tag: "Software supply chain",
-      why: `${pct(cur.n / cur.of, 1)} of this year's exploited vulnerabilities are in open-source projects and packages${prev ? `, up from ${pct(prev.n / prev.of, 1)} in ${F.prevYear}` : ""}. Require SBOMs (and AI-BOMs for models) from vendors, pull code, containers and models from curated repositories, and sign build artifacts.` };
+      why: `${pct(cur.n / cur.of, 1)} of this year's exploited vulnerabilities are in open-source projects and packages${prev ? (() => { const z = propZ(cur.n, cur.of, prev.n, prev.of); return z != null && Math.abs(z) >= 1.96 ? `, ${cur.n / cur.of > prev.n / prev.of ? "up" : "down"} from ${pct(prev.n / prev.of, 1)} in ${F.prevYear}` : ` (${pct(prev.n / prev.of, 1)} in ${F.prevYear}; a change within statistical noise at these numbers)`; })() : ""}. Require SBOMs (and AI-BOMs for models) from vendors, pull code, containers and models from curated repositories, and sign build artifacts.` };
   });
   add(() => {
     const a = S.aiShare;
@@ -1347,6 +1353,13 @@ function oldKev(ctx, F) {
   const byAge = y3.slice().sort((x, y) => String(x.published).localeCompare(String(y.published)));
   return { n: a.length, y1: y1.length, y3: y3.length, oldestYear: byAge.length ? String(byAge[0].published).slice(0, 4) : null,
     prods: [...new Set(byAge.map((e) => tidyProduct(e.product)).filter(Boolean))].slice(0, 3) };
+}
+/* two-proportion z-test: is a/n vs b/m a real change or noise? */
+function propZ(a, n, b, m) {
+  if (!n || !m) return null;
+  const p = (a + b) / (n + m);
+  const se = Math.sqrt(p * (1 - p) * (1 / n + 1 / m));
+  return se > 0 ? (a / n - b / m) / se : null;
 }
 const daysText = (d) => (d < 1 ? "under a day" : d === 1 ? "1 day" : `${Number.isInteger(d) ? d : fmtX(d)} days`);
 function buildTtk(ctx) {

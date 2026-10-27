@@ -232,6 +232,16 @@ if page:
         mtxt = "under a day" if med < 1 else "1 day" if med == 1 else f"{int(med) if med == int(med) else med} days"
         check(any(b.startswith("Patch internet-facing") and f"median of {mtxt} to fix" in b for b in page["brief"]),
               f"page: Brief should state CISA's median deadline {mtxt}")
+    # a year-on-year share change must not be called a rise unless it is statistically significant
+    import math as _m
+    pk = [e for e in ents if e["added"].startswith(prev)]
+    a_, b_ = sum(e.get("origin") == "supplychain" for e in kev_cur), sum(e.get("origin") == "supplychain" for e in pk)
+    if kev_cur and pk:
+        pp = (a_ + b_) / (len(kev_cur) + len(pk)); se = _m.sqrt(pp * (1 - pp) * (1 / len(kev_cur) + 1 / len(pk))) or 1
+        z = (a_ / len(kev_cur) - b_ / len(pk)) / se
+        sup = next((b for b in page["brief"] if b.startswith("Control what enters")), "")
+        if abs(z) < 1.96:
+            check("up from" not in sup, f"page: supply-chain Brief calls a non-significant change (z={z:.2f}) a rise")
     k = tile("Exploited (")
     check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
     check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")
