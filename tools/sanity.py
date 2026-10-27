@@ -318,6 +318,11 @@ if page:
     if _a["cur"] > _a["prev"]:
         _bs = f"{round(100 * (_a['bulkCur'] - _a['bulkPrev']) / (_a['cur'] - _a['prev']))}% of the rise is"
         check(_bs in page["body"], f"page: bottom line should give the bulk-filing share of the rise ({_bs})")
+    _a30 = (_dt.date.fromisoformat(asof) - _dt.timedelta(days=30)).isoformat()
+    _l30 = sum(1 for e in ents if e["added"] > _a30)
+    _z30 = sum(1 for r in (zd or {}).get("recent", []) if str(r.get("date")) > _a30)
+    check(f"Last 30 days: {_l30:,} vulnerabilities added to CISA KEV" in page["body"] and f"{_z30} new confirmed zero-day" in page["body"],
+          f"page: last-30-days line should give {_l30} KEV additions and {_z30} new zero-days")
     sig = [num(v) for v in page["sig"]]
     want = [exp["signal_base"], exp["signal_hc"], exp["signal_epss"], exp["signal_kev"]]
     check(sig == want, f"page: signal bars {sig} != data {want}")

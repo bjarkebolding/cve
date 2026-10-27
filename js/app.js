@@ -845,7 +845,13 @@ function buildKpis(ctx, F, S) {
     const l30 = ents.filter((e) => e.added > a30), p30 = ents.filter((e) => e.added > a60 && e.added <= a30);
     if (l30.length || p30.length) {
       const edge = l30.filter((e) => e.origin === "edge").length, rw = l30.filter((e) => e.ransomware).length;
-      $("#kpis").after(h("p", { class: "last30", text: `Last 30 days: ${num.format(l30.length)} vulnerabilities newly confirmed exploited (${num.format(p30.length)} in the 30 days before), ${num.format(edge)} on edge devices, ${num.format(rw)} flagged ransomware so far · CISA KEV` }));
+      // what changed since a month ago: KEV intake, the vendors behind it, new confirmed zero-days
+      const byV = {};
+      for (const e of l30) byV[e.vendor] = (byV[e.vendor] || 0) + 1;
+      // only vendors with 3+ (a cut through a tie at 2 would name an arbitrary few)
+      const tv = Object.entries(byV).filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3);
+      const zd30 = ((ctx.zd && ctx.zd.recent) || []).filter((r) => String(r.date) > a30).length;
+      $("#kpis").after(h("p", { class: "last30", text: `Last 30 days: ${num.format(l30.length)} vulnerabilities added to CISA KEV (${num.format(p30.length)} in the 30 days before), ${num.format(edge)} on edge devices${tv.length ? `, most for ${listJoin(tv.map(([v, n]) => `${v} (${n})`))}` : ""}; ${num.format(zd30)} new confirmed zero-day${zd30 === 1 ? "" : "s"} (Project Zero); ${num.format(rw)} flagged ransomware so far.` }));
     }
   } catch (e) { /* skip */ }
 }
