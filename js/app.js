@@ -1742,6 +1742,8 @@ function buildMainChart(core) {
       : rangeY[state.range] ? last - rangeY[state.range] * 365.25 : -Infinity;
     bAll = bAll.filter(([t]) => t >= cut);
     bAi = bAi.filter(([t]) => t >= cut);
+    // share mode plots AI ÷ all: the "All CVEs" series is off, so its legend entry is hidden too
+    el.classList.toggle("share-mode", state.mode === "share");
     if (state.mode === "share") {
       const share = bAi.map(([, a], i) => (bAll[i][1] ? (100 * a) / bAll[i][1] : 0));
       uplot.axes[1].label = "AI share of CVEs (%)";
@@ -1893,8 +1895,11 @@ function buildCnaChart(ctx) {
   const top = Object.entries(tot).sort((a, b) => b[1] - a[1]).slice(0, 7).map((x) => x[0]);
   const topSet = new Set(top);
   // filers are not a category with a meaning elsewhere: one quiet steel ramp, largest darkest
-  const ramp = [1, 0.84, 0.7, 0.58, 0.47, 0.38, 0.3];
-  const groups = top.map((c, i) => ({ label: prettyCna(c), color: tint(P.steel, ramp[i] || 0.3), data: years.map((y) => (cy[y] || {})[c] || 0) }));
+  // the two bulk filers the title is about stand out (high-contrast neutral); the rest stay a quiet ramp
+  let bi = 0, oi = 0;
+  const groups = top.map((c) => ({ label: prettyCna(c),
+    color: THIRD_PARTY_FILERS.has(c) ? tint(P.neutral, [1, 0.8][bi++] || 0.7) : tint(P.steel, [0.55, 0.45, 0.37, 0.3, 0.24, 0.2][oi++] || 0.2),
+    data: years.map((y) => (cy[y] || {})[c] || 0) }));
   groups.push({ label: "other CNAs", color: tint(P.steel, 0.18), data: years.map((y) =>
     Object.entries(cy[y] || {}).reduce((s, [c, n]) => s + (!topSet.has(c) && fin(n) ? n : 0), 0)) });
   // top assigner of the latest complete year → one data-driven sentence

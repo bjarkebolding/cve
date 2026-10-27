@@ -435,6 +435,7 @@ section.slide { border-top: 1px solid var(--line); }
 .stacked .u-legend .u-value { padding-left: 4px; color: var(--ink); font-variant-numeric: tabular-nums; }
 /* hero: swatches + names only */
 .hero .u-legend { font-size: 12px; line-height: 1.4; }
+#chart-cves.share-mode .u-legend tr.u-series:nth-child(2) { display: none; }
 .hero .u-legend .u-value, .hero .u-legend tr.u-series:first-child { display: none; }
 .hero .u-inline .u-series th::after { content: none; }
 .hero .u-legend .u-series th { padding: 0 4px 0 0; }
