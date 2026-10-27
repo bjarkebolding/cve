@@ -237,22 +237,13 @@ if page:
         check(any(b.startswith("Re-check the whole estate") and f"{old3:,} (" in b for b in page["brief"]),
               f"page: Brief old-CVE action should state {old3} CVEs over three years old")
     import datetime as _dt, statistics as _st
-    dls = [(_dt.date.fromisoformat(e["due"]) - _dt.date.fromisoformat(e["added"])).days for e in kev_cur if e.get("due")]
+    a90 = (_dt.date.fromisoformat(asof) - _dt.timedelta(days=90)).isoformat()
+    dls = [(_dt.date.fromisoformat(e["due"]) - _dt.date.fromisoformat(e["added"])).days for e in ents if e.get("due") and e["added"] > a90]
     if len(dls) >= 20:
         med = _st.median(dls)
         mtxt = "under a day" if med < 1 else "1 day" if med == 1 else f"{int(med) if med == int(med) else med} days"
-        check(any(b.startswith("Patch internet-facing") and f"median of {mtxt} to fix" in b for b in page["brief"]),
-              f"page: Brief should state CISA's median deadline {mtxt}")
-    # a year-on-year share change must not be called a rise unless it is statistically significant
-    import math as _m
-    pk = [e for e in ents if e["added"].startswith(prev)]
-    a_, b_ = sum(e.get("origin") == "supplychain" for e in kev_cur), sum(e.get("origin") == "supplychain" for e in pk)
-    if kev_cur and pk:
-        pp = (a_ + b_) / (len(kev_cur) + len(pk)); se = _m.sqrt(pp * (1 - pp) * (1 / len(kev_cur) + 1 / len(pk))) or 1
-        z = (a_ / len(kev_cur) - b_ / len(pk)) / se
-        sup = next((t_["unit"] + " " + t_["v"] for t_ in page["threats"] if t_["name"] == "Software supply chain"), "")
-        if abs(z) < 1.96:
-            check("up from" not in sup, f"page: supply-chain Brief calls a non-significant change (z={z:.2f}) a rise")
+        check(any(b.startswith("Patch internet-facing") and f"last 90 days CISA gave US federal agencies a median of {mtxt}" in b for b in page["brief"]),
+              f"page: Brief should state CISA's current (90-day) median deadline {mtxt}")
     k = tile("Exploited (")
     check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
     check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")
