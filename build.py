@@ -1095,6 +1095,8 @@ def landscape(rows, months, today, since="2018", top=12):
         "cweTop": _windowed_top(cwe[0], cwe[1], top, ex=cwe_x),
         "vendorTop": _windowed_top(vendor[0], vendor[1], top, names, ex=vendor_x),
         "cnaTop": _windowed_top(cna[0], cna[1], top),
+        # every surge filer's counts (some rank below the top list, e.g. Apache, Red Hat)
+        "surgeRows": [{"id": c, "n": cna[0].get(c, 0), "prev": cna[1].get(c, 0)} for c in sorted(surge)],
     }
 
 

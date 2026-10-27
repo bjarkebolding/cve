@@ -883,9 +883,19 @@ function signalStages(ctx) {
     from, to, base: L.window.n,
     hc: sw ? (sw.CRITICAL || 0) + (sw.HIGH || 0) : null,
     epss: dist && fin(dist.ge10) ? dist.ge10 : null,
+    epssN: dist && fin(dist.n) ? dist.n : null,  // EPSS scores its own set of CVEs: its share uses that base
     kev: ctx.kev && ctx.kev.entries ? kev.length : null,
     // KEV is right-censored for recent CVEs: the year-earlier cohort, with 12+ months
     // of follow-up, gives the settled rate ("1 in N so far" alone understates it)
+    // the same rate without the year's surge filers on either side (their filing inflates the base)
+    kevX: (() => {
+      const w = L.window, sg = new Set((L.surgeCnas || []).map((c) => String(c).toLowerCase()));
+      if (!fin(w.nx) || !fin(w.prevNx) || !sg.size) return null;
+      const all = ((ctx.kev && ctx.kev.entries) || []).filter((e) => e.published && e.cna && !sg.has(String(e.cna).toLowerCase()));
+      const cur = all.filter((e) => e.published >= from && e.published <= to).length;
+      const prev = all.filter((e) => e.published >= w.prev[0] && e.published <= w.prev[1]).length;
+      return cur >= 20 && prev >= 20 ? { cur, n: w.nx, prev, prevN: w.prevNx } : null;
+    })(),
     kevFull: (() => {
       const [a, b] = L.window.prev || [], n = L.window.prevN;
       if (!a || !n) return null;
@@ -902,14 +912,15 @@ function buildSignal(ctx) {
   const rows = [
     { label: "Published", sub: "all CVEs", n: st.base, cls: "all" },
     st.hc != null && { label: "Rated HIGH or CRITICAL", sub: "share of all published CVEs; unrated counted as not", n: st.hc, cls: "hc" },
-    st.epss != null && { label: "Elevated exploit probability", sub: "EPSS ≥ 10% (30-day model estimate)", n: st.epss, cls: "epss" },
+    st.epss != null && { label: "Elevated exploit probability", sub: `EPSS ≥ 10% (30-day model estimate${st.epssN ? `; of ${num.format(st.epssN)} scored` : ""})`, of: st.epssN, n: st.epss, cls: "epss" },
     st.kev != null && { label: "Confirmed exploited", sub: "in CISA KEV so far (a lower bound)", n: st.kev, cls: "kev" },
   ].filter(Boolean);
   const list = h("div", { class: "sig", role: "list" });
   for (const r of rows) {
     const fill = h("span", { class: "sig-fill " + r.cls });
     fill.style.width = Math.max(0.35, (100 * r.n) / st.base).toFixed(2) + "%";
-    const share = r.cls === "all" ? "" : r.n / st.base >= 0.1 ? pct(r.n / st.base) : oneIn(r.n, st.base);
+    const of = r.of || st.base;
+    const share = r.cls === "all" ? "" : r.n / of >= 0.1 ? pct(r.n / of) : oneIn(r.n, of);
     list.append(h("div", { class: "sig-row", role: "listitem", "aria-label": `${r.label}: ${num.format(r.n)}${share ? " (" + share + ")" : ""}` },
       h("div", { class: "sig-lab" }, h("span", { class: "sig-name", text: r.label }), h("span", { class: "sig-sub", text: r.sub })),
       h("span", { class: "sig-bar" }, fill),
@@ -921,11 +932,11 @@ function buildSignal(ctx) {
     titleEl: "#h-signal",
     title: st.hc && st.kev ? `Last 12 months: severity flags ${pct(st.hc / st.base)} of new CVEs; CISA KEV lists ${oneIn(st.kev, st.base)} so far${st.kevFull ? ` (${oneIn(st.kevFull.k, st.kevFull.n)} for the year before, after 12–24 months)` : ""}` : null,
     subEl: "#signal-hint",
-    sub: `Every bar counts the same CVEs: the ${num.format(st.base)} published from ${fmtDay(st.from)} to ${fmtDay(st.to)}. Bars are shares of that one base, not a funnel: an exploited CVE can be rated MEDIUM. EPSS is a model estimate; KEV is confirmed exploitation and lags. The severity card further down shows a higher share because it counts only rated CVEs, per calendar year, and leaves out the Linux kernel's selective ratings.`,
+    sub: `Every bar counts the same CVEs: the ${num.format(st.base)} published from ${fmtDay(st.from)} to ${fmtDay(st.to)}. Bars are shares of that one base, not a funnel: an exploited CVE can be rated MEDIUM. EPSS is a model estimate; KEV is confirmed exploitation and lags.${st.kevX ? ` Without the year's surge filers on both sides the KEV rate is ${oneIn(st.kevX.cur, st.kevX.n)} so far against ${oneIn(st.kevX.prev, st.kevX.prevN)} for the year before, so part of the gap is the filing surge.` : ""} The severity card further down shows a higher share because it counts only rated CVEs, per calendar year, and leaves out the Linux kernel's selective ratings.`,
     so: ratio ? `A severity-first queue is about ${num.format(Math.round(ratio))} times larger than the confirmed-exploited list so far${st.kevFull ? `, and still about ${num.format(Math.round(st.hc / (st.base * st.kevFull.k / st.kevFull.n)))} times larger at the year-earlier rate` : ""}. Patch KEV first, then rank the rest by EPSS, severity and exposure`
       // judge EPSS only where it could have scored: CVEs listed at disclosure had no score yet
       + (st.recall ? (() => { const r = st.recall, scored = r.of - r.unscored;
-        return `. EPSS is not an early warning: of the ${num.format(scored)} exploited CVEs that had a score the day before CISA listed them, only ${num.format(r.caught)} (${pct(r.caught / scored)}) were at 10% or more${r.unscored ? `; the other ${num.format(r.unscored)} were listed within a day of publication, before EPSS could score them` : ""}.`; })() : ".") : null,
+        return `. EPSS is not an early warning: of the ${num.format(scored)} exploited CVEs that had a score the day before CISA listed them, only ${num.format(r.caught)} (${pct(r.caught / scored)}) were at 10% or more${r.unscored ? `; the ${num.format(r.unscored)} without a score were all listed within a day of publication, before EPSS could score them` : ""}.`; })() : ".") : null,
     src: srcLine(ctx, ["cve", "epss", "kev"]),
   });
 }
@@ -943,7 +954,7 @@ function buildBrief(ctx, F, S) {
     const st = signalStages(ctx);
     if (!st || !st.hc || !st.kev) return null;
     return { act: "Rank the patch queue by exploitation, not by severity.", href: "#signal",
-      why: `In the last 12 months ${pct(st.hc / st.base)} of new CVEs were rated HIGH or CRITICAL, but only ${oneIn(st.kev, st.base)} is in CISA KEV so far${st.kevFull ? ` (${oneIn(st.kevFull.k, st.kevFull.n)} after 12–24 months, judging by the year before)` : ""}${st.epss ? `, and ${oneIn(st.epss, st.base)} has an elevated exploit probability (EPSS ≥ 10%)` : ""}. Patch KEV first, then rank the rest by EPSS, severity and exposure.` };
+      why: `In the last 12 months ${pct(st.hc / st.base)} of new CVEs were rated HIGH or CRITICAL, but only ${oneIn(st.kev, st.base)} is in CISA KEV so far${st.kevFull ? ` (${oneIn(st.kevFull.k, st.kevFull.n)} after 12–24 months, judging by the year before)` : ""}${st.epss ? `, and ${oneIn(st.epss, st.epssN || st.base)} has an elevated exploit probability (EPSS ≥ 10%)` : ""}. Patch KEV first, then rank the rest by EPSS, severity and exposure.` };
   });
   add(() => {
     const ents = (ctx.kev && ctx.kev.entries || []).filter((e) => e && String(e.added).startsWith(F.year) && fin(e.daysToKev));
@@ -955,7 +966,7 @@ function buildBrief(ctx, F, S) {
     const edgeTxt = ec && ec.full && ec.full.n >= 15 ? `; edge devices ${pct(ec.full.wk / ec.full.n)} (median ${daysText(ec.full.median)})` : "";
     // one finding + one action; the like-for-like trend lives on the time-to-listing card
     return { act: "Patch internet-facing systems in days, not monthly cycles.", href: "#speed",
-      why: (() => { const c = ttkCohort(ctx); return c && c.full && c.full.n >= 20 ? `${pct(c.full.wk / c.full.n)} of exploited CVEs reach CISA KEV within a week of publication (median ${daysText(c.full.median)})${edgeTxt}.` : `${pct(week / ents.length)} of this year's KEV additions came within a week of the CVE's publication.${tail}`; })()
+      why: (() => { const c = ttkCohort(ctx); return c && c.full && c.full.n >= 20 ? `${pct(c.full.wk / c.full.n)} of exploited CVEs published 13–24 months ago reached CISA KEV within a week of publication (median ${daysText(c.full.median)})${edgeTxt}.` : `${pct(week / ents.length)} of this year's KEV additions came within a week of the CVE's publication.${tail}`; })()
         + " Keep an emergency-change path and take management interfaces off the internet."
         + (() => { const dl = kevDeadlines(ctx, F); return dl ? ` Board metric: KEV entries on your estate fixed within CISA's deadline (now a median ${daysText(dl.median)} after listing).` : ""; })() };
   });
@@ -1451,8 +1462,9 @@ function vendorRows(top, n) { return (top || []).slice(0, n || 10).map((r) => wi
 function bulkFilerRows(L) {
   const surge = new Set((L.surgeCnas || []).map((c) => c.toLowerCase()));
   const w = L.window || {};
-  const rows = (L.cnaTop || []).filter((r) => surge.has(String(r.id).toLowerCase()))
-    .map((r) => ({ label: prettyCna(r.id), title: r.id, n: r.n, prev: r.prev }));
+  // all surge filers (the build lists each; older builds only had those in the top 12)
+  const rows = (L.surgeRows || (L.cnaTop || []).filter((r) => surge.has(String(r.id).toLowerCase())))
+    .map((r) => ({ label: prettyCna(r.id), title: r.id, n: r.n, prev: r.prev })).sort((a, b) => b.n - a.n);
   if (!surge.size || !fin(w.nx)) return cnaRows(L.cnaTop);
   return rows.concat([{ label: "Everyone else", title: "all other CNAs", n: w.nx, prev: w.prevNx }]);
 }
@@ -2503,7 +2515,12 @@ function explainPart1(ctx, F, S) {
         so: "Counts reflect product footprint and reporting practice: use them to plan vendor patch cadence, not to rank vendor security.",
         titleEl: "#h-vendall", title: vr.length ? `${vr[0].label} leads with ${num.format(vr[0].n)} CVEs` + (vb && vb !== vr[0] ? `; ${vb.label} grew fastest (${growthText(vb.gn, vb.gprev)} against ×${fmtX(vb.base)}${vb.ex ? `, without ${surgeWord(L)}` : ""})` : "") : null,
         subEl: "#vendall-hint", sub: `CVEs per vendor (first affected vendor in the record), ${span} vs the 12 months before. Top 10.`,
-        how: "Bar = last 12 months, tick = the 12 months before. Pitfall: vendors that file their own CVEs (Linux, Microsoft, Oracle) look larger than vendors whose bugs go unreported.",
+        how: "Bar = last 12 months, tick = the 12 months before. Pitfall: vendors that file their own CVEs (Linux, Microsoft, Oracle) look larger than vendors whose bugs go unreported."
+          + (() => {
+            // the fastest riser's own CNA filing more is a reporting change too (just under the surge cut-off)
+            const own = vb && (L.cnaTop || []).find((r) => String(r.id).toLowerCase() === String(vb.label).toLowerCase());
+            return own && own.prev >= 100 && own.n / own.prev >= 2 ? ` ${vb.label}'s own CNA filed ${growthText(own.n, own.prev)} more CVEs (${num.format(own.prev)} to ${num.format(own.n)}), just under the ×4 surge cut-off, so much of its growth is its own reporting.` : "";
+          })(),
         src: srcLine(ctx, ["cve"]),
       });
       const cr = cnaRows(L.cnaTop);
@@ -2513,7 +2530,7 @@ function explainPart1(ctx, F, S) {
         titleEl: "#h-cnaall", title: sn && fin(bulkAdd) && w.prevNx
           ? `Who files moves the curve: ${sn} ${surgeWord(L)} added ${num.format(bulkAdd)} CVEs in the last 12 months; everyone else grew ${growthText(w.nx, w.prevNx)}`
           : cb ? `Who files moves the curve: ${cb.label} filed ${num.format(cb.n)} CVEs in the last 12 months (${growthText(cb.n, cb.prev)}, against ${baseX(w)} for all CVEs)` : null,
-        subEl: "#cnaall-hint", sub: `CVEs per CVE Numbering Authority (assigner), ${span} vs the 12 months before: the year's ${surgeWord(L)} (${surgeDef(L)}) that rank in the top 12, and everyone else combined.`,
+        subEl: "#cnaall-hint", sub: `CVEs per CVE Numbering Authority (assigner), ${span} vs the 12 months before: every one of the year's ${surgeWord(L)} (${surgeDef(L)}), and everyone else combined; the rows add up to the total.`,
         how: "Bar = last 12 months, tick = the 12 months before. A CNA is whoever assigned the CVE id — a vendor, a bug-bounty platform or a coordinator.",
         so: cb && cb.n / Math.max(1, cb.prev) >= 3 ? "Before reading the surge as more vulnerable software, discount these filers: their growth is largely a change in who files CVEs and how many, not in how much software is vulnerable." : null,
         src: srcLine(ctx, ["cve"]),

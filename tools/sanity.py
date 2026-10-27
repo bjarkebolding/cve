@@ -238,7 +238,7 @@ if page:
     if len(full) >= 20 and co and pv:
         lv = pct_(full)
         check(page.get("ttkTitle", "").startswith(lv), f"page: speed card {page.get('ttkTitle')!r} should lead with the fully followed level {lv}")
-        check(any(b.startswith("Patch internet-facing") and f"{lv} of exploited CVEs reach CISA KEV within a week" in b for b in page["brief"]),
+        check(any(b.startswith("Patch internet-facing") and f"{lv} of exploited CVEs published 13–24 months ago reached CISA KEV within a week" in b for b in page["brief"]),
               f"page: Brief speed item should give the fully followed level {lv}")
     old3 = sum(1 for e in kev_cur if (e.get("daysToKev") or 0) > 1095)
     if old3:
