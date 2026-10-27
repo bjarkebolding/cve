@@ -39,7 +39,7 @@
   out.navLinks = [...document.querySelectorAll(".topnav a:not(.sub)")].filter((a) => document.querySelector(a.getAttribute("href"))).length;
   // tier 1 must come before tier 2/3 content
   const pos = (id) => { const e = document.getElementById(id); return e ? e.getBoundingClientRect().top + scrollY : -1; };
-  out.tierOrder = pos("summary") < pos("exploit") && pos("exploit") < pos("volume") && pos("volume") < pos("ai") && pos("ai") < pos("method");
+  out.tierOrder = pos("summary") < pos("volume") && pos("volume") < pos("exploit") && pos("exploit") < pos("ai") && pos("ai") < pos("method");
   // every slide card stands alone: title + "So what" + visible source
   out.slideGaps = [...document.querySelectorAll(".slide")].filter((u) => !u.querySelector("h2, h3") || !u.querySelector(".figfoot .so") || !u.querySelector(".src"))
     .map((u) => u.id || ((u.querySelector("h2, h3") || {}).id) || "?");

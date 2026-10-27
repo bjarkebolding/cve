@@ -351,8 +351,10 @@ section.slide { border-top: 1px solid var(--line); }
   .slide { break-inside: avoid; box-shadow: none; }
 }
 
-.sumgrid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px; }
-.sumgrid .panel {
+.sumgrid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; }
+/* the volume chart opens the page at full width */
+.hero.solo { margin-bottom: 16px; }
+.sumgrid .panel, .hero.solo {
   margin-bottom: 0; padding: 20px 22px 18px;
   background: var(--raise); border: 1px solid var(--line); border-radius: 12px;
   box-shadow: 0 1px 2px rgba(20, 24, 32, 0.04);
@@ -637,7 +639,7 @@ footer a { color: var(--ink-2); }
   .kpis { gap: 10px; }
   .kpi { padding: 12px 12px 10px; }
   header .stamp { text-align: left; }
-  .sumgrid .panel { padding: 16px 14px; }
+  .sumgrid .panel, .hero.solo { padding: 16px 14px; }
   .kpi .d { font-size: 12.5px; }
   .panel { margin-bottom: 48px; padding-top: 20px; }
   .duo { grid-template-columns: 1fr; gap: 0; }
