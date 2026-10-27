@@ -811,14 +811,14 @@ function buildKpis(ctx, F, S) {
     spark: { vals: countByMonth(M, ents, (e) => e.added), title: sparkTitle },
     d: k.prevSame ? `${num.format(k.prevSame)} by this date in ${F.prevYear}` : "added to CISA KEV this year" });
   if (k && fin(k.zd)) {
-    const zb = ctx.zd && ctx.zd.byYear;
+    const zb = ctx.zd && ctx.zd.byYear, zy = ctx.zd && ctx.zd.byYearToDate;
     // no trend arrow: the proxy also rises when CISA lists faster (its deadlines tightened in 2026)
     tiles.push({ k: `KEV-listed at disclosure ${F.year}`, v: num.format(k.zd), cls: "warn",
       spark: { vals: countByMonth(M, ents.filter((e) => e.zeroDay), (e) => e.published), title: sparkTitle },
       d: [fin(k.zdPrevSame) ? `${num.format(k.zdPrevSame)} by this date in ${F.prevYear}` : null,
         // why two zero-day numbers: Project Zero confirms a curated set of true zero-days; this
         // proxy also counts flaws attacked as soon as they were disclosed, in any product
-        zb && fin(zb[F.year]) ? `broader than Project Zero: ${num.format(zb[F.year])} confirmed zero-days (${num.format(zb[F.prevYear] || 0)} in all of ${F.prevYear}); this proxy also counts flaws attacked as soon as they were disclosed` : null].filter(Boolean).join(" · ") });
+        zb && fin(zb[F.year]) ? `broader than Project Zero: ${num.format(zb[F.year])} confirmed zero-days${zy && fin(zy[F.prevYear]) ? ` (${num.format(zy[F.prevYear])} by this date in ${F.prevYear})` : ""}; this proxy also counts flaws attacked as soon as they were disclosed, in any product` : null].filter(Boolean).join(" · ") });
   }
   if (S.supply || fin(S.malYtd)) {
     const om = ctx.core.originMonths && ctx.core.originMonths.supplychain;
@@ -1495,6 +1495,9 @@ function relYtd(core, F) {
 }
 /* CVEs whose discovery credits an AI tool or lab, across ALL CVEs */
 function foundYtd(core, F) {
+  // like-for-like: the build's year-to-date window, else calendar years
+  const y = core.ytd && core.ytd.rels && core.ytd.rels.found;
+  if (y) return { cur: y.cur, prev: y.prev, same: true };
   const by = core.landscape && core.landscape.all && core.landscape.all.relYears && core.landscape.all.relYears.found;
   return by ? { cur: by[F.year] || 0, prev: by[F.prevYear] || 0 } : null;
 }
@@ -1525,12 +1528,13 @@ function buildAiHeadline(ctx, F, S) {
   add(() => {
     const k = S.kev;
     if (!k || !k.cur) return null;
-    const prev = (F.kevAi || []).filter((e) => String(e.added).startsWith(F.prevYear)).length;
-    return `Exploitation is rising from a low base: ${num.format(k.aiCur)} of the ${num.format(k.cur)} vulnerabilities CISA added to KEV in ${F.year} are AI-related, against ${num.format(prev)} in all of ${F.prevYear}.`;
+    const md = F.asOf.slice(5, 10);
+    const prev = (F.kevAi || []).filter((e) => String(e.added).startsWith(F.prevYear) && String(e.added).slice(5, 10) <= md).length;
+    return `${num.format(k.aiCur)} of the ${num.format(k.cur)} vulnerabilities CISA added to KEV in ${F.year} are AI-related, against ${num.format(prev)} by this date in ${F.prevYear}: a small number, and a floor.`;
   });
   add(() => {
     const fy = foundYtd(ctx.core, F);
-    return fy && fy.cur ? `Separately, AI is finding bugs: ${num.format(fy.cur)} CVEs this year, in any software, credit an AI tool or AI lab (${num.format(fy.prev)} in ${F.prevYear}). They count as discovery, not as AI-related risk.` : null;
+    return fy && fy.cur ? `Separately, AI is finding bugs: ${num.format(fy.cur)} CVEs this year, in any software, credit an AI tool or AI lab (${num.format(fy.prev)} ${fy.same ? "by this date in" : "in"} ${F.prevYear}). They count as discovery, not as AI-related risk.` : null;
   });
   if (parts.length) { sub.textContent = parts.join(" "); sub.classList.add("hint"); } else sub.remove();
 }
@@ -1571,7 +1575,7 @@ function buildAiKpis(ctx, F, S) {
   if (fy) {
     const fk = ((ctx.kev && ctx.kev.entries) || []).filter((e) => e.found).length;
     tiles.push({ k: `Found by AI ${F.year} (any software)`, v: num.format(fy.cur),
-      d: `discovery, not AI risk · ${num.format(fy.prev)} in all of ${F.prevYear}` + (fk ? ` · ${num.format(fk)} later exploited` : "") });
+      d: `discovery, not AI risk · ${num.format(fy.prev)} ${fy.same ? "by this date in" : "in all of"} ${F.prevYear}` + (fk ? ` · ${num.format(fk)} later exploited` : "") });
   }
   const SRC = [tileSrc(ctx, "CVE List"), tileSrc(ctx, "CVE List"), tileSrc(ctx, "CISA KEV"), tileSrc(ctx, "CVE List")];
   tiles.forEach((t, i) => { t.src = t.src || SRC[i] || tileSrc(ctx, "CVE List"); });
@@ -2250,7 +2254,7 @@ function explainRisk(ctx, F, S) {
     const zprods = ctx.zd && ctx.zd.recent ? [...new Set(ctx.zd.recent.map((r) => shortProduct(tidyProduct([r.vendor, r.product].filter(Boolean).join(" "))) || r.product).filter(Boolean))].slice(0, 3) : [];
     fig("#tbl-zd", {
       titleEl: "#h-zdlist",
-      title: zb && fin(zb[F.year]) ? `${num.format(zb[F.year])} in-the-wild zero-days patched in ${F.year} so far (${num.format(zb[F.prevYear] || 0)} in all of ${F.prevYear})` + (zprods.length ? `; the latest hit ${listJoin(zprods)}` : "") : null,
+      title: zb && fin(zb[F.year]) ? `${num.format(zb[F.year])} in-the-wild zero-days patched in ${F.year} so far (${ctx.zd.byYearToDate && fin(ctx.zd.byYearToDate[F.prevYear]) ? `${num.format(ctx.zd.byYearToDate[F.prevYear])} by this date in ${F.prevYear}` : `${num.format(zb[F.prevYear] || 0)} in all of ${F.prevYear}`})` + (zprods.length ? `; the latest hit ${listJoin(zprods)}` : "") : null,
       so: "If you run these products, patch status is not enough: review logs from before the patch date for signs of earlier compromise.",
       subEl: "#zd-list-hint", sub: ctx.zd && ctx.zd.recent ? `Latest in-the-wild zero-days, newest first (${ctx.zd.source || "tracker"}).` : "Latest KEV entries added ≤1 day after publication, newest first; date = added to KEV.",
       src: srcLine(ctx, ctx.zd ? ["zd"] : ["kev"]),

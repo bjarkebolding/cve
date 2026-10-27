@@ -514,10 +514,11 @@ def parse_zerodays(text):
 
 
 def zerodays_payload(rows, records=None, kev_ids=(), origin_fn=origin_of_text,
-                     rel_fn=relations_of_text):
+                     rel_fn=relations_of_text, today=None):
     records = records or {}
     kev_ids = set(kev_ids)
-    by_year, ai_year = {}, {}
+    md = (today or now_iso())[5:10]  # "MM-DD": like-for-like year-to-date counts
+    by_year, ai_year, ytd_year = {}, {}, {}
     for r in rows:
         rec = records.get(r["cve"]) or {}
         text = f'{r["vendor"]} {r["product"]}'
@@ -529,6 +530,8 @@ def zerodays_payload(rows, records=None, kev_ids=(), origin_fn=origin_of_text,
         r["inKev"] = r["cve"] in kev_ids
         if r["date"]:
             by_year[r["date"][:4]] = by_year.get(r["date"][:4], 0) + 1
+            if r["date"][5:10] <= md:
+                ytd_year[r["date"][:4]] = ytd_year.get(r["date"][:4], 0) + 1
             if r["ai"]:
                 ai_year[r["date"][:4]] = ai_year.get(r["date"][:4], 0) + 1
     recent = sorted((r for r in rows if r["date"]), key=lambda r: r["date"], reverse=True)
@@ -539,6 +542,7 @@ def zerodays_payload(rows, records=None, kev_ids=(), origin_fn=origin_of_text,
         "method": "unique CVEs in the sheet's All tab, bucketed by Date Patched year",
         "total": len(rows),
         "byYear": dict(sorted(by_year.items())),
+        "byYearToDate": dict(sorted(ytd_year.items())),  # patched by today's month-day, each year
         "aiByYear": dict(sorted(ai_year.items())),
         "aiTotal": sum(1 for r in rows if r["ai"]),
         "recent": recent[:20],

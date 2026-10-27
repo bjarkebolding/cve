@@ -375,7 +375,16 @@ def test_kev_origin_consistent():
     check("no record: text classification", sources.kev_origin("Acme", "Thing", None, stub) == "other")
 
 
+def test_zerodays_ytd():
+    rows = [{"cve": "CVE-2025-1", "vendor": "A", "product": "B", "date": "2025-03-01"},
+            {"cve": "CVE-2025-2", "vendor": "A", "product": "B", "date": "2025-11-20"},
+            {"cve": "CVE-2026-1", "vendor": "A", "product": "B", "date": "2026-02-01"}]
+    z = sources.zerodays_payload(rows, {}, (), origin_fn=lambda t: "other", rel_fn=lambda t, v: [], today="2026-10-27")
+    check("zero-days: like-for-like year to date", z["byYearToDate"] == {"2025": 1, "2026": 1} and z["byYear"]["2025"] == 2)
+
+
 def main():
+    test_zerodays_ytd()
     test_kev_origin_consistent()
     test_primary_cvss()
     test_osv()
