@@ -34,6 +34,21 @@
     <div class="bottomline" id="bottomline" aria-label="bottom line"></div>
     <p class="subhead" id="subhead"></p>
     <div class="kpis" id="kpis" aria-label="key indicators, all CVEs"></div>
+    <details class="terms" id="terms">
+      <summary>Terms used on this page</summary>
+      <dl>
+        <dt>CVE</dt><dd>A publicly disclosed vulnerability with an ID from the official CVE list. A count of CVEs measures disclosure, not risk.</dd>
+        <dt>CISA KEV</dt><dd>CISA's Known Exploited Vulnerabilities catalogue: CVEs with reliable evidence of exploitation and an available fix. A lower bound, focused on products US federal agencies run; the date is when CISA listed it, not when attacks began.</dd>
+        <dt>EPSS</dt><dd>FIRST's Exploit Prediction Scoring System: a model's estimate of the probability of exploitation activity in the next 30 days. A ranking aid, not evidence.</dd>
+        <dt>Severity (CVSS)</dt><dd>The base score in the CVE record (vendor or CISA-ADP): worst-case impact, not likelihood of attack.</dd>
+        <dt>CNA</dt><dd>CVE Numbering Authority: the organisation that assigns and files a CVE.</dd>
+        <dt>Bulk filers</dt><dd>Third parties filing CVEs for other people's software in bulk: GitHub (advisories) and VulnCheck.</dd>
+        <dt>Surge filers</dt><dd>Any CNA whose filing grew at least fourfold to 1,000+ in a year, including vendors now filing many more CVEs for their own products.</dd>
+        <dt>Origin</dt><dd>What kind of software a CVE is in: open-source projects and packages, web CMS plugins, network and security edge devices, OS/browser platforms, or enterprise and other software.</dd>
+        <dt>AI-related</dt><dd>A CVE in AI software, MCP servers and agents, AI features, AI compute, or an AI-specific weakness. CVEs merely found by an AI tool do not count.</dd>
+        <dt>Zero-day proxy</dt><dd>A KEV entry listed within a day of its CVE's publication: broader than confirmed zero-days (Project Zero) because it also counts flaws attacked as soon as they were disclosed.</dd>
+      </dl>
+    </details>
     <div class="panel hero solo" id="hero">
       <h2 id="h-hero">CVEs per year, by origin</h2>
       <p class="hint" id="hero-sub">Published CVEs per calendar year, stacked by origin.</p>

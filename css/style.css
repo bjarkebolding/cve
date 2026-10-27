@@ -270,6 +270,17 @@ a:hover { color: var(--accent); text-decoration-color: currentColor; }
 }
 .tier-ai > .headline { margin-top: 0; }
 .tier1 .tier-label { margin-bottom: 14px; }
+/* glossary: one quiet line, opens into short definitions */
+details.terms { margin: 0 0 20px; font-size: 13.5px; }
+details.terms > summary { cursor: pointer; color: var(--accent); list-style: none; display: inline-flex; min-height: 32px; align-items: center; }
+details.terms > summary::-webkit-details-marker { display: none; }
+details.terms > summary::before { content: "+\00A0"; }
+details.terms[open] > summary::before { content: "−\00A0"; }
+details.terms dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 18px; margin: 8px 0 0; max-width: 110ch; }
+details.terms dt { font-weight: 600; color: var(--ink); }
+details.terms dd { margin: 0; color: var(--ink-2); line-height: 1.5; }
+@media (max-width: 760px) { details.terms dl { grid-template-columns: 1fr; } details.terms dd { margin-bottom: 6px; } }
+@media print { details.terms dl { display: grid; } }
 /* the message in three lines, between the headline and the tiles */
 .bottomline { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 28px; margin: -6px 0 26px; padding: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .bl-k { display: block; font-size: 11.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
