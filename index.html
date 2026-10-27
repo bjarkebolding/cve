@@ -304,40 +304,12 @@
     <p class="note" id="layers-note"></p>
   </section>
 
-  <section class="panel" id="latest" aria-labelledby="h-latest">
-    <h2 id="h-latest">Latest AI-related CVEs</h2>
-    <p class="hint" id="latest-hint">Last 30 AI-related published records, newest first.</p>
-    <div class="tbltools"><label class="sr-only" for="ai-filter">Filter latest AI CVEs</label><input id="ai-filter" type="search" placeholder="filter by CVE id, keyword, product or CNA…" autocomplete="off"></div>
-    <div class="tablewrap">
-      <table id="tbl-ai">
-        <thead><tr><th scope="col">CVE</th><th scope="col">Published (UTC)</th><th scope="col">AI relation / product</th><th scope="col">CNA</th><th scope="col">Description</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
-
   <section class="panel" id="cna" aria-labelledby="h-cna">
     <h2 id="h-cna">Who reports AI-related CVEs</h2>
     <p class="hint" id="cna-hint">AI-related CVEs per year by assigning CNA (top assigners, rest grouped as "other").</p>
     <div id="chart-cna" class="chart"></div>
   </section>
 
-  <section class="context" id="context" aria-labelledby="h-context">
-    <h2 id="h-context" class="ctx-h">Context</h2>
-    <div class="duo">
-      <div class="panel">
-        <h3 id="h-aipkgs">AI package advisories (OSV)</h3>
-        <p class="hint" id="aipkgs-hint">Security advisories for AI/ML packages per month, via OSV.dev.</p>
-        <div id="chart-aipkgs" class="chart"></div>
-        <div id="adv-recent" class="adv-recent" aria-label="recent AI package advisories"></div>
-      </div>
-      <div class="panel">
-        <h3 id="h-adoption">Adoption context: npm AI SDK downloads (log scale)</h3>
-        <p class="hint" id="adoption-hint">Monthly npm downloads of AI SDK/framework packages (log scale). Adoption context only.</p>
-        <div id="chart-adoption" class="chart"></div>
-      </div>
-    </div>
-  </section>
   </div>
 
   <div class="tier tier4" id="method">

@@ -18,8 +18,6 @@
     "chart-cves": !!(core && core.days),
     "chart-layers": !!(core && core.layerMonths && core.layers),
     "chart-cna": !!(core && core.cnaYears),
-    "chart-aipkgs": !!(ap && ap.months && Object.keys(ap.months).length),
-    "chart-adoption": !!(dl && dl.npmMonthly),
   };
   out.inks = [];
   out.missing = [];
@@ -32,8 +30,7 @@
     out.inks.push(id + ":" + (a ? Math.max(1, Math.round((100 * a) / b)) : 0) + "%");
   }
   // removed panels must stay gone
-  out.removed = ["chart-hours", "chart-kev", "findings-list", "cards"].filter((id) => document.getElementById(id));
-  out.rows = document.querySelectorAll("#tbl-ai tbody tr").length;
+  out.removed = ["chart-hours", "chart-kev", "findings-list", "cards", "latest", "context", "tbl-ai", "chart-aipkgs", "chart-adoption"].filter((id) => document.getElementById(id));
   out.epssRows = document.querySelectorAll("#tbl-epss tbody tr").length;
   out.headline = (document.querySelector("#headline") || {}).textContent || "";
   out.kpis = document.querySelectorAll("#kpis .kpi").length;

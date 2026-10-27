@@ -70,7 +70,6 @@ for label, mobile in (("desktop", None), ("phone 390px", True)):
     if [k for k in d["inks"] if k.endswith(":0%")]: problems.append("blank chart")
     if d["missing"]: problems.append(f"charts missing although data exists: {d['missing']}")
     if d["removed"]: problems.append(f"removed panels present: {d['removed']}")
-    if d["rows"] < 5: problems.append("latest-AI table < 5 rows")
     if len(d["headline"]) < 20: problems.append("no headline statement")
     if d["kpis"] < 2: problems.append(f"only {d['kpis']} KPI tiles")
     if d["tiers"] != 5 or not d["tierOrder"]: problems.append("section structure (summary/exploit/volume/ai/method) missing or out of order")

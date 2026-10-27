@@ -2031,48 +2031,6 @@ function buildEpssTable(ctx, F) {
   epssTopTable(tbody, rows, 5, (r) => h("td", null, relTags(r.rels, ctx.relLabel)));
 }
 
-/* ================= latest AI CVEs ================= */
-function buildRecentAiTable(ctx) {
-  const tbody = $("#tbl-ai tbody");
-  const recent = Array.isArray(ctx.core.recentAi) ? ctx.core.recentAi : [];
-  if (!recent.length) { emptyRow(tbody, 5, "No recent AI CVEs in this data build."); return; }
-  const kevSet = new Set(((ctx.kev && ctx.kev.entries) || []).map((e) => e.cve));
-  for (const r of recent) {
-    if (!r || !r.id) continue;
-    const m = ctx.metaOf(r.id) || {};
-    const span = h("span", { class: "cveid" }, cveLink(r.id));
-    if (kevSet.has(r.id)) span.append(badge("KEV", "", "in CISA Known Exploited Vulnerabilities"));
-    if (r.cvss) {
-      const t = [r.cvss.v ? `CVSS v${r.cvss.v}` : "CVSS", r.cvss.src ? `source ${String(r.cvss.src).toUpperCase()}` : "source NVD (primary)"].join(" · ");
-      const sb = sevBadge(r.cvss.sev, r.cvss.score, t);
-      if (sb) span.append(sb);
-    }
-    const cnaName = r.cnaName || "";
-    const cna = cnaName || r.cna || "";
-    const isEmail = cna.includes("@") && !cnaName;
-    const tdCna = h("td", { class: "cna", "data-label": "CNA", text: isEmail ? cna : prettyCna(cna), title: r.cna && r.cna !== cna ? r.cna : cna || null });
-    if (isEmail || cnaName) tdCna.classList.add("nowrap");
-    tbody.append(h("tr", null,
-      h("td", null, span),
-      h("td", { class: "nowrap pub", text: r.published ? r.published + "Z" : "—" }),
-      relCell(r.rels || m.rels || (r.layer || m.layer ? ["product"] : []), tidyProduct(r.product || m.product), ctx.relLabel),
-      tdCna,
-      h("td", { class: "desc", text: wordClip(r.description, 220) || "(no English description)" })));
-  }
-}
-function wireAiFilter() {
-  const input = $("#ai-filter");
-  if (!input) return;
-  const rows = [...document.querySelectorAll("#tbl-ai tbody tr")];
-  input.addEventListener("input", () => {
-    const q = input.value.trim().toLowerCase();
-    for (const tr of rows) tr.hidden = !!q && !tr.textContent.toLowerCase().includes(q);
-    const t = $("#tbl-ai");
-    t.classList.toggle("searching", !!q);
-    if (t._clipBtn) t._clipBtn.hidden = !!q;
-  });
-}
-
 /* ================= who reports AI CVEs ================= */
 function buildCnaChart(ctx) {
   const el = $("#chart-cna");
@@ -2104,79 +2062,6 @@ function buildCnaChart(ctx) {
     yLabel: "AI CVEs per year", ariaLabel: "AI-related CVEs per year by assigning CNA, stacked",
     xValues: tick((v) => String(v)), xIncrs: [1, 2, 5], xSpace: 40, xFmt: (v) => String(v), barMax: 60,
   });
-}
-
-/* ================= context: AI package advisories (OSV) ================= */
-function buildAiPkgs(ctx) {
-  const el = $("#chart-aipkgs");
-  const ap = ctx.ap;
-  if (!ap) { note(el, "Package advisory data is not available."); return; }
-  const hint = $("#aipkgs-hint");
-  const per = ap.perPackage || {};
-  const nPk = Object.keys(per).length;
-  const total = fin(ap.total) ? ap.total : null;
-  const advs = Array.isArray(ap.advisories) ? ap.advisories : Array.isArray(ap.recent) ? ap.recent : [];
-  const withFixed = advs.filter((a) => a && typeof a.fixed === "boolean");
-  let s = total != null
-    ? `${num.format(total)} unique advisories (deduplicated across packages) for ${num.format(nPk)} AI/ML packages, via OSV.dev.`
-    : `${num.format(Object.values(per).reduce((t, p) => t + (p.count || 0), 0))} advisories for ${num.format(nPk)} AI/ML packages via OSV.dev (an advisory affecting several packages counts once per package).`;
-  if (withFixed.length) {
-    s += ` ${pct(withFixed.filter((a) => a.fixed).length / withFixed.length)} of the ${withFixed.length} ${ap.advisories ? "" : "most recent "}advisories list a fixed version.`;
-  }
-  hint.textContent = s;
-  const keys = Object.keys(ap.months || {}).sort();
-  if (keys.length) {
-    const ms = monthRange(keys[0] < "2018-01" ? "2018-01" : keys[0], keys[keys.length - 1]);
-    stackedBars(el, {
-      xs: ms.map(monthT), groups: [{ label: "advisories", color: COLORS.pkgs, data: ms.map((m) => ap.months[m] || 0) }],
-      height: 220, yLabel: "advisories per month", monthly: true, ariaLabel: "AI/ML package advisories per month (OSV)", xFmt: (v) => new Date(v * 86400e3).toISOString().slice(0, 7), barMax: 10,
-    });
-    const lg = el.querySelector(".u-legend");
-    if (lg) lg.classList.add("compact");
-  } else note(el, "No monthly advisory counts.");
-  // recent advisories list
-  const box = $("#adv-recent");
-  const items = (ap.recent || []).slice(0, 5);
-  if (!items.length) return;
-  box.append(h("div", { class: "adv-head", text: `Recent advisories (${items.length} of ${ap.recent.length})` }));
-  for (const it of items) {
-    const row = h("div", { class: "adv-row" },
-      h("span", { class: "adv-date", text: String(it.published || "").slice(0, 10) }),
-      h("span", { class: "adv-pkg", text: it.package || it.id || "" }),
-      h("span", { class: "adv-cve", text: it.cve || it.id || "" }),
-      h("span", { class: "adv-fix" }, typeof it.fixed === "boolean" ? badge(it.fixed ? "FIX" : "NO FIX", it.fixed ? "ok" : "", it.fixed ? "a fixed version is listed" : "no fixed version listed") : null));
-    box.append(row);
-  }
-}
-
-/* ================= context: adoption (npm, log scale) ================= */
-function buildAdoptionChart(ctx) {
-  const el = $("#chart-adoption");
-  const dl = ctx.dl;
-  const monthly = (dl && dl.npmMonthly) || {};
-  const pkgs = ["openai", "ai", "langchain", "@huggingface/transformers"].filter((p) => monthly[p]);
-  const monthSet = new Set();
-  for (const p of pkgs) for (const m of Object.keys(monthly[p] || {})) monthSet.add(m);
-  if (!monthSet.size) { note(el, "Download data is not available."); return; }
-  const months = [...monthSet].sort();
-  const colors = [COLORS.npm1, COLORS.npm2, COLORS.npm3, COLORS.npm4];
-  const data = [months.map(monthT), ...pkgs.map((p) => months.map((m) => Math.log10(Math.max(1, (monthly[p] || {})[m] || 0))))];
-  const LOGLAB = { 3: "1k", 4: "10k", 5: "100k", 6: "1M", 7: "10M", 8: "100M", 9: "1B" };
-  makeChart(el, {
-    height: 220,
-    ariaLabel: "Monthly npm downloads of AI SDK packages, log scale (adoption context)",
-    scales: { x: { time: true } },
-    axes: [
-      dayAxis(),
-      { space: 36, label: "downloads per month (log scale)", size: 52, values: tick((v) => (Math.abs(v - Math.round(v)) < 1e-6 ? LOGLAB[Math.round(v)] || "" : "")) },
-    ],
-    series: [
-      { label: "month", value: (u, v) => (v == null ? "" : new Date(v * 86400e3).toISOString().slice(0, 7)) },
-      ...pkgs.map((p, i) => ({ label: p, stroke: colors[i], width: 1.5, fill: null,
-        value: (u, v) => (v == null ? "" : compact(Math.round(10 ** v))) })),
-    ],
-    legend: { show: true },
-  }, data);
 }
 
 /* ================= methodology ================= */
@@ -2698,9 +2583,6 @@ function explainDetail(ctx, F, S) {
     });
   } catch (e) { /* skip */ }
   try {
-    fig("#tbl-ai", { so: "Check this list against your AI inventory each week; anything without an owner is the gap.", subEl: "#latest-hint", sub: "Last 30 AI-related published records, newest first. AI relation = why it counts (hover a tag); KEV = also in CISA's exploited catalog; severity badge = record CVSS (hover for version and source).", src: srcLine(ctx, ["cve", "kev"]) });
-  } catch (e) { /* skip */ }
-  try {
     const cy = core.cnaYears && core.cnaYears[F.year];
     if (cy) {
       const tot = sumObj(cy);
@@ -2710,40 +2592,6 @@ function explainDetail(ctx, F, S) {
         titleEl: "#h-cna", title: cnaTitle(core.cnaYears, F, top, tot),
         how: "Stacked: each colour is one CVE Numbering Authority's AI CVEs that year (top 7 overall + other CNAs). Pitfall: one prolific new CNA raises counts without more vulnerable software.",
         src: srcLine(ctx, ["cve"]),
-      });
-    }
-  } catch (e) { /* skip */ }
-  try {
-    const ap = ctx.ap;
-    if (ap && ap.months) {
-      const curM = +F.asOf.slice(5, 7) - 1;
-      let a = 0, b = 0;
-      for (const [m, n] of Object.entries(ap.months)) {
-        if (+m.slice(5, 7) > Math.max(1, curM)) continue;
-        if (m.startsWith(F.year)) a += n; if (m.startsWith(F.prevYear)) b += n;
-      }
-      fig("#chart-aipkgs", {
-        so: "Pin AI packages and models to reviewed versions and pull them from a curated mirror.",
-        titleEl: "#h-aipkgs", title: a && b ? `AI package advisories ${xr(a, b)} like-for-like (${num.format(a)} vs ${num.format(b)}, Jan–${MONTHS[Math.max(1, curM) - 1]})` : null,
-        after: "#adv-recent",
-        how: "Each bar = OSV advisories for AI/ML packages published that month. Pitfall: one advisory can name several packages.",
-        src: srcLine(ctx, ["osv"]),
-      });
-    }
-  } catch (e) { /* skip */ }
-  try {
-    const m = ctx.dl && ctx.dl.npmMonthly && ctx.dl.npmMonthly.openai;
-    if (m) {
-      const ks = Object.keys(m).sort();
-      const full = ks.slice(0, -1); // drop the partial current month
-      const last = full[full.length - 1], yAgo = full.find((x) => x === ymAdd(last, -12));
-      fig("#chart-adoption", {
-        so: "Adoption outpaces oversight: expect AI SDKs in code you have not inventoried, and scan for them.",
-        titleEl: "#h-adoption",
-        title: yAgo && m[yAgo] ? `openai SDK downloads ${xr(m[last], m[yAgo])} in 12 months (log scale)` : "Adoption context: npm AI SDK downloads (log scale)",
-        subEl: "#adoption-hint", sub: "Monthly npm downloads per package, log scale (each gridline = 10×). Adoption context only — not attack surface, not used in any count above.",
-        how: "Lines are not stacked; a straight rising line on a log scale means steady exponential growth. The last month is partial.",
-        src: srcLine(ctx, ["npm"]),
       });
     }
   } catch (e) { /* skip */ }
@@ -3105,10 +2953,7 @@ function infoize() {
     ["CWE compare", () => buildCweCompare(ctx)],
     ["AI vendors", () => buildVendAi(ctx)],
     ["layer chart", () => buildLayerChart(ctx)],
-    ["AI CVE table", () => { buildRecentAiTable(ctx); wireAiFilter(); }],
     ["CNA chart", () => buildCnaChart(ctx)],
-    ["AI packages", () => buildAiPkgs(ctx)],
-    ["adoption", () => buildAdoptionChart(ctx)],
     ["methodology", () => buildMethod(ctx)],
     ["framing: summary", () => explainSummary(ctx, F, S)],
     ["framing: risk", () => explainRisk(ctx, F, S)],
