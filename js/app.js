@@ -1459,6 +1459,13 @@ function topList(el, rows, opts) {
 }
 /* carry the counts without the year's surge filers (build: nx/prevx) */
 const withX = (r, row) => (fin(r.nx) ? { ...row, nx: r.nx, prevx: r.prevx } : row);
+/* counts without the year's surge filers, re-ranked: bars, ticks, counts and
+ * titles then all use the same basis as the "grew fastest" claim */
+function exRows(rows) {
+  if (!rows.length || !rows.every((r) => fin(r.nx))) return rows;
+  return rows.map((r) => ({ ...r, n: r.nx, prev: r.prevx })).sort((a, b) => b.n - a.n || String(a.label).localeCompare(String(b.label)));
+}
+const exKey = (L) => `Counts exclude the year's bulk filers (${surgeNames(L) || "none"}). Bar = last 12 months; tick = the 12 months before; text = count · change.`;
 function cweRows(top, names, n) {
   return (top || []).slice(0, n || 10).map((r) => withX(r, { label: names[r.id] ? `${names[r.id]} (${r.id})` : r.id, title: r.id, n: r.n, prev: r.prev }));
 }
@@ -1500,11 +1507,12 @@ function buildTops(ctx) {
   const legend = h("p", { class: "hint toplegend", text: "Bar = last 12 months; tick = the 12 months before; text = count · change." });
   if (!L) { for (const id of ["#cweall", "#vendall", "#cnaall"]) note($(id), "Not in this data build."); return; }
   // Part 1 lists share one quiet colour: the ranking is the message
-  topList($("#cweall"), cweRows(L.cweTop, names), { color: P.steel });
-  topList($("#vendall"), vendorRows(L.vendorTop), { color: P.steel });
+  topList($("#cweall"), exRows(cweRows(L.cweTop, names)), { color: P.steel });
+  topList($("#vendall"), exRows(vendorRows(L.vendorTop)), { color: P.steel });
   topList($("#cnaall"), bulkFilerRows(L), { color: P.steel });
   // the key sits inside every list card, so a screenshot of one card still explains the tick
-  for (const id of ["#cweall", "#vendall", "#cnaall"]) $(id).before(legend.cloneNode(true));
+  for (const id of ["#cweall", "#vendall"]) $(id).before(h("p", { class: "hint toplegend", text: exKey(L) }));
+  $("#cnaall").before(legend.cloneNode(true));
 }
 
 /* ================= Part 2: AI-related summary ================= */
@@ -1652,8 +1660,8 @@ function buildAiOrigin(ctx) {
 }
 function buildVendAi(ctx) {
   const L = ctx.core.landscape && ctx.core.landscape.ai;
-  topList($("#vendai"), L ? vendorRows(L.vendorTop) : null, { color: P.blue });
-  $("#vendai").before(h("p", { class: "hint toplegend", text: "Bar = last 12 months; tick = the 12 months before; text = count · change." }));
+  topList($("#vendai"), L ? exRows(vendorRows(L.vendorTop)) : null, { color: P.blue });
+  $("#vendai").before(h("p", { class: "hint toplegend", text: L ? exKey(L) : "" }));
 }
 
 /* ================= AI deep dive lead-in: exploited chips + actions ================= */
@@ -2793,7 +2801,7 @@ function explainPart1(ctx, F, S) {
         how: `Bar = last 12 months, tick = the 12 months before. 'Fastest-growing' = largest rise in share of all CVEs, among classes with at least 100 CVEs the year before, computed without the year's bulk filers (CNAs whose filing grew at least ×4 to 1,000+: ${surgeNames(L) || "none"}). Pitfall: a CVE counts once, under its first CWE; many records have none.`,
         src: srcLine(ctx, ["cve"]),
       });
-      const vr = vendorRows(L.vendorTop);
+      const vr = exRows(vendorRows(L.vendorTop));
       const vb = shareRiser(vr, w, 100);
       fig("#vendall", {
         so: "Counts reflect product footprint and reporting practice: use them to plan vendor patch cadence, not to rank vendor security.",
@@ -2857,11 +2865,11 @@ function explainPart2(ctx, F, S) {
   try {
     const L = core.landscape && core.landscape.ai;
     if (L) {
-      const vr = vendorRows(L.vendorTop);
+      const vr = exRows(vendorRows(L.vendorTop));
       const vb = shareRiser(vr, L.window, 20);
       fig("#vendai", {
         so: "Ask your main AI vendors for their disclosure and patch timelines; one product can dominate the count.",
-        titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months (all its products)` + (vb && vb !== vr[0] ? `; among vendors with 20+ AI CVEs a year earlier, ${vb.label} grew fastest (${growthText(vb.gn, vb.gprev)} against ×${fmtX(vb.base)})` : "") : null,
+        titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months` + (vb && vb !== vr[0] ? `; among vendors with 20+ AI CVEs a year earlier, ${vb.label} grew fastest (${growthText(vb.gn, vb.gprev)} against ×${fmtX(vb.base)})` : "") : null,
         how: "Bar = last 12 months, tick = the 12 months before; text = count · change. 'new' = none the year before.",
         src: srcLine(ctx, ["cve"]),
       });
