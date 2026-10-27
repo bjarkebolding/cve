@@ -791,3 +791,11 @@ footer a { color: var(--ink-2); }
 
 .threat .delta.flat { color: var(--ink-2); background: var(--track); }
 .th-eyebrow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* chart controls fold away so the card works as a slide */
+details.explore { margin: 0 0 10px; }
+details.explore > summary { cursor: pointer; font-size: 13px; color: var(--accent); list-style: none; min-height: 28px; display: inline-flex; align-items: center; }
+details.explore > summary::-webkit-details-marker { display: none; }
+details.explore > summary::before { content: "+\00A0"; }
+details.explore[open] > summary::before { content: "−\00A0"; }
+@media print { details.explore { display: none; } }

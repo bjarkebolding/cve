@@ -211,31 +211,34 @@
     <h2 id="h-issuance">AI-related vs all CVEs</h2>
     <p class="hint" id="issuance-hint">Published CVE records from the official CVE list.</p>
     <div id="chart-cves" class="chart"></div>
+    <details class="explore">
+      <summary>Explore: aggregation, range, mode</summary>
     <div class="controls" id="ctl-cves">
-      <span class="grp"><span class="lbl">Agg</span>
-        <button type="button" data-agg="day">Day</button>
-        <button type="button" data-agg="week">Week</button>
-        <button type="button" data-agg="month" class="on">Month</button>
-        <button type="button" data-agg="year">Year</button>
-      </span>
-      <span class="grp"><span class="lbl">Range</span>
-        <button type="button" data-range="30d">30D</button>
-        <button type="button" data-range="1y">1Y</button>
-        <button type="button" data-range="5y">5Y</button>
-        <button type="button" data-range="2018" class="on">2018+</button>
-        <button type="button" data-range="10y">10Y</button>
-        <button type="button" data-range="all">All</button>
-      </span>
-      <span class="grp"><span class="lbl">Mode</span>
-        <button type="button" data-mode="count">Count</button>
-        <button type="button" data-mode="cum">Cumulative</button>
-        <button type="button" data-mode="share" class="on">AI share %</button>
-      </span>
-      <span class="grp"><span class="lbl">Series</span>
-        <label class="chk"><input type="checkbox" id="ser-all" checked>All</label>
-        <label class="chk"><input type="checkbox" id="ser-ai" checked>AI-related</label>
-      </span>
-    </div>
+        <span class="grp"><span class="lbl">Agg</span>
+          <button type="button" data-agg="day">Day</button>
+          <button type="button" data-agg="week">Week</button>
+          <button type="button" data-agg="month" class="on">Month</button>
+          <button type="button" data-agg="year">Year</button>
+        </span>
+        <span class="grp"><span class="lbl">Range</span>
+          <button type="button" data-range="30d">30D</button>
+          <button type="button" data-range="1y">1Y</button>
+          <button type="button" data-range="5y">5Y</button>
+          <button type="button" data-range="2018" class="on">2018+</button>
+          <button type="button" data-range="10y">10Y</button>
+          <button type="button" data-range="all">All</button>
+        </span>
+        <span class="grp"><span class="lbl">Mode</span>
+          <button type="button" data-mode="count">Count</button>
+          <button type="button" data-mode="cum">Cumulative</button>
+          <button type="button" data-mode="share" class="on">AI share %</button>
+        </span>
+        <span class="grp"><span class="lbl">Series</span>
+          <label class="chk"><input type="checkbox" id="ser-all" checked>All</label>
+          <label class="chk"><input type="checkbox" id="ser-ai" checked>AI-related</label>
+        </span>
+      </div>
+    </details>
   </section>
 
   <section class="panel" id="ai-origin" aria-labelledby="h-aiorigin">
