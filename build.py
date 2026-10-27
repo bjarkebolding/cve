@@ -948,6 +948,9 @@ def origin_years(origin_month, since="2018"):
 # because their jump is reporting practice (e.g. GitHub, VulnCheck, a vendor
 # that started filing its own CVEs), not more vulnerable software.
 SURGE_MIN, SURGE_X = 1000, 4
+# The Linux kernel CNA scores only a minority of its CVEs and nearly all of those
+# HIGH/CRITICAL, which skews "share of rated CVEs"; severity is also given without it.
+SELECTIVE_RATER = "Linux"
 
 
 def surge_cnas(cur, prev, min_n=SURGE_MIN, x=SURGE_X):
@@ -1007,6 +1010,7 @@ def landscape(rows, months, today, since="2018", top=12):
     prev_from = (today - dt.timedelta(days=729)).isoformat()
     month_n, years = Counter(), Counter()
     sev_years = defaultdict(Counter)
+    sev_years_x = defaultdict(Counter)  # without the Linux kernel CNA (rates few, nearly all HIGH)
     origin_y = defaultdict(Counter)
     rel_y = defaultdict(Counter)
     cwe = (Counter(), Counter())
@@ -1023,6 +1027,8 @@ def landscape(rows, months, today, since="2018", top=12):
         if y >= since:
             years[y] += 1
             sev_years[y][sev if sev in SEVERITIES else "UNRATED"] += 1
+            if asg != SELECTIVE_RATER:
+                sev_years_x[y][sev if sev in SEVERITIES else "UNRATED"] += 1
             origin_y[origin or "other"][y] += 1
             for r in rels or ():
                 rel_y[r][y] += 1
@@ -1056,6 +1062,7 @@ def landscape(rows, months, today, since="2018", top=12):
         "months": [month_n.get(m, 0) for m in months],
         "years": {y: years[y] for y in ys},
         "sevYears": {y: {k: sev_years[y].get(k, 0) for k in SEVERITIES + ("UNRATED",)} for y in ys},
+        "sevYearsXLinux": {y: {k: sev_years_x[y].get(k, 0) for k in SEVERITIES + ("UNRATED",)} for y in ys},
         "originYears": {o: {y: origin_y[o].get(y, 0) for y in ys} for o in ORIGIN_IDS},
         "relYears": {r: {y: rel_y[r].get(y, 0) for y in ys} for r in RELATION_IDS},
         "window": {"cur": [cur_from, today.isoformat()],

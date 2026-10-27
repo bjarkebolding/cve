@@ -612,7 +612,9 @@ function computeSurgeFacts(ctx, F) {
   if (F.ytd && S.total) S.aiShare = { n: F.ytd.cur, mcp: fin(F.mcpYtd) ? F.mcpYtd : null, of: S.total.cur };
   // HIGH/CRITICAL share: this year vs last year (record CVSS, rated only)
   try {
-    const sy = core.landscape && core.landscape.all && core.landscape.all.sevYears;
+    // without the Linux kernel CNA when available (it rates few CVEs, nearly all HIGH)
+    const la = core.landscape && core.landscape.all;
+    const sy = la && (la.sevYearsXLinux || la.sevYears);
     const share = (o) => { if (!o) return null; const r = SEV_KEYS.reduce((t, k) => t + (o[k] || 0), 0); return r ? ((o.CRITICAL || 0) + (o.HIGH || 0)) / r : null; };
     if (sy) S.hc = { cur: share(sy[F.year]), prev: share(sy[F.prevYear]), crit: sy[F.year] ? sy[F.year].CRITICAL || 0 : 0 };
   } catch (e) { /* skip */ }
@@ -712,7 +714,7 @@ function buildHeadline(ctx, F, S) {
     const lead = ranked.reduce((t, [, n]) => t + n, 0);
     return `${listJoin(ranked.map(([id]) => oShort(id, OL)))} account for ${num.format(lead)} of them.`.replace(/^./, (c) => c.toUpperCase());
   });
-  add(() => (S.hc && fin(S.hc.cur) ? `${pct(S.hc.cur)} of this year's rated CVEs are HIGH or CRITICAL${fin(S.hc.prev) ? ` (${pct(S.hc.prev)} in ${F.prevYear})` : ""}.` : null));
+  add(() => (S.hc && fin(S.hc.cur) ? `${pct(S.hc.cur)} of this year's rated CVEs are HIGH or CRITICAL${fin(S.hc.prev) ? ` (${pct(S.hc.prev)} in ${F.prevYear})` : ""}, excluding the Linux kernel's selective ratings.` : null));
   // the KPI tiles carry these numbers: keep them one tap away, not on screen
   if (parts.length) { sub.textContent = parts.join(" "); sub.classList.add("hint"); } else sub.remove();
 }
@@ -2779,7 +2781,18 @@ function explainPart1(ctx, F, S) {
     const sy = L && L.sevYears;
     if (sy) {
       fig("#chart-sevall", {
-        titleEl: "#h-sevall", title: S.hc && fin(S.hc.cur) ? `${pct(S.hc.cur)} of ${F.year}'s rated CVEs are HIGH or CRITICAL` + (fin(S.hc.prev) ? ` (${pct(S.hc.prev)} in ${F.prevYear})` : "") + ` — ${num.format(S.hc.crit)} CRITICAL so far` : null,
+        titleEl: "#h-sevall", title: (() => {
+          // the Linux kernel CNA rates few of its CVEs, nearly all HIGH: lead with the share without it
+          const sx = L.sevYearsXLinux, sy = L.sevYears;
+          const hcOf = (o) => { if (!o) return null; const r = SEV_KEYS.reduce((t, k) => t + (o[k] || 0), 0); return r ? ((o.CRITICAL || 0) + (o.HIGH || 0)) / r : null; };
+          const xc = sx && hcOf(sx[F.year]), xp = sx && hcOf(sx[F.prevYear]);
+          if (fin(xc) && sy && sy[F.year]) {
+            const lin = {}; for (const k of SEV_KEYS.concat("UNRATED")) lin[k] = (sy[F.year][k] || 0) - (sx[F.year][k] || 0);
+            const lr = SEV_KEYS.reduce((t, k) => t + lin[k], 0), lt = lr + lin.UNRATED;
+            return `${pct(xc)} of ${F.year}'s rated CVEs are HIGH or CRITICAL${fin(xp) ? ` (${pct(xp)} in ${F.prevYear})` : ""}, excluding the Linux kernel, which rates ${lt ? pct(lr / lt) : "few"} of its CVEs, nearly all HIGH`;
+          }
+          return S.hc && fin(S.hc.cur) ? `${pct(S.hc.cur)} of ${F.year}'s rated CVEs are HIGH or CRITICAL` + (fin(S.hc.prev) ? ` (${pct(S.hc.prev)} in ${F.prevYear})` : "") : null;
+        })(),
         subEl: "#sevall-hint", sub: `Published CVEs per year, 2018 → ${F.year} (${partialLabel(F)}), stacked by CVSS severity from the CVE record (CNA, else CISA-ADP).`,
         how: "Segments add up to the year's CVEs, CRITICAL at the bottom, unrated on top. Severity is the vendor's CVSS base score: worst-case impact, not likelihood of attack.",
         so: S.hc && fin(S.hc.cur) && S.hc.cur >= 0.4 ? "With this many HIGH/CRITICAL CVEs, severity alone cannot order the queue — use KEV and EPSS first." : null,
