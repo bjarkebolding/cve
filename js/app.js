@@ -1198,7 +1198,7 @@ function buildRansom(ctx, F) {
   });
 }
 
-/* ================= Part 1: speed of exploitation ================= */
+/* ================= Part 1: time from CVE publication to KEV listing ================= */
 const TTK_BUCKETS = [
   { id: "d1", label: "≤1 day (at disclosure)", color: P.red, test: (d) => d <= 1 },
   { id: "w1", label: "2–7 days", color: P.orange, test: (d) => d <= 7 },
@@ -2543,10 +2543,10 @@ function explainPart2(ctx, F, S) {
  * Short static names: the on-page titles are full takeaway sentences. */
 const NAV_SUB = {
   brief: [],
-  summary: [["kpis", "Key figures"], ["signal", "Signal vs noise"], ["hero", "CVEs per year"], ["where", "Where exploitation happens"]],
-  exploit: [["exploitation", "Exploitation by origin"], ["kev-vendors", "Exploited by vendor"], ["ransom", "Ransomware-linked"], ["speed", "Speed of exploitation"], ["kev-latest", "Latest exploited"], ["zerodays", "Recent zero-days"], ["next", "Patch next"]],
+  summary: [["kpis", "Key figures"], ["hero", "CVEs per year"], ["signal", "Signal vs noise"], ["where", "Where exploitation happens"]],
+  exploit: [["kev-vendors", "Exploited by vendor"], ["ransom", "Ransomware-linked"], ["speed", "Time to KEV listing"], ["kev-latest", "Latest KEV additions"], ["zerodays", "Recent zero-days"], ["next", "Patch next"]],
   volume: [["sevyears", "Severity per year"], ["tops", "Top weaknesses, vendors & CNAs"], ["supply", "Supply chain"]],
-  ai: [["ai-kpis", "Key figures"], ["relations", "How CVEs relate to AI"], ["issuance", "AI share of all CVEs"], ["ai-origin", "Where AI CVEs come from"], ["exploited", "Exploited AI vulnerabilities"], ["ai-next", "AI patch next"], ["breaks", "How AI CVEs differ"], ["layers", "AI stack layers"], ["latest", "Latest AI CVEs"], ["cna", "Who reports AI CVEs"], ["context", "Context"]],
+  ai: [["ai-kpis", "Key figures"], ["relations", "How CVEs relate to AI"], ["issuance", "AI share of all CVEs"], ["ai-origin", "Where AI CVEs come from"], ["exploited", "Exploited AI vulnerabilities"], ["ai-next", "AI patch next"], ["breaks", "How AI CVEs differ"], ["cna", "Who reports AI CVEs"]],
   method: [],
 };
 function buildNavMenus() {
