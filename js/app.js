@@ -1455,10 +1455,12 @@ function topList(el, rows, opts) {
   }
   el.append(list);
 }
+/* carry the counts without the year's surge filers (build: nx/prevx) */
+const withX = (r, row) => (fin(r.nx) ? { ...row, nx: r.nx, prevx: r.prevx } : row);
 function cweRows(top, names, n) {
-  return (top || []).slice(0, n || 10).map((r) => ({ label: names[r.id] ? `${names[r.id]} (${r.id})` : r.id, title: r.id, n: r.n, prev: r.prev }));
+  return (top || []).slice(0, n || 10).map((r) => withX(r, { label: names[r.id] ? `${names[r.id]} (${r.id})` : r.id, title: r.id, n: r.n, prev: r.prev }));
 }
-function vendorRows(top, n) { return (top || []).slice(0, n || 10).map((r) => ({ label: r.name || r.id, n: r.n, prev: r.prev })); }
+function vendorRows(top, n) { return (top || []).slice(0, n || 10).map((r) => withX(r, { label: r.name || r.id, n: r.n, prev: r.prev })); }
 function cnaRows(top, n) { return (top || []).slice(0, n || 10).map((r) => ({ label: prettyCna(r.id), title: r.id, n: r.n, prev: r.prev })); }
 /* the row that grew most in absolute terms, among the shown rows */
 /* Grew fastest RELATIVE to all CVEs: the largest rise in share (n/N vs
@@ -1466,14 +1468,19 @@ function cnaRows(top, n) { return (top || []).slice(0, n || 10).map((r) => ({ la
  * overall rate. Raw increases mostly re-rank the biggest classes. */
 function shareRiser(rows, w, minPrev) {
   if (!w || !w.n || !w.prevN) return null;
+  // without the year's surge filers when available: their jump is reporting, not software
+  const useX = fin(w.nx) && w.prevNx > 0 && rows.every((r) => fin(r.nx));
+  const N = useX ? w.nx : w.n, P = useX ? w.prevNx : w.prevN;
   let best = null;
   for (const r of rows) {
-    if (!r.prev || r.prev < (minPrev || 100)) continue;
-    const rel = (r.n / w.n) / (r.prev / w.prevN);
-    if (rel > 1.05 && (!best || rel > best.rel)) best = { ...r, rel };
+    const n = useX ? r.nx : r.n, prev = useX ? r.prevx : r.prev;
+    if (!prev || prev < (minPrev || 100)) continue;
+    const rel = (n / N) / (prev / P);
+    if (rel > 1.05 && (!best || rel > best.rel)) best = { ...r, rel, gn: n, gprev: prev, base: N / P, ex: useX };
   }
   return best;
 }
+const surgeNames = (L) => listJoin((L && L.surgeCnas || []).map((c) => prettyCna(c)));
 const baseX = (w) => (w && w.prevN ? `×${fmtX(w.n / w.prevN)}` : null);
 const topRiser = (rows) => rows.reduce((b, r) => (r.n - (r.prev || 0) > (b ? b.n - (b.prev || 0) : 0) ? r : b), null);
 function buildTops(ctx) {
@@ -2788,17 +2795,17 @@ function explainPart1(ctx, F, S) {
       const cw = shareRiser(cweRows(L.cweTop, names), w, 100);
       fig("#cweall", {
         so: "Fund fixes that remove whole weakness classes (authorization checks, input handling, memory safety) instead of patching one CVE at a time.",
-        titleEl: "#h-cweall", title: cw ? `Fastest-growing weakness: ${cw.label}, ${growthText(cw.n, cw.prev)} against ${baseX(w)} for all CVEs`
+        titleEl: "#h-cweall", title: cw ? `Fastest-growing weakness: ${cw.label}, ${growthText(cw.gn, cw.gprev)} against ×${fmtX(cw.base)} for all CVEs${cw.ex ? " (both without the year's bulk filers)" : ""}`
           : baseX(w) ? `No top weakness class outgrew all CVEs (${baseX(w)})` : null,
         subEl: "#cweall-hint", sub: `CVEs per weakness class (first CWE in the record), ${span} vs the 12 months before. Top 10.`,
-        how: "Bar = last 12 months, tick = the 12 months before. 'Fastest-growing' = largest rise in share of all CVEs, among classes with at least 100 CVEs the year before, because all CVEs roughly doubled. Pitfall: a CVE counts once, under its first CWE; many records have none.",
+        how: `Bar = last 12 months, tick = the 12 months before. 'Fastest-growing' = largest rise in share of all CVEs, among classes with at least 100 CVEs the year before, computed without the year's bulk filers (CNAs whose filing grew at least ×4 to 1,000+: ${surgeNames(L) || "none"}). Pitfall: a CVE counts once, under its first CWE; many records have none.`,
         src: srcLine(ctx, ["cve"]),
       });
       const vr = vendorRows(L.vendorTop);
       const vb = shareRiser(vr, w, 100);
       fig("#vendall", {
         so: "Counts reflect product footprint and reporting practice: use them to plan vendor patch cadence, not to rank vendor security.",
-        titleEl: "#h-vendall", title: vr.length ? `${vr[0].label} leads with ${num.format(vr[0].n)} CVEs` + (vb && vb !== vr[0] ? `; ${vb.label} grew fastest (${growthText(vb.n, vb.prev)} against ${baseX(w)} for all CVEs)` : "") : null,
+        titleEl: "#h-vendall", title: vr.length ? `${vr[0].label} leads with ${num.format(vr[0].n)} CVEs` + (vb && vb !== vr[0] ? `; ${vb.label} grew fastest (${growthText(vb.gn, vb.gprev)} against ×${fmtX(vb.base)}${vb.ex ? ", without bulk filers" : ""})` : "") : null,
         subEl: "#vendall-hint", sub: `CVEs per vendor (first affected vendor in the record), ${span} vs the 12 months before. Top 10.`,
         how: "Bar = last 12 months, tick = the 12 months before. Pitfall: vendors that file their own CVEs (Linux, Microsoft, Oracle) look larger than vendors whose bugs go unreported.",
         src: srcLine(ctx, ["cve"]),
@@ -2859,7 +2866,7 @@ function explainPart2(ctx, F, S) {
       const vb = shareRiser(vr, L.window, 20);
       fig("#vendai", {
         so: "Ask your main AI vendors for their disclosure and patch timelines; one product can dominate the count.",
-        titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months` + (vb && vb !== vr[0] ? `; ${vb.label} grew fastest (${growthText(vb.n, vb.prev)} against ${baseX(L.window)} for all AI-related CVEs)` : "") : null,
+        titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months` + (vb && vb !== vr[0] ? `; ${vb.label} grew fastest (${growthText(vb.gn, vb.gprev)} against ×${fmtX(vb.base)} for all AI-related CVEs${vb.ex ? ", without bulk filers" : ""})` : "") : null,
         how: "Bar = last 12 months, tick = the 12 months before; text = count · change. 'new' = none the year before.",
         src: srcLine(ctx, ["cve"]),
       });

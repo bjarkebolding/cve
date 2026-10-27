@@ -477,6 +477,13 @@ def test_ytd_filers():
     check("windows labelled", r["window"] == ["2026-01-01", "2026-10-26"] and r["prevWindow"] == ["2025-01-01", "2025-10-26"])
 
 
+def test_surge_cnas():
+    print("surge_cnas")
+    cur = {"GitHub_M": 12000, "mitre": 4000, "VulnCheck": 9000, "small": 500, "unknown": 5000}
+    prev = {"GitHub_M": 2400, "mitre": 4200, "VulnCheck": 30, "small": 1}
+    check("x5 and >= 1000, not 'unknown'", build.surge_cnas(cur, prev) == ["GitHub_M", "VulnCheck"])
+
+
 def test_landscape():
     print("landscape")
     import datetime as dt
@@ -493,7 +500,7 @@ def test_landscape():
     check("relYears", L["relYears"]["found"] == {"2025": 1, "2026": 0} and L["relYears"]["agent"]["2026"] == 1)
     check("window last 365d vs prior", L["window"]["cur"] == ["2025-10-27", "2026-10-26"]
           and L["window"]["n"] == 2 and L["window"]["prevN"] == 1)
-    check("cweTop: current-window keys with prev counts", L["cweTop"] == [{"id": "CWE-79", "n": 2, "prev": 0}])
+    check("cweTop: current-window keys with prev counts", L["cweTop"] == [{"id": "CWE-79", "n": 2, "prev": 0, "nx": 2, "prevx": 0}])
     check("vendorTop case-folded, display name", L["vendorTop"][0]["n"] == 2 and L["vendorTop"][0]["name"] in ("Acme", "acme"))
 
 
@@ -501,6 +508,7 @@ def main():
     test_relations()
     test_landscape()
     test_ytd_filers()
+    test_surge_cnas()
     test_is_ai_blob()
     test_parse_file()
     test_severity()

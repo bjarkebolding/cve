@@ -275,10 +275,14 @@ if page:
         check(num(page.get("kevVendTop", "")) == top3[0][1], f"page: top vendor count {page.get('kevVendTop')} != {top3[0][1]}")
     # "fastest-growing" = largest rise in share of all CVEs (base >= 100), not the largest raw increase
     W = L["all"]["window"]
-    rel = [(r["n"] / W["n"]) / (r["prev"] / W["prevN"]) for r in L["all"]["cweTop"] if r.get("prev", 0) >= 100]
-    best = max(((rv, r["id"]) for rv, r in zip(rel, [r for r in L["all"]["cweTop"] if r.get("prev", 0) >= 100])), default=None)
+    ux = "nx" in W and all("nx" in r for r in L["all"]["cweTop"])  # without the year's surge filers
+    kn, kp, Wn, Wp = ("nx", "prevx", W.get("nx"), W.get("prevNx")) if ux else ("n", "prev", W["n"], W["prevN"])
+    elig = [r for r in L["all"]["cweTop"] if r.get(kp, 0) >= 100]
+    best = max((((r[kn] / Wn) / (r[kp] / Wp)), r["id"]) for r in elig) if elig else None
     if best and best[0] > 1.05:
         check(best[1] in page.get("cweTitle", ""), f"page: fastest-growing weakness title {page.get('cweTitle')!r} should name {best[1]}")
+        if ux:
+            check("without the year's bulk filers" in page.get("cweTitle", ""), "page: weakness growth title should say it excludes bulk filers")
     sig = [num(v) for v in page["sig"]]
     want = [exp["signal_base"], exp["signal_hc"], exp["signal_epss"], exp["signal_kev"]]
     check(sig == want, f"page: signal bars {sig} != data {want}")

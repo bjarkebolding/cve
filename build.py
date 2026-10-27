@@ -943,11 +943,26 @@ def origin_years(origin_month, since="2018"):
     return out
 
 
-def _windowed_top(cur, prev, n, names=None):
-    """[{"id", "n", "prev"[, "name"]}] for the n largest keys of cur."""
+# A CNA whose filing jumped at least SURGE_X-fold to at least SURGE_MIN CVEs in
+# the last 12 months: growth rankings are also computed without such filers,
+# because their jump is reporting practice (e.g. GitHub, VulnCheck, a vendor
+# that started filing its own CVEs), not more vulnerable software.
+SURGE_MIN, SURGE_X = 1000, 4
+
+
+def surge_cnas(cur, prev, min_n=SURGE_MIN, x=SURGE_X):
+    """Sorted CNA ids whose last-12-month count is >= min_n and >= x times the year before."""
+    return sorted(c for c, n in cur.items() if c != "unknown" and n >= min_n and n >= x * prev.get(c, 0))
+
+
+def _windowed_top(cur, prev, n, names=None, ex=None):
+    """[{"id", "n", "prev"[, "name"][, "nx", "prevx"]}] for the n largest keys of
+    cur; nx/prevx = the same counts without the surge filers (ex = (cur, prev))."""
     out = []
     for k, v in sorted(cur.items(), key=lambda kv: (-kv[1], kv[0]))[:n]:
         row = {"id": k, "n": v, "prev": prev.get(k, 0)}
+        if ex:
+            row["nx"], row["prevx"] = ex[0].get(k, 0), ex[1].get(k, 0)
         if names:
             row["name"] = names[k].most_common(1)[0][0]
         out.append(row)
@@ -1000,6 +1015,7 @@ def landscape(rows, months, today, since="2018", top=12):
     sev_w = []
     names = defaultdict(Counter)
     total = 0
+    win = []  # (w, cwe, vendor key, cna) for the second pass
     for day, sev, cw, asg, vend, origin, rels in rows:
         total += 1
         month_n[day[:7]] += 1
@@ -1022,6 +1038,18 @@ def landscape(rows, months, today, since="2018", top=12):
             vendor[w][key] += 1
             names[key][vend.strip()] += 1
         cna[w][asg or "unknown"] += 1
+        win.append((w, cw, vend.strip().lower() if vend else None, asg or "unknown"))
+    # second pass: the same windows without the surge filers
+    surge = set(surge_cnas(cna[0], cna[1]))
+    cwe_x, vendor_x, cna_x = (Counter(), Counter()), (Counter(), Counter()), (Counter(), Counter())
+    for w, cw, vk, asg in win:
+        if asg in surge:
+            continue
+        if cw:
+            cwe_x[w][cw] += 1
+        if vk:
+            vendor_x[w][vk] += 1
+        cna_x[w][asg] += 1
     ys = sorted(years)
     return {
         "total": total,
@@ -1032,10 +1060,12 @@ def landscape(rows, months, today, since="2018", top=12):
         "relYears": {r: {y: rel_y[r].get(y, 0) for y in ys} for r in RELATION_IDS},
         "window": {"cur": [cur_from, today.isoformat()],
                    "prev": [prev_from, (today - dt.timedelta(days=365)).isoformat()],
-                   "n": sum(cna[0].values()), "prevN": sum(cna[1].values())},
+                   "n": sum(cna[0].values()), "prevN": sum(cna[1].values()),
+                   "nx": sum(cna_x[0].values()), "prevNx": sum(cna_x[1].values())},
+        "surgeCnas": sorted(surge),
         "sevWindow": sev_mix(sev_w),
-        "cweTop": _windowed_top(cwe[0], cwe[1], top),
-        "vendorTop": _windowed_top(vendor[0], vendor[1], top, names),
+        "cweTop": _windowed_top(cwe[0], cwe[1], top, ex=cwe_x),
+        "vendorTop": _windowed_top(vendor[0], vendor[1], top, names, ex=vendor_x),
         "cnaTop": _windowed_top(cna[0], cna[1], top),
     }
 
