@@ -1009,7 +1009,13 @@ function buildBrief(ctx, F, S) {
     if (!t || !t.prev) return null;
     const doy = Math.max(1, Math.round(daysBetween(F.year + "-01-01", F.asOf) + 1));
     return { act: "Size for the volume: automate intake and triage.", href: "#volume",
-      why: `${num.format(t.cur)} CVEs so far in ${F.year}, ×${fmtX(t.cur / t.prev)} the same period of ${F.prevYear}: about ${num.format(Math.round(t.cur / doy))} a day. Manual review of every advisory does not scale.` };
+      why: (() => {
+        // split the intake: bulk filers' records still need triage, but they are not the same growth
+        const yr = ytdRatio(ctx.core), day = (n) => num.format(Math.round(n / doy));
+        const split = yr && yr.rx ? ` (×${fmtX(yr.rx)} without bulk filing by ${BULK_NAMES})` : "";
+        const perDay = yr && yr.rx ? `about ${day(t.cur)} a day, ${day(t.cur - yr.xcur)} of them from those two filers` : `about ${day(t.cur)} a day`;
+        return `${num.format(t.cur)} CVEs so far in ${F.year}, ×${fmtX(t.cur / t.prev)} the same period of ${F.prevYear}${split}: ${perDay}. Manual review of every advisory does not scale.`;
+      })() };
   });
   if (!items.length) { $("#brief").remove(); return; }
   ol.after(h("p", { class: "brief-more" }, document.createTextNode("Actions for AI applications, the software supply chain and prompt injection are on the "),
