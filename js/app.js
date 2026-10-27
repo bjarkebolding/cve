@@ -411,21 +411,6 @@ function computeFacts(ctx) {
       F.ytd = { cur, prev, prevFull };
     }
   } catch (e) { /* skip */ }
-  // severity share (record-based compare, else severity.json totals)
-  try {
-    const sc = core.severityCompare;
-    const share = (o) => {
-      if (!o) return null;
-      const rated = SEV_KEYS.reduce((s, k) => s + (o[k] || 0), 0);
-      return rated ? { hc: ((o.CRITICAL || 0) + (o.HIGH || 0)) / rated, rated, unrated: o.UNRATED || 0 } : null;
-    };
-    if (sc && sc.ai) {
-      F.sevShare = { ai: share(sc.ai), all: share(sc.all), window: Array.isArray(sc.window) ? sc.window : null, src: "record" };
-    } else if (sev && sev.totals) {
-      F.sevShare = { ai: share(sev.totals), all: null, window: null, src: sev.source || "NVD" };
-    }
-    if (F.sevShare && !F.sevShare.ai) delete F.sevShare;
-  } catch (e) { /* skip */ }
   // KEV AI entries
   try {
     if (kev && Array.isArray(kev.entries)) {
@@ -1588,11 +1573,6 @@ function buildAiOrigin(ctx) {
     ariaLabel: "AI-related CVEs per year stacked by origin", xValues: tick(yLab), xIncrs: [1, 2, 5], xSpace: 34, xFmt: yLab, barMax: 60,
   });
 }
-function buildVendAi(ctx) {
-  const L = ctx.core.landscape && ctx.core.landscape.ai;
-  topList($("#vendai"), L ? exRows(vendorRows(L.vendorTop)) : null, { color: P.blue });
-  $("#vendai").before(h("p", { class: "hint toplegend", text: L ? exKey(L) : "" }));
-}
 
 /* ================= AI deep dive lead-in: exploited chips + actions ================= */
 function buildKevChips(F) {
@@ -1784,39 +1764,6 @@ function buildMainChart(core) {
 }
 
 /* ================= how AI software breaks ================= */
-function sevBar(title, o) {
-  const rated = SEV_KEYS.reduce((s, k) => s + (o[k] || 0), 0);
-  const wrap = h("div", { class: "sevcmp" });
-  wrap.append(h("div", { class: "sevcmp-h" },
-    h("span", { class: "sevcmp-t", text: title }),
-    h("span", { class: "sevcmp-n", text: `${num.format(rated)} rated` + (o.UNRATED ? ` · ${num.format(o.UNRATED)} unrated` : "") })));
-  const bar = h("div", { class: "sevbar", role: "img",
-    "aria-label": `${title}: ` + SEV_KEYS.map((k) => `${k} ${rated ? pct((o[k] || 0) / rated) : "0%"}`).join(", ") });
-  const leg = h("div", { class: "sevleg" });
-  for (const k of SEV_KEYS) {
-    const share = rated ? (o[k] || 0) / rated : 0;
-    const seg = h("span", { class: "seg " + k, title: `${k}: ${num.format(o[k] || 0)} (${pct(share, 1)})` });
-    seg.style.width = (100 * share).toFixed(2) + "%";
-    // no text inside the segments: the legend right below carries the shares
-    bar.append(seg);
-    leg.append(h("span", { class: "sevleg-i" }, h("span", { class: "sev " + k, text: k }), document.createTextNode(" " + pct(share, 1))));
-  }
-  wrap.append(bar, leg);
-  return wrap;
-}
-function buildSevCompare(ctx) {
-  const el = $("#sev-compare");
-  const sc = ctx.core.severityCompare;
-  if (!sc || !sc.ai) {
-    note(el, "AI-vs-all severity comparison is not available in this data build.");
-    return;
-  }
-  el.append(sevBar("AI-related CVEs", sc.ai));
-  if (sc.all) el.append(sevBar(sc.allIs === "non-AI" ? "Non-AI CVEs" : "All CVEs", sc.all));
-  const hint = $("#breaks-hint");
-  if (hint) hint.textContent = (Array.isArray(sc.window) ? `Window: CVEs published ${sc.window[0]} to ${sc.window[1]}. ` : "") +
-    "Same window for both sides; severity is the CVSS in the CVE record itself (CNA, else CISA-ADP; v3.1 preferred).";
-}
 function buildCweCompare(ctx) {
   const el = $("#cwe-compare");
   const names = (ctx.sev && ctx.sev.cweNames) || {};
@@ -2001,7 +1948,7 @@ function cnaTitle(cnaYears, F, top, tot) {
   const lead = `${prettyCna(top[0])} remains the largest assigner (${pct(top[1] / tot)})`;
   if (!best || best.gain < 0.25 * tot || best.c === top[0]) return `${prettyCna(top[0])} assigned ${pct(top[1] / tot)} of ${F.year}'s AI CVEs`;
   const before = best.p != null ? num.format(best.p) : floor != null ? `under ${num.format(floor)}` : "almost none";
-  return `Who files moves the curve: ${prettyCna(best.c)} assigned ${num.format(best.n)} AI CVEs in ${F.year} so far, up from ${before} in all of ${F.prevYear} — ${lead}`;
+  return `Who reports AI CVEs: ${prettyCna(best.c)} assigned ${num.format(best.n)} AI CVEs in ${F.year} so far, up from ${before} in all of ${F.prevYear} — ${lead}`;
 }
 const prettyCna = (c) => (c ? CNA_NAMES[c] || String(c).replace(/^@/, "").replace(/_/g, " ") : c);
 function partialLabel(F) { const [, m, d] = F.asOf.split("-"); return `Jan–${MONTHS[+m - 1]} ${+d}`; }
@@ -2351,20 +2298,6 @@ function explainAi(ctx, F) {
 function explainDetail(ctx, F, S) {
   const core = ctx.core;
   try {
-    const sc = core.severityCompare;
-    if (sc && sc.ai && F.sevShare && F.sevShare.ai) {
-      fig("#sev-compare", {
-        so: "AI software is not lower-risk than other software: put its CVEs in the same KEV-first queue (KEV, then EPSS, then severity and exposure) rather than a separate AI patch rule.",
-        titleEl: "#h-sevcmp",
-        title: `${pct(F.sevShare.ai.hc)} of AI CVEs are HIGH/CRITICAL` + (F.sevShare.all ? ` vs ${pct(F.sevShare.all.hc)} of non-AI CVEs` : "")
-          + (Array.isArray(sc.window) ? ` (${sc.window.join(" to ")})` : ""),
-        subEl: "#sevcmp-sub", sub: `Share of rated CVEs by CVSS severity, published ${Array.isArray(sc.window) ? sc.window.join(" to ") : "in the window"}; 100% bars, AI-related vs non-AI CVEs (found-by-AI alone counts as non-AI).`,
-        how: "Severity is the vendor's CVSS base score, not risk; unrated CVEs are excluded from the percentages. Pitfall: most AI-related CVEs are from the latest year, when all CVEs skew more severe, so part of the gap is timing.",
-        src: srcLine(ctx, ["cve"]),
-      });
-    }
-  } catch (e) { /* skip */ }
-  try {
     const cc = core.cweCompare;
     if (cc && cc.ai && cc.all && cc.aiTotal && cc.allTotal) {
       const names = (ctx.sev && ctx.sev.cweNames) || {};
@@ -2560,19 +2493,6 @@ function explainPart2(ctx, F, S) {
       });
     }
   } catch (e) { /* skip */ }
-  try {
-    const L = core.landscape && core.landscape.ai;
-    if (L) {
-      const vr = exRows(vendorRows(L.vendorTop));
-      const vb = shareRiser(vr, L.window, 20);
-      fig("#vendai", {
-        so: "Ask your main AI vendors for their disclosure and patch timelines; one product can dominate the count.",
-        titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months` + (vb && vb !== vr[0] && vb.sig ? `; among vendors with 20+ AI CVEs a year earlier, ${vb.label} grew fastest (${growthText(vb.gn, vb.gprev)} against ×${fmtX(vb.base)}, without bulk filers)` : "") : null,
-        how: "Bar = last 12 months, tick = the 12 months before; text = count · change. 'new' = none the year before.",
-        src: srcLine(ctx, ["cve"]),
-      });
-    }
-  } catch (e) { /* skip */ }
 }
 
 
@@ -2583,7 +2503,7 @@ const NAV_SUB = {
   summary: [["kpis", "Key figures"], ["hero", "CVEs per year"], ["signal", "Signal vs noise"], ["where", "Where exploitation happens"]],
   exploit: [["kev-vendors", "Exploited by vendor"], ["ransom", "Ransomware-linked"], ["speed", "Time to KEV listing"], ["kev-latest", "Latest KEV additions"], ["zerodays", "Recent zero-days"], ["next", "Patch next"]],
   volume: [["sevyears", "Severity per year"], ["tops", "Top weaknesses, vendors & CNAs"], ["supply", "Supply chain"]],
-  ai: [["ai-kpis", "Key figures"], ["relations", "How CVEs relate to AI"], ["issuance", "AI share of all CVEs"], ["ai-origin", "Where AI CVEs come from"], ["exploited", "Exploited AI vulnerabilities"], ["ai-next", "AI patch next"], ["breaks", "How AI CVEs differ"], ["cna", "Who reports AI CVEs"]],
+  ai: [["ai-kpis", "Key figures"], ["exploited", "Exploited AI vulnerabilities"], ["ai-next", "AI patch next"], ["relations", "How CVEs relate to AI"], ["issuance", "AI share of all CVEs"], ["ai-origin", "Where AI CVEs come from"], ["breaks", "AI weakness classes"], ["cna", "Who reports AI CVEs"]],
   method: [],
 };
 function buildNavMenus() {
@@ -2758,9 +2678,7 @@ function infoize() {
     ["what to do", () => buildTodo(ctx, F)],
     ["KEV table", () => { buildKevTable(F, ctx); labelCells($("#tbl-kev")); }],
     ["EPSS table", () => { buildEpssTable(ctx, F); labelCells($("#tbl-epss")); }],
-    ["severity compare", () => buildSevCompare(ctx)],
     ["CWE compare", () => buildCweCompare(ctx)],
-    ["AI vendors", () => buildVendAi(ctx)],
     ["CNA chart", () => buildCnaChart(ctx)],
     ["methodology", () => buildMethod(ctx)],
     ["framing: summary", () => explainSummary(ctx, F, S)],

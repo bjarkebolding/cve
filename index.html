@@ -175,6 +175,34 @@
     <p class="subhead" id="ai-subhead"></p>
     <div class="kpis" id="ai-kpis" aria-label="key indicators, AI-related CVEs"></div>
 
+  <section class="panel" id="exploited" aria-labelledby="h-exploited">
+    <h2 id="h-exploited">Exploited AI-related vulnerabilities (CISA KEV)</h2>
+    <p class="hint" id="kev-hint">AI-related CVEs in CISA's Known Exploited Vulnerabilities catalog — confirmed in-the-wild exploitation.</p>
+    <div class="chips" id="kev-chips" aria-label="exploited AI-related products"></div>
+    <p class="note" id="kev-chips-hint"></p>
+    <div class="todo" aria-labelledby="h-todo">
+      <h3 id="h-todo">What to do</h3>
+      <ol class="todo-list" id="todo-list"></ol>
+    </div>
+    <div class="tablewrap">
+      <table id="tbl-kev">
+        <thead><tr><th scope="col">CVE</th><th scope="col">Product</th><th scope="col">AI relation</th><th scope="col">Published (UTC)</th><th scope="col">Added to KEV (UTC)</th><th scope="col" class="num" title="days from CVE publication to KEV addition">Days to KEV (days)</th><th scope="col" class="num" title="FIRST EPSS the day before CISA listed the CVE: the advance signal, not today's score (which already reflects the exploitation)">EPSS before listing</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" id="ai-next" aria-labelledby="h-patch">
+    <h2 id="h-patch">Patch next — AI-related CVEs with the highest exploit probability (EPSS)</h2>
+    <p class="hint" id="epss-hint">AI-related CVEs published in the last 12 months, not in CISA KEV, ranked by FIRST EPSS.</p>
+    <div class="tablewrap">
+      <table id="tbl-epss">
+        <thead><tr><th scope="col">CVE</th><th scope="col">Product</th><th scope="col">AI relation</th><th scope="col">Published (UTC)</th><th scope="col" class="num">EPSS (30-day prob.)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
   <section class="panel" id="relations" aria-labelledby="h-rel">
     <h2 id="h-rel">How CVEs relate to AI</h2>
     <p class="hint" id="rel-hint">AI-related CVEs this year by kind of AI relation. A CVE can have more than one.</p>
@@ -221,49 +249,9 @@
     <div id="chart-aiorigin" class="chart"></div>
   </section>
 
-  <section class="panel" id="exploited" aria-labelledby="h-exploited">
-    <h2 id="h-exploited">Exploited AI-related vulnerabilities (CISA KEV)</h2>
-    <p class="hint" id="kev-hint">AI-related CVEs in CISA's Known Exploited Vulnerabilities catalog — confirmed in-the-wild exploitation.</p>
-    <div class="chips" id="kev-chips" aria-label="exploited AI-related products"></div>
-    <p class="note" id="kev-chips-hint"></p>
-    <div class="todo" aria-labelledby="h-todo">
-      <h3 id="h-todo">What to do</h3>
-      <ol class="todo-list" id="todo-list"></ol>
-    </div>
-    <div class="tablewrap">
-      <table id="tbl-kev">
-        <thead><tr><th scope="col">CVE</th><th scope="col">Product</th><th scope="col">AI relation</th><th scope="col">Published (UTC)</th><th scope="col">Added to KEV (UTC)</th><th scope="col" class="num" title="days from CVE publication to KEV addition">Days to KEV (days)</th><th scope="col" class="num" title="FIRST EPSS the day before CISA listed the CVE: the advance signal, not today's score (which already reflects the exploitation)">EPSS before listing</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="panel" id="ai-next" aria-labelledby="h-patch">
-    <h2 id="h-patch">Patch next — AI-related CVEs with the highest exploit probability (EPSS)</h2>
-    <p class="hint" id="epss-hint">AI-related CVEs published in the last 12 months, not in CISA KEV, ranked by FIRST EPSS.</p>
-    <div class="tablewrap">
-      <table id="tbl-epss">
-        <thead><tr><th scope="col">CVE</th><th scope="col">Product</th><th scope="col">AI relation</th><th scope="col">Published (UTC)</th><th scope="col" class="num">EPSS (30-day prob.)</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
-
   <section class="panel" id="breaks" aria-labelledby="h-breaks">
     <h2 id="h-breaks">How AI-related CVEs differ from all CVEs</h2>
-    <p class="hint" id="breaks-hint">Weakness classes and severity of AI-related CVEs compared with all CVEs.</p>
-    <div class="duo">
-      <div class="sub">
-        <h3 id="h-sevcmp">Severity distribution</h3>
-        <p class="hint" id="sevcmp-sub">Share of rated CVEs by CVSS severity, AI vs all.</p>
-        <div id="sev-compare"></div>
-      </div>
-      <div class="sub">
-        <h3 id="h-vendai">Top vendors of AI-related CVEs</h3>
-        <p class="hint" id="vendai-hint">Last 12 months vs the 12 months before.</p>
-        <div id="vendai"></div>
-      </div>
-    </div>
+    <p class="hint" id="breaks-hint">Weakness classes of AI-related CVEs compared with non-AI CVEs.</p>
     <div class="sub">
       <h3 id="h-cwe">Top weakness classes (CWE)</h3>
       <p class="hint" id="cwe-hint">Share of CVEs carrying each CWE.</p>

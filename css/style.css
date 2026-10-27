@@ -534,20 +534,6 @@ td.stack .reltags { margin-bottom: 2px; }
 .hb-prev { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); border-radius: 1px; }
 .toplegend { margin: 0 0 20px; color: var(--muted); font-size: 13px; }
 
-/* ---------------- severity compare ---------------- */
-.sevcmp { margin: 4px 0 24px; }
-.sevcmp-h { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; margin-bottom: 8px; flex-wrap: wrap; }
-.sevcmp-t { font-weight: 600; }
-.sevcmp-n { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
-.sevbar { display: flex; height: 10px; gap: 2px; background: var(--track); border-radius: 2px; overflow: hidden; }
-.seg { display: block; height: 100%; overflow: hidden; }
-.seg.CRITICAL { background: var(--c-crit); }
-.seg.HIGH { background: var(--c-high); }
-.seg.MEDIUM { background: var(--c-med); }
-.seg.LOW { background: var(--c-low); }
-.sevleg { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.sevleg-i .sev { margin-left: 0; }
-
 /* ---------------- CWE compare (paired bars) ---------------- */
 .cwe-list { display: grid; gap: 12px; margin-top: 8px; }
 .cwe-key { display: flex; gap: 16px; font-size: 12.5px; color: var(--muted); }
