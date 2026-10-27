@@ -261,7 +261,6 @@ a:hover { color: var(--accent); text-decoration-color: currentColor; }
   display: block; margin-bottom: 6px;
   font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
 }
-.tier-label.ai span, .tier-ai .tier-label span { color: var(--accent); }
 
 /* the one big statement per part */
 .headline {
@@ -684,6 +683,7 @@ footer a { color: var(--ink-2); }
 /* figure tiles: source footers on one baseline across a row */
 .kpi { display: flex; flex-direction: column; }
 .kpi .ksrc { margin-top: auto; }
+.kpi .d { margin-bottom: 10px; }  /* the caption never touches the source line */
 /* phone: a fade at the right edge says the menu scrolls */
 @media (max-width: 760px) {
   /* an overlay pinned to the scrollport's right edge (a mask would also fade the bar's background) */

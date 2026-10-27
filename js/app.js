@@ -661,6 +661,12 @@ function kevProducts(F) {
   }
   return [...m.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
 }
+/* a source line whose dates never break across lines ("2026-10-" / "27" on phones) */
+const srcEl = (tag, cls, text) => {
+  const el = h(tag, { class: cls });
+  for (const part of String(text).split(/(\d{4}-\d{2}-\d{2})/)) el.append(/^\d{4}-\d{2}-\d{2}$/.test(part) ? h("span", { class: "nowrap", text: part }) : document.createTextNode(part));
+  return el;
+};
 const listJoin = (a, conj = "and") => (a.length <= 1 ? a.join("") : a.slice(0, -1).join(", ") + ` ${conj} ` + a[a.length - 1]);
 /* cut at a word boundary with an ellipsis (the build stores 240 characters) */
 const wordClip = (s, n) => { if (!s) return s; if (s.length < n) return s; const cut = s.slice(0, n); const i = cut.lastIndexOf(" "); return (i > n * 0.6 ? cut.slice(0, i) : cut).replace(/[,;:.\s]+$/, "") + "…"; };
@@ -773,7 +779,7 @@ function kpiTiles(wrap, tiles, emptyMsg) {
       h("div", { class: "vrow" }, h("span", { class: "v" + (x.cls ? " " + x.cls : ""), text: x.v }), delta),
       spark,
       x.d ? h("div", { class: "d", text: x.d }) : null,
-      x.src ? h("div", { class: "ksrc", text: x.src }) : null));
+      x.src ? srcEl("div", "ksrc", x.src) : null));
   }
 }
 /* the last n complete months, oldest first */
@@ -1588,6 +1594,7 @@ function buildAiKpis(ctx, F, S) {
   if (fy) {
     const fk = ((ctx.kev && ctx.kev.entries) || []).filter((e) => e.found).length;
     tiles.push({ k: `Found by AI ${F.year} (any software)`, v: num.format(fy.cur),
+      delta: fy.same && fy.prev >= 10 ? growthDelta(fy.cur, fy.prev, F.prevYear) : null,
       d: `discovery, not AI risk · ${num.format(fy.prev)} ${fy.same ? "by this date in" : "in all of"} ${F.prevYear}` + (fk ? ` · ${num.format(fk)} later exploited` : "") });
   }
   const SRC = [tileSrc(ctx, "CVE List"), tileSrc(ctx, "CVE List"), tileSrc(ctx, "CISA KEV"), tileSrc(ctx, "CVE List")];
@@ -1892,16 +1899,14 @@ function buildCnaChart(ctx) {
   if (!years.length) { note(el, "No per-assigner counts since 2018."); return; }
   const tot = {};
   for (const y of years) for (const [c, n] of Object.entries(cy[y] || {})) if (c !== "other" && fin(n)) tot[c] = (tot[c] || 0) + n;
-  const top = Object.entries(tot).sort((a, b) => b[1] - a[1]).slice(0, 7).map((x) => x[0]);
-  const topSet = new Set(top);
-  // filers are not a category with a meaning elsewhere: one quiet steel ramp, largest darkest
-  // the two bulk filers the title is about stand out (high-contrast neutral); the rest stay a quiet ramp
-  let bi = 0, oi = 0;
-  const groups = top.map((c) => ({ label: prettyCna(c),
-    color: THIRD_PARTY_FILERS.has(c) ? tint(P.neutral, [1, 0.8][bi++] || 0.7) : tint(P.steel, [0.55, 0.45, 0.37, 0.3, 0.24, 0.2][oi++] || 0.2),
+  // three series: the two bulk filers the title is about, and everyone else (six pale
+  // greys for the smaller CNAs could not be told apart)
+  const shown = [...THIRD_PARTY_FILERS].filter((c) => tot[c]);
+  const shownSet = new Set(shown);
+  const groups = shown.map((c, i) => ({ label: prettyCna(c), color: tint(P.neutral, [1, 0.72][i] || 0.6),
     data: years.map((y) => (cy[y] || {})[c] || 0) }));
-  groups.push({ label: "other CNAs", color: tint(P.steel, 0.18), data: years.map((y) =>
-    Object.entries(cy[y] || {}).reduce((s, [c, n]) => s + (!topSet.has(c) && fin(n) ? n : 0), 0)) });
+  groups.push({ label: "all other CNAs", color: tint(P.steel, 0.4), data: years.map((y) =>
+    Object.entries(cy[y] || {}).reduce((s, [c, n]) => s + (!shownSet.has(c) && fin(n) ? n : 0), 0)) });
   // top assigner of the latest complete year → one data-driven sentence
   const hint = $("#cna-hint");
   try {
@@ -2020,7 +2025,7 @@ function fig(host, o) {
   const how = clean(o.how), so = clean(o.so), src = clean(o.src);
   if (how) foot.append(h("p", { class: "how" }, h("b", { text: "How to read: " }), document.createTextNode(how)));
   if (so) foot.append(h("p", { class: "so" }, h("b", { text: "So what: " }), document.createTextNode(so)));
-  if (src) foot.append(h("p", { class: "src", text: src }));
+  if (src) foot.append(srcEl("p", "src", src));
   if (foot.childNodes.length) anchor.after(foot);
 }
 const SITE = "cve.turrican.dk";
@@ -2391,7 +2396,7 @@ function explainDetail(ctx, F, S) {
       fig("#chart-cna", {
         so: "Part of the AI rise is who files CVEs: judge AI risk by exploitation and your own exposure, not by count alone.",
         titleEl: "#h-cna", title: cnaTitle(core.cnaYears, F, top, tot),
-        how: "Stacked: each colour is one CVE Numbering Authority's AI CVEs that year (top 7 overall + other CNAs). Pitfall: one prolific new CNA raises counts without more vulnerable software.",
+        how: "Stacked: GitHub (advisories) and VulnCheck, the two bulk filers, and all other CVE Numbering Authorities combined. Pitfall: one prolific new CNA raises counts without more vulnerable software.",
         src: srcLine(ctx, ["cve"]),
       });
     }
@@ -2622,7 +2627,7 @@ function slideify() {
     const src = g && g.querySelector(".src");
     let foot = u.querySelector(":scope > .figfoot");
     if (!foot) { foot = h("div", { class: "figfoot" }); u.append(foot); }
-    foot.append(h("p", { class: "src", text: src ? src.textContent : `Source: ${SITE}` }));
+    foot.append(srcEl("p", "src", src ? src.textContent : `Source: ${SITE}`));
   }
 }
 
