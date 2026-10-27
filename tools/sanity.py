@@ -262,6 +262,12 @@ if page:
     if len(pk) >= 50 and rs and rs[0] >= 2:
         rt = f"{rs[0]:.0f}" if rs[0] >= 10 else f"{rs[0]:.1f}"
         check(f"about {rt} times their share" in page["body"], f"page: over-representation headline should say about {rt} times")
+    _o = d["ytd"]["origins"].get("supplychain")
+    if _o and _o["prev"] - _o["bulkPrev"] > 0:
+        _rx = (_o["cur"] - _o["bulkCur"]) / (_o["prev"] - _o["bulkPrev"])
+        _t = tile("Open-source component")
+        _rxs = f"{_rx:.0f}" if _rx >= 10 else f"{_rx:.1f}"
+        check(_t and f"×{_rxs} without them" in _t["d"], f"page: open-source tile should give growth without bulk filers ×{_rxs}")
     k = tile("Added to CISA KEV")
     check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
     check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")

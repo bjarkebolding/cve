@@ -812,9 +812,11 @@ function buildKpis(ctx, F, S) {
     const delta = ym ? growthDelta(ym.cur, ym.prev, F.prevYear) : null;
     if (delta) delta.title = `1 Jan–${fmtDay(F.asOf).replace(/, \d+$/, "")}, ${F.year} vs ${F.prevYear}`;
     tiles.push(S.supply
-      ? { k: "Open-source CVEs (supply chain)", v: num.format(ym ? ym.cur : S.supply.n), delta,
+      // "component", not "supply chain": these are flaws in open-source code; supply-chain
+      // attacks (malicious packages) are counted separately in the same tile
+      ? { k: "Open-source component CVEs", v: num.format(ym ? ym.cur : S.supply.n), delta,
           spark: om ? { vals: monthSeries(M, ctx.core.months, om), title: sparkTitle } : null,
-          d: (ym && ym.cur && ym.bulkShare != null ? `${pct((ctx.core.ytd.origins.supplychain.bulkCur) / ym.cur)} filed by ${BULK_NAMES}` : `${F.year} YTD`)
+          d: (ym && ym.cur && ym.bulkShare != null ? `${pct((ctx.core.ytd.origins.supplychain.bulkCur) / ym.cur)} filed by ${BULK_NAMES}${fin(ym.rx) ? `; ×${fmtX(ym.rx)} without them` : ""}` : `${F.year} YTD`)
             + (fin(S.malYtd) && S.malYtd ? ` · plus ${num.format(S.malYtd)} malicious packages` : "") }
       : { k: "Malicious packages", v: num.format(S.malYtd), d: `${F.year} YTD, OSV MAL advisories` });
   }
@@ -2267,10 +2269,10 @@ function explainRisk(ctx, F, S) {
     fig("#chart-supply", {
       titleEl: "#h-supply-cves",
       title: sc ? `Open-source CVEs ${xr(sc.cur, sc.prev)}: ${num.format(sc.cur)} so far in ${F.year} vs ${num.format(sc.prev)} by this date in ${F.prevYear}`
-        + (sc.bulkShare != null && sc.bulkShare >= 0.5 ? `; ${pct(sc.bulkShare)} of the rise is ${BULK_NAMES} filing` : "") : null,
+        + (sc.bulkShare != null && sc.bulkShare >= 0.5 ? `; ${pct(sc.bulkShare)} of the rise is ${BULK_NAMES} filing${fin(sc.rx) ? `, but without them it is still ×${fmtX(sc.rx)}` : ""}` : "") : null,
       subEl: "#supply-hint", sub: `CVEs in open-source projects and packages (registry packages + GitHub-assigned OSS records), per year, 2018 → ${F.year} (${partialLabel(F)}). Not stacked.`,
       how: "Each bar = open-source CVEs published that year (registry packages plus GitHub-assigned OSS projects, AI packages included). Pitfall: much of the recent jump comes from GitHub's CNA (GitHub_M) issuing far more CVEs — partly a reporting change, not only more vulnerable code.",
-      so: sc && sc.prev && sc.cur / sc.prev >= 1.3 ? "Whatever the reporting share, the fix volume is real — make sure SCA/dependency scanning and OSS patching cover every build pipeline." : null,
+      so: sc && sc.prev && sc.cur / sc.prev >= 1.3 ? "The growth is real beyond the filing change: make sure dependency scanning (SCA) and open-source patching cover every build pipeline." : null,
       src: srcLine(ctx, ["cve"]),
     });
   } catch (e) { /* skip */ }
