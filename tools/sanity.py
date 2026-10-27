@@ -225,6 +225,13 @@ if page:
     if old3:
         check(any(b.startswith("Re-check the whole estate") and f"{old3:,} (" in b for b in page["brief"]),
               f"page: Brief old-CVE action should state {old3} CVEs over three years old")
+    import datetime as _dt, statistics as _st
+    dls = [(_dt.date.fromisoformat(e["due"]) - _dt.date.fromisoformat(e["added"])).days for e in kev_cur if e.get("due")]
+    if len(dls) >= 20:
+        med = _st.median(dls)
+        mtxt = "under a day" if med < 1 else "1 day" if med == 1 else f"{int(med) if med == int(med) else med} days"
+        check(any(b.startswith("Patch internet-facing") and f"median of {mtxt} to fix" in b for b in page["brief"]),
+              f"page: Brief should state CISA's median deadline {mtxt}")
     k = tile("Exploited (")
     check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
     check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")

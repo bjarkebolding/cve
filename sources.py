@@ -403,6 +403,7 @@ def kev_entries(vulns, meta, records=None, ai_match=is_ai_text,
             "product": vp,
             "desc": (v.get("shortDescription") or "")[:200],
             "ransomware": v.get("knownRansomwareCampaignUse") == "Known",
+            "due": (v.get("dueDate") or "")[:10] or None,  # CISA BOD 22-01 remediation deadline
             "ai": flag,
             "rels": rels if flag else [],
             "found": "found" in rels,  # discovered by an AI tool (any CVE)

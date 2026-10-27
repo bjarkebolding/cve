@@ -964,7 +964,8 @@ function buildBrief(ctx, F, S) {
       ? ` For edge devices, ${pct(ec.cur.wk / ec.cur.n)} of last 12 months' exploited CVEs reached KEV within a week, median ${daysText(ec.cur.median)}${ec.prev && ec.prev.n >= 15 ? ` (year before, same follow-up: ${pct(ec.prev.wk / ec.prev.n)}, median ${daysText(ec.prev.median)}; small numbers)` : ""}.` : tail;
     return { act: "Patch internet-facing systems in days, not monthly cycles.", href: "#exploit",
       why: (() => { const c = ttkCohort(ctx); return c && c.cur.n >= 20 ? `${pct(c.cur.wk / c.cur.n)} of the last 12 months' exploited CVEs reached KEV within a week of publication${c.prev ? ` (${pct(c.prev.wk / c.prev.n)} the year before, same follow-up)` : ""}.` : `${pct(week / ents.length)} of this year's KEV additions came within a week of the CVE's publication.`; })()
-        + `${edgeTxt} Keep an emergency-change path and reduce exposed management interfaces.` };
+        + `${edgeTxt} Keep an emergency-change path and reduce exposed management interfaces.`
+        + (() => { const dl = kevDeadlines(ctx, F); return dl ? ` Benchmark: CISA gives US federal agencies a median of ${daysText(dl.median)} to fix a newly listed vulnerability (${pct(dl.wk / dl.n)} of ${F.year}'s within a week). Board metric: the share of KEV entries on your estate fixed within CISA's deadline.` : ""; })() };
   });
   add(() => {
     const o = oldKev(ctx, F);
@@ -1331,6 +1332,14 @@ function ttkCohort(ctx, origin) {
   return cur ? { cur, prev, from: w.cur[0] } : null;
 }
 /* this year's KEV additions whose CVE is old: >1 year and >3 years since publication */
+/* CISA's BOD 22-01 deadline (KEV dueDate - dateAdded) for this year's additions */
+function kevDeadlines(ctx, F) {
+  const d = ((ctx.kev && ctx.kev.entries) || []).filter((e) => e.due && String(e.added).startsWith(F.year))
+    .map((e) => Math.round((Date.parse(e.due) - Date.parse(e.added)) / 86400e3)).filter((x) => fin(x) && x >= 0).sort((a, b) => a - b);
+  if (d.length < 20) return null;
+  const mid = d.length >> 1;
+  return { n: d.length, median: d.length % 2 ? d[mid] : (d[mid - 1] + d[mid]) / 2, wk: d.filter((x) => x <= 7).length };
+}
 function oldKev(ctx, F) {
   const a = ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.added).startsWith(F.year) && fin(e.daysToKev));
   if (a.length < 20) return null;

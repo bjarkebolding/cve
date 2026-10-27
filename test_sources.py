@@ -282,6 +282,7 @@ def test_kev_origin():
     check("lookup relations flag ai + rels + layer; origin stays non-AI", n == 1
           and by["CVE-2025-3"]["ai"] and by["CVE-2025-3"]["rels"] == ["product"]
           and by["CVE-2025-3"]["origin"] == "supplychain" and by["CVE-2025-3"]["layer"] == "llmapp")
+    check("BOD 22-01 due date kept", all("due" in e for e in by.values()))
     check("non-AI entries have no rels", by["CVE-2026-1"]["rels"] == [] and not by["CVE-2026-1"]["ai"])
     known, _ = sources.kev_entries(vulns[:1], {}, records, ai_match=lambda t: True)
     check("cache-known CVE without relations ignores the KEV text matcher", not known[0]["ai"])
