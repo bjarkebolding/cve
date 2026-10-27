@@ -389,6 +389,10 @@ def test_origins():
           [("n/a", "n/a", "", "")]) == "other")
     check("downstream Red Hat rows ignored", O("redhat", "A flaw in libfoo",
           [("Red Hat", "Red Hat Enterprise Linux 9", "", "")]) == "other")
+    for vend, prod in (("PHP Group", "PHP"), ("Apache Software Foundation", "Apache Tomcat"), ("ISC", "BIND 9"),
+                       ("Roundcube", "Webmail"), ("GitLab", "GitLab")):
+        check(f"OSS vendor without purl -> supplychain: {vend}", build.origin_of("other_cna", "x", [(vend, prod, "", "")]) == "supplychain")
+    check("Linux kernel stays platform", build.origin_of("Linux", "x", [("Linux", "Linux", "", "")]) == "platform")
     check("Oracle -> other", O("oracle", "", [("Oracle Corporation", "PeopleSoft", "", "")]) == "other")
 
     C = build.classify_origin

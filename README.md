@@ -98,7 +98,7 @@ chain; Copilot is a core platform). First match wins:
 | id | Origin | Rule (summary) |
 |---|---|---|
 | `plugin` | Web CMS plugins & themes | WordPress/Joomla/Drupal plugin/theme/extension (Wordfence, Patchstack, WPScan CNAs; wordpress.org/drupal.org collection URLs; `pkg:wordpress-*`) |
-| `supplychain` | Open-source projects & packages | registry packageURL/collectionURL (npm, PyPI, Maven, Go, Cargo, Composer, RubyGems, NuGet, …) or OSS CNAs (GitHub, PSF, Go, OpenJS, EEF, CPANSec) |
+| `supplychain` | Open-source projects & packages | registry packageURL/collectionURL (npm, PyPI, Maven, Go, Cargo, Composer, RubyGems, NuGet, …), OSS CNAs (GitHub, PSF, Go, OpenJS, EEF, CPANSec), or a known open-source vendor (`OSS_VENDORS`: PHP, Apache, ISC, Roundcube, GitLab, GNU, OpenSSL, …) checked after the edge/platform rules |
 | `edge` | Network & security edge devices | firewalls, VPN/SSL gateways, routers, load balancers (Fortinet, Ivanti Connect Secure, Citrix ADC/Gateway, PAN-OS, Cisco ASA/FTD/IOS, SonicWall, Juniper, F5 BIG-IP, …) |
 | `platform` | OS, browsers & core platforms | Microsoft, Apple, Google Android/Chrome, Linux kernel, Mozilla, mobile chipsets, VMware ESXi/vCenter |
 | `other` | Enterprise & other software | everything else — mostly Oracle, Adobe, IBM, SAP, Atlassian, Apache, PHP web apps |

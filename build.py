@@ -55,7 +55,7 @@ LABELS = os.path.join(BASE, "tools", "ai_labels.json")
 
 # Bump when parse_file()'s output changes meaning: cached rows from an older
 # parser are discarded and every record is re-parsed.
-PARSER_VERSION = 6
+PARSER_VERSION = 7
 # Bump when the AI definition (layers / patterns) changes meaning.
 DEFINITION_VERSION = 6
 HOURS_KEEP = 40 * 24     # keep hourly buckets for the last N hours
@@ -661,6 +661,20 @@ SUPPLY_COLLECTION_RE = re.compile(
     r"hackage\.haskell\.org|opam\.ocaml\.org|cran\.r-project\.org)")
 # GitHub (GHSA advisories for open-source repos/packages) and ecosystem CNAs
 SUPPLY_CNAS = {"github_m", "cpansec", "eef", "go", "psf", "openjs", "rubygems"}
+# Open-source projects whose CVEs carry no package URL and are filed by their own
+# or a coordinating CNA (PHP, Apache, BIND, Roundcube, GitLab …): matched on the
+# affected vendor, after the edge/platform rules (so the Linux kernel stays a
+# platform). Without this, "open source" means "registry-packaged or GitHub-filed".
+OSS_VENDORS = {
+    "php", "php group", "the php group", "apache", "apache software foundation", "the apache software foundation",
+    "isc", "roundcube", "gitea", "gogs", "gitlab", "proftpd", "gnu", "the gnu project", "prettier", "eslint",
+    "jenkins", "jenkins project", "drupal", "openssl", "the openssl project", "samba", "exim", "sudo", "zammad",
+    "strapi", "owncloud", "nextcloud", "metabase", "grafana", "grafana labs", "langflow", "langflow-ai", "mlflow",
+    "ray-project", "anyscale", "berriai", "curl", "haxx", "ffmpeg", "imagemagick", "wireshark", "wireshark foundation",
+    "erlang", "x.org", "freetype", "phpmyadmin", "webmin", "cacti", "openbsd", "openssh", "postgresql", "mariadb",
+    "redis", "kubernetes", "linuxfoundation", "the linux foundation", "python software foundation", "nodejs",
+    "node.js", "vim", "git", "git project", "craft cms", "october cms", "roundcube webmail",
+}
 
 # (vendor regex, product regex or None = any product, exclude regex or None),
 # matched against each affected "vendor" / "product" (lowercased).
@@ -780,6 +794,8 @@ def origin_of(assigner, desc, rows):
             return "edge"
         if asg in PLATFORM_CNAS or any(_vendor_match(PLATFORM_RULES, v, p) for v, p, _, _ in own):
             return "platform"
+        if any(v.strip() in OSS_VENDORS for v, _, _, _ in own):
+            return "supplychain"
         return "other"
     if EDGE_DESC_RE.search(d) and not EDGE_EXCLUDE_RE.search(d[:200]):
         return "edge"
