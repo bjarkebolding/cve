@@ -263,7 +263,7 @@ if page:
     if len(pk) >= 50 and rs and rs[0] >= 2:
         rt = f"{rs[0]:.0f}" if rs[0] >= 10 else f"{rs[0]:.1f}"
         check(f"about {rt} times their share" in page["body"], f"page: over-representation headline should say about {rt} times")
-    k = tile("Exploited (")
+    k = tile("Added to CISA KEV")
     check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
     check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")
     z = tile("KEV-listed at disclosure")

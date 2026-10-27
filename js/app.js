@@ -701,7 +701,7 @@ function buildHeadline(ctx, F, S) {
     if (head && k && k.cur && k.prevSame) {
       const kr = k.cur / k.prevSame;
       const kt = kr >= 2 ? `up ×${fmtX(kr)}` : kr >= 1.05 ? `up ${pct(kr - 1)}` : kr > 0.95 ? "level" : `down ${pct(1 - kr)}`;
-      head = head.replace(/\.$/, `; confirmed exploitation is ${kt} (${num.format(k.cur)} vs ${num.format(k.prevSame)}).`);
+      head = head.replace(/\.$/, `; additions to CISA's exploited list (KEV) are ${kt} (${num.format(k.cur)} vs ${num.format(k.prevSame)}).`);
     }
   } catch (e) { head = null; }
   head = clean(head);
@@ -714,7 +714,7 @@ function buildHeadline(ctx, F, S) {
     if (!k || !k.cur) return null;
     const vs = k.prevSame ? ` (${num.format(k.prevSame)} by this date last year)` : "";
     const zd = fin(k.zd) ? `, ${num.format(k.zd)} of them KEV-listed at disclosure (within a day of publication, a zero-day proxy)` : "";
-    return `CISA confirmed ${num.format(k.cur)} newly exploited vulnerabilities this year${vs}${zd}.`;
+    return `CISA added ${num.format(k.cur)} vulnerabilities to its Known Exploited Vulnerabilities list this year${vs}${zd}; KEV is a lower bound, scoped to products US federal agencies run.`;
   });
   add(() => {
     const k = S.kev;
@@ -794,7 +794,7 @@ function buildKpis(ctx, F, S) {
     spark: { vals: monthSeries(M, ctx.core.months, ctx.core.counts || []), title: sparkTitle },
     d: t.prev ? `${num.format(t.prev)} by this date in ${F.prevYear}` : `${num.format(t.prevFull)} in all of ${F.prevYear}` });
   const k = S.kev;
-  if (k) tiles.push({ k: `Exploited (CISA KEV) ${F.year}`, v: num.format(k.cur), cls: "warn", delta: growthDelta(k.cur, k.prevSame, F.prevYear),
+  if (k) tiles.push({ k: `Added to CISA KEV ${F.year}`, v: num.format(k.cur), cls: "warn", delta: growthDelta(k.cur, k.prevSame, F.prevYear),
     spark: { vals: countByMonth(M, ents, (e) => e.added), title: sparkTitle },
     d: k.prevSame ? `${num.format(k.prevSame)} by this date in ${F.prevYear}` : "added to CISA KEV this year" });
   if (k && fin(k.zd)) {

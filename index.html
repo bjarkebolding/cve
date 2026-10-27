@@ -349,6 +349,8 @@
     <h3>Origins (Part 1)</h3>
     <p class="hint">Every published CVE gets exactly one origin — what kind of software it is, regardless of AI. Rules are checked in this order, except that CMS plugins are checked before open-source packages, so a WordPress plugin with a package URL counts as a plugin:</p>
     <ul class="origin-list" id="method-origins"></ul>
+    <h3>CISA KEV: what it measures</h3>
+    <p class="mtext" id="method-kev">"Exploited" on this page means listed in CISA's Known Exploited Vulnerabilities (KEV) catalogue. KEV is a lower bound, not a census: CISA lists a CVE only with reliable evidence of exploitation and an available fix or mitigation, and it focuses on products US federal agencies run. A KEV date is when CISA listed the CVE, not when exploitation began; attacks often start earlier. KEV additions in a year include older CVEs newly listed, so they measure CISA's intake, not the volume of attacks. Commercial catalogues (for example VulnCheck KEV) list more CVEs, often earlier.</p>
     <h3>Zero-day proxy</h3>
     <p class="mtext" id="method-zd">"KEV-listed at disclosure" = a CISA KEV entry added at most one day after its CVE was published. It undercounts true zero-days (exploitation CISA confirms later is missed and never fills in), rises when CISA lists faster (as in 2026, when its deadlines tightened), and is bucketed by CVE publication year; KEV additions are bucketed by date added. Google Project Zero's in-the-wild tracker is shown alongside as an independent count.</p>
     <h3>What counts as AI-related (Part 2)</h3>
