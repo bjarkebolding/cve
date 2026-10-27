@@ -250,7 +250,7 @@ if page:
     if len(dls) >= 20:
         med = _st.median(dls)
         mtxt = "under a day" if med < 1 else "1 day" if med == 1 else f"{int(med) if med == int(med) else med} days"
-        check(any(b.startswith("Patch internet-facing") and f"CISA's deadline (median {mtxt} in the last 90 days)" in b for b in page["brief"]),
+        check(any(b.startswith("Patch internet-facing") and f"CISA's deadline (now a median {mtxt} after listing)" in b for b in page["brief"]),
               f"page: Brief should state CISA's current (90-day) median deadline {mtxt}")
     # over-representation headline: one cohort (CVEs published this year), base without bulk filers
     yr = asof[:4]; pk = [e for e in ents if str(e.get("published", "")).startswith(yr)]
@@ -316,7 +316,7 @@ if page:
         check(_f in page.get("signalTitle", ""), f"page: signal title should give the fully followed KEV rate {_f}")
     _a = d["ytd"]["all"]
     if _a["cur"] > _a["prev"]:
-        _bs = f"{round(100 * (_a['bulkCur'] - _a['bulkPrev']) / (_a['cur'] - _a['prev']))}% of the rise is"
+        _bs = f"{round(100 * (_a['bulkCur'] - _a['bulkPrev']) / (_a['cur'] - _a['prev']))}% of the rise comes from"
         check(_bs in page["body"], f"page: bottom line should give the bulk-filing share of the rise ({_bs})")
     _a30 = (_dt.date.fromisoformat(asof) - _dt.timedelta(days=30)).isoformat()
     _l30 = sum(1 for e in ents if e["added"] > _a30)

@@ -267,11 +267,11 @@ function relCell(rels, product, RL) {
  * falls back to today's score, marked, when no historical score is cached. */
 function kevEpssCell(ctx, cve) {
   const pr = ctx.epssPrior && ctx.epssPrior.scores && ctx.epssPrior.scores[cve];
-  if (pr) return h("td", { class: "num", text: fin(pr.epss) ? pct(pr.epss, pr.epss < 0.1 ? 1 : 0) : "no score", title: `EPSS on ${pr.date}, the day before CISA listed it` });
+  if (pr) return h("td", { class: "num", text: fin(pr.epss) ? (pr.epss >= 0.995 ? "≥99%" : pct(pr.epss, pr.epss < 0.1 ? 1 : 0)) : "no score", title: `EPSS on ${pr.date}, the day before CISA listed it` });
   const sc = ctx.epss && ctx.epss.scores && ctx.epss.scores[cve];
   return h("td", { class: "num", text: sc ? epssText(sc) + "*" : "—", title: sc ? "today's EPSS (* no pre-listing score cached; inflated by the known exploitation)" : null });
 }
-function epssText(s) { return s && fin(s.epss) ? pct(s.epss, s.epss < 0.1 ? 1 : 0) : "—"; }
+function epssText(s) { return s && fin(s.epss) ? (s.epss >= 0.995 ? "≥99%" : pct(s.epss, s.epss < 0.1 ? 1 : 0)) : "—"; }
 
 /* ---------- chart plumbing ---------- */
 /* responsive uPlot wrapper (uPlot 1.6: width/height must be numbers; we
@@ -661,7 +661,7 @@ function kevProducts(F) {
   }
   return [...m.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
 }
-const listJoin = (a) => (a.length <= 1 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]);
+const listJoin = (a, conj = "and") => (a.length <= 1 ? a.join("") : a.slice(0, -1).join(", ") + ` ${conj} ` + a[a.length - 1]);
 /* cut at a word boundary with an ellipsis (the build stores 240 characters) */
 const wordClip = (s, n) => { if (!s) return s; if (s.length < n) return s; const cut = s.slice(0, n); const i = cut.lastIndexOf(" "); return (i > n * 0.6 ? cut.slice(0, i) : cut).replace(/[,;:.\s]+$/, "") + "…"; };
 const lcFirst = (s) => (/^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
@@ -675,7 +675,7 @@ function buildBottomLine(ctx, F, S) {
   const items = [];
   try {
     const yr = ytdRatio(ctx.core), os = ytdRatio(ctx.core, "supplychain");
-    if (yr && fin(yr.rx)) items.push(["What changed", `CVE volume ×${fmtX(yr.r)}, ×${fmtX(yr.rx)} without bulk filing${fin(yr.bulkShare) ? ` (${pct(yr.bulkShare)} of the rise is ${BULK_NAMES} filing, not more flaws)` : ""}${os && fin(os.rx) && os.rx >= 2 ? `; open-source component CVEs rose ×${fmtX(os.rx)} even without it` : ""}.`]);
+    if (yr && fin(yr.rx)) items.push(["What changed", `CVE volume ×${fmtX(yr.r)}, ×${fmtX(yr.rx)} without bulk filing${fin(yr.bulkShare) ? ` (${pct(yr.bulkShare)} of the rise comes from ${BULK_NAMES} bulk filing: a change in who files, not necessarily more risk)` : ""}${os && fin(os.rx) && os.rx >= 2 ? `; open-source component CVEs rose ×${fmtX(os.rx)} even without it` : ""}.`]);
   } catch (e) { /* skip */ }
   try {
     const k = S.kev, OL = originLabel(ctx.core);
@@ -691,7 +691,7 @@ function buildBottomLine(ctx, F, S) {
     const top = ranked.filter(([, n], i) => i < 3 || n === cut).slice(0, 5).map(([v]) => v);
     if (k && k.cur && k.prevSame) items.push(["Where the risk is", `CISA KEV additions ${k.cur / k.prevSame >= 1.05 ? `up ${pct(k.cur / k.prevSame - 1)}` : "level"}; ${pubK.length >= 50 && fin(es) ? `${oShort("edge", OL)} are ${pct(ed / pubK.length)} of newly exploited CVEs from ${pct(es, 1)} of new CVEs` : "exploitation is concentrated"}${top.length ? `; ${listJoin(top)} lead the list` : ""}.`]);
   } catch (e) { /* skip */ }
-  items.push(["What to do", "Patch what CISA KEV lists first, edge devices within days, and re-scan the whole estate against KEV every week."]);
+  items.push(["What to do", "Match every new CISA KEV entry to your assets the day it is listed and patch those first, edge devices within days; re-scan the whole estate against the full KEV list weekly."]);
   if (items.length < 2) { host.remove(); return; }
   for (const [k, v] of items) host.append(h("div", { class: "bl-item" }, h("span", { class: "bl-k", text: k }), h("p", { class: "bl-v", text: clean(v) })));
 }
@@ -851,7 +851,7 @@ function buildKpis(ctx, F, S) {
       // only vendors with 3+ (a cut through a tie at 2 would name an arbitrary few)
       const tv = Object.entries(byV).filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3);
       const zd30 = ((ctx.zd && ctx.zd.recent) || []).filter((r) => String(r.date) > a30).length;
-      $("#kpis").after(h("p", { class: "last30", text: `Last 30 days: ${num.format(l30.length)} vulnerabilities added to CISA KEV (${num.format(p30.length)} in the 30 days before), ${num.format(edge)} on edge devices${tv.length ? `, most for ${listJoin(tv.map(([v, n]) => `${v} (${n})`))}` : ""}; ${num.format(zd30)} new confirmed zero-day${zd30 === 1 ? "" : "s"} (Project Zero); ${num.format(rw)} flagged ransomware so far.` }));
+      $("#kpis").after(h("p", { class: "last30", text: `Last 30 days: ${num.format(l30.length)} vulnerabilities added to CISA KEV (${num.format(p30.length)} in the 30 days before), ${num.format(edge)} on edge devices${tv.length ? `; most by vendor: ${listJoin(tv.map(([v, n]) => `${v} (${n})`))}` : ""}; ${num.format(zd30)} new confirmed zero-day${zd30 === 1 ? "" : "s"} (Project Zero); ${num.format(rw)} flagged ransomware so far.` }));
     }
   } catch (e) { /* skip */ }
 }
@@ -949,7 +949,7 @@ function buildBrief(ctx, F, S) {
     return { act: "Patch internet-facing systems in days, not monthly cycles.", href: "#speed",
       why: (() => { const c = ttkCohort(ctx); return c && c.full && c.full.n >= 20 ? `${pct(c.full.wk / c.full.n)} of exploited CVEs reach CISA KEV within a week of publication (median ${daysText(c.full.median)})${edgeTxt}.` : `${pct(week / ents.length)} of this year's KEV additions came within a week of the CVE's publication.${tail}`; })()
         + " Keep an emergency-change path and take management interfaces off the internet."
-        + (() => { const dl = kevDeadlines(ctx, F); return dl ? ` Board metric: KEV entries fixed within CISA's deadline (median ${daysText(dl.median)} in the last 90 days).` : ""; })() };
+        + (() => { const dl = kevDeadlines(ctx, F); return dl ? ` Board metric: KEV entries on your estate fixed within CISA's deadline (now a median ${daysText(dl.median)} after listing).` : ""; })() };
   });
   add(() => {
     const o = oldKev(ctx, F);
@@ -2225,7 +2225,7 @@ function explainRisk(ctx, F, S) {
       const c = {};
       for (const e of ents) c[e.origin] = (c[e.origin] || 0) + 1;
       const top = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
-      if (top) so = `${num.format(top[1])} of ${num.format(ents.length)} were ${oShort(top[0], OL)}. These were exploited by the time they were published: assume compromise was possible, hunt in logs from before the patch date, and pre-stage mitigations for these products.`;
+      if (top) so = `${num.format(top[1])} of ${num.format(ents.length)} were ${oShort(top[0], OL)}. These were exploited at, or within a day of, publication: assume compromise was possible, hunt in logs from before the patch date, and pre-stage mitigations for these products.`;
     }
     fig("#chart-zeroday", {
       titleEl: "#h-zd",
@@ -2303,7 +2303,7 @@ function explainAi(ctx, F) {
       subEl: "#kev-hint", sub: "AI-related CVEs in CISA's Known Exploited Vulnerabilities catalog, sorted by date added to KEV, newest first. AI relation = why the CVE counts as AI-related. Days to KEV = days from CVE publication to KEV addition.",
       how: "Each row is confirmed in-the-wild exploitation. EPSS = FIRST's estimated 30-day exploitation probability. Pitfall: KEV is a lower bound."
         + lowEpssNote(rows, ctx.epssPrior),
-      so: prods.length ? `If you run ${listJoin(prods.map((p) => p.name))}, verify these CVEs are patched now — KEV status outranks any EPSS or CVSS score.` : null,
+      so: prods.length ? `If you run ${listJoin(prods.map((p) => p.name), "or")}, verify these CVEs are patched now — KEV status outranks any EPSS or CVSS score.` : null,
       src: srcLine(ctx, ["kev", "epss"]),
     });
   } catch (e) { /* skip */ }
@@ -2415,7 +2415,7 @@ function explainPart1(ctx, F, S) {
         if (!d || !d.n) return null;
         const st = signalStages(ctx);
         const miss = st && st.recall ? ` It is a ranking aid, not a safety net: the day before CISA listed them, ${pct(1 - st.recall.caught / st.recall.of)} of the CVEs confirmed exploited in the same period scored below 10% or had no score.` : "";
-        return `Fewer than ${pct(Math.max(d.ge10 / d.n, 0.001), 1)} of new CVEs clear 10% EPSS: after KEV, work this list from the top, weighted by your exposure and asset criticality.${miss}`;
+        return `About ${oneIn(d.ge10, d.n)} new CVEs (${(100 * d.ge10 / d.n).toFixed(2)}%) clears 10% EPSS: after KEV, work this list from the top, weighted by your exposure and asset criticality.${miss}`;
       })(),
       src: srcLine(ctx, ["epss", "kev", "cve"]),
     });
