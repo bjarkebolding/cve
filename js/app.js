@@ -917,7 +917,9 @@ function buildSignal(ctx) {
     subEl: "#signal-hint",
     sub: `Every bar counts the same CVEs: the ${num.format(st.base)} published from ${fmtDay(st.from)} to ${fmtDay(st.to)}. Bars are shares of that one base, not a funnel: an exploited CVE can be rated MEDIUM. EPSS is a model estimate; KEV is confirmed exploitation and lags. The severity card further down shows a higher share because it counts only rated CVEs, per calendar year, and leaves out the Linux kernel's selective ratings.`,
     so: ratio ? `A severity-first queue is about ${num.format(Math.round(ratio))} times larger than the confirmed-exploited list so far${st.kevFull ? `, and still about ${num.format(Math.round(st.hc / (st.base * st.kevFull.k / st.kevFull.n)))} times larger at the fully followed rate` : ""}. Patch KEV first, then rank the rest by EPSS, severity and exposure`
-      + (st.recall ? `. EPSS is not an early warning: the day before CISA listed them, only ${num.format(st.recall.caught)} of these ${num.format(st.recall.of)} exploited CVEs (${pct(st.recall.caught / st.recall.of)}) had an EPSS of 10% or more, and ${pct(st.recall.unscored / st.recall.of)} had no score yet.` : ".") : null,
+      // judge EPSS only where it could have scored: CVEs listed at disclosure had no score yet
+      + (st.recall ? (() => { const r = st.recall, scored = r.of - r.unscored;
+        return `. EPSS is not an early warning: of the ${num.format(scored)} exploited CVEs that had a score the day before CISA listed them, only ${num.format(r.caught)} (${pct(r.caught / scored)}) were at 10% or more${r.unscored ? `; the other ${num.format(r.unscored)} were listed within a day of publication, before EPSS could score them` : ""}.`; })() : ".") : null,
     src: srcLine(ctx, ["cve", "epss", "kev"]),
   });
 }
@@ -1226,14 +1228,18 @@ function buildRansom(ctx, F) {
   for (const e of ents) if (e.ransomware && String(e.added) >= since) { const v = (e.vendor || "").trim(); if (v) vc.set(v, (vc.get(v) || 0) + 1); }
   const ranked = [...vc.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   const lead = ranked.filter(([, n], i) => i < 3 || (ranked[2] && n === ranked[2][1]));
+  // a count alone favours big vendors: give each its rate (flagged of all its KEV entries since then)
+  const vt = new Map();
+  for (const e of ents) if (String(e.added) >= since) { const v = (e.vendor || "").trim(); if (v) vt.set(v, (vt.get(v) || 0) + 1); }
+  const vtxt = ([v, n]) => `${v} (${n} of ${vt.get(v) || n}, ${pct(n / (vt.get(v) || n))})`;
   const share = sn ? sr / sn : null;
   fig(el, {
     titleEl: "#h-ransom",
     title: share ? `About ${pct(share)} of exploited vulnerabilities are later linked to ransomware (${settled[0]}–${settledTo}); recent years are still filling in` : null,
     subEl: "#ransom-hint",
-    sub: `Share of each year's CISA KEV additions flagged "known ransomware campaign use", ${years[0]} → ${F.year} (${partialLabel(F)}). CISA adds the flag when a campaign is attributed, often months later, so the last ${RANSOM_SETTLE_YEARS} years (lighter bars) will rise.` + (lead.length ? ` Since ${since}: ${lead.map(([v, n]) => `${v} ${n}`).join(", ")}.` : ""),
+    sub: `Share of each year's CISA KEV additions flagged "known ransomware campaign use", ${years[0]} → ${F.year} (${partialLabel(F)}). CISA adds the flag when a campaign is attributed, often months later, so the last ${RANSOM_SETTLE_YEARS} years (lighter bars) will rise.` + (lead.length ? ` Since ${since}, ransomware-linked of all KEV entries: ${lead.map(vtxt).join(", ")}.` : ""),
     how: "Bar length = share of that year's KEV additions with the ransomware flag; text = share · flagged of all. Pitfall: a falling share in the newest years is a reporting lag, not a falling threat.",
-    so: `Treat any KEV entry for software you run as a potential ransomware entry point${lead.length ? `, especially ${listJoin(lead.map(([v, n]) => `${v} (${n})`))}, the vendors with the most ransomware-linked entries since ${since}` : ""}: patch it on an emergency timeline and check for compromise, because ransomware crews reuse these flaws for months.`,
+    so: `Treat any KEV entry for software you run as a potential ransomware entry point${lead.length ? `, especially ${listJoin(lead.map(vtxt))}, the vendors with the most ransomware-linked entries since ${since} (of all their KEV entries)` : ""}: patch it on an emergency timeline and check for compromise, because ransomware crews reuse these flaws for months.`,
     src: srcLine(ctx, ["kev"]),
   });
 }
@@ -2414,7 +2420,7 @@ function explainPart1(ctx, F, S) {
       so: (() => {
         if (!d || !d.n) return null;
         const st = signalStages(ctx);
-        const miss = st && st.recall ? ` It is a ranking aid, not a safety net: the day before CISA listed them, ${pct(1 - st.recall.caught / st.recall.of)} of the CVEs confirmed exploited in the same period scored below 10% or had no score.` : "";
+        const miss = st && st.recall && st.recall.of > st.recall.unscored ? ` It is a ranking aid, not a safety net: of the exploited CVEs it had scored the day before CISA listed them, ${pct(1 - st.recall.caught / (st.recall.of - st.recall.unscored))} were below 10%.` : "";
         return `About ${oneIn(d.ge10, d.n)} new CVEs (${(100 * d.ge10 / d.n).toFixed(2)}%) clears 10% EPSS: after KEV, work this list from the top, weighted by your exposure and asset criticality.${miss}`;
       })(),
       src: srcLine(ctx, ["epss", "kev", "cve"]),

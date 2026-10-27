@@ -283,8 +283,9 @@ if page:
     coh = [e for e in ents if e.get("published") and w["cur"][0] <= e["published"] <= w["cur"][1] and e["cve"] in pr_]
     if len(coh) >= 20:
         caught = sum(1 for e in coh if (pr_[e["cve"]].get("epss") or 0) >= 0.1)
-        check(f"only {caught:,} of these {len(coh):,} exploited CVEs" in page["body"],
-              f"page: pre-listing EPSS recall {caught}/{len(coh)} not stated on the signal card")
+        scored = sum(1 for e in coh if pr_[e["cve"]].get("epss") is not None)
+        check(f"of the {scored:,} exploited CVEs that had a score the day before CISA listed them, only {caught:,}" in page["body"],
+              f"page: pre-listing EPSS recall {caught}/{scored} (scored only) not stated on the signal card")
     else:
         check(not pr_, "data: epss_prior.json present but covers <20 cohort CVEs")
     check("likely to be exploited" not in page["body"].lower(), "page: EPSS described as 'likely to be exploited'")
