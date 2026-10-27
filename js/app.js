@@ -1125,7 +1125,7 @@ function buildKevOrigin(ctx) {
   const yLab = (v) => String(v) + (String(v) === cur ? "\nYTD" : "");
   stackedBars(el, {
     xs: years.map(Number), groups, height: 260, time: false, xLabel: "year", yLabel: "KEV additions per year",
-    ariaLabel: "CISA KEV additions per year by origin", draw: yearNotes({ [cur]: `${cur} = ${partialLabel(ctx.F)}` }, false), xValues: tick(yLab), xIncrs: [1, 2, 5], xSpace: 34, xFmt: yLab, barMax: 70,
+    ariaLabel: "CISA KEV additions per year by origin", draw: yearNotes({ ...kevCatchUpYears(ctx.kev), [cur]: `${cur} = ${partialLabel(ctx.F)}` }, false), xValues: tick(yLab), xIncrs: [1, 2, 5], xSpace: 34, xFmt: yLab, barMax: 70,
   });
   if (!kev.byYear || ids.has("rest")) {
     const hint = $("#kev-origin-hint");
@@ -1259,7 +1259,7 @@ function buildRansom(ctx, F) {
   const by = {};
   for (const e of ents) {
     const y = String(e.added || "").slice(0, 4);
-    if (!/^\d{4}$/.test(y) || y < "2021") continue;
+    if (!/^\d{4}$/.test(y) || y < "2023") continue;  // 2021-22: catalog launch and catch-up
     const r = by[y] || (by[y] = { n: 0, r: 0 });
     r.n += 1; r.r += e.ransomware ? 1 : 0;
   }
@@ -1368,6 +1368,7 @@ function buildTtk(ctx) {
     xs: years.map(Number), groups: TTK_BUCKETS.map((b) => ({ label: b.label, color: b.color, data: years.map((y) => by[y][b.id]) })),
     height: 200, time: false, xLabel: "year added", yLabel: "KEV additions per year",
     ariaLabel: "CISA KEV additions per year, stacked by days from CVE publication to KEV addition",
+    draw: yearNotes(kevCatchUpYears(ctx.kev), false),
     xValues: tick(yLab), xIncrs: [1, 2, 5], xSpace: 34, xFmt: yLab, barMax: 50,
   });
 }
@@ -2327,6 +2328,19 @@ function malOutliers(mal) {
 }
 /* " 2022 is mostly catch-up: X% of its additions were CVEs published before
  * 2021" — computed, and only said when the share is high (≥50%) */
+/* KEV years that were mostly catalog catch-up (>= 40% of additions were CVEs
+ * over three years old when listed): {year: "catch-up: N% old CVEs"} */
+function kevCatchUpYears(kev) {
+  const by = {};
+  for (const e of (kev && kev.entries) || []) {
+    if (!fin(e.daysToKev)) continue;
+    const y = String(e.added).slice(0, 4), r = by[y] || (by[y] = { n: 0, old: 0 });
+    r.n += 1; r.old += e.daysToKev > 1095 ? 1 : 0;
+  }
+  const out = {};
+  for (const [y, r] of Object.entries(by)) if (r.n >= 50 && r.old / r.n >= 0.4) out[y] = `catch-up year: ${pct(r.old / r.n)} were CVEs 3+ years old`;
+  return out;
+}
 function kevBacklogNote(kev) {
   try {
     const e = ((kev && kev.entries) || []).filter((x) => (x.added || "").startsWith("2022"));

@@ -204,7 +204,7 @@ if page:
         sh = f"{100 * y['ai']['cur'] / y['all']['cur']:.1f}%"
         check(sh in page.get("issTitle", "") and sh in json.dumps(page["aiTiles"]), f"page: AI share {sh} not identical on tile and issuance title")
     # ransomware share over settled years (the newest two still fill in)
-    st_years = [str(yy) for yy in range(2021, int(year) - 1)]
+    st_years = [str(yy) for yy in range(2023, int(year) - 1)]
     rn = sum(1 for e in ents if e["added"][:4] in st_years)
     rr = sum(1 for e in ents if e["added"][:4] in st_years and e.get("ransomware"))
     if rn:
