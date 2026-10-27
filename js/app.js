@@ -1028,45 +1028,7 @@ function buildWhere(ctx, F, S) {
   }
 }
 
-/* ================= TIER 2: exploitation by origin + zero-day proxy ================= */
-function buildKevOrigin(ctx) {
-  const el = $("#chart-kev-origin");
-  const kev = ctx.kev;
-  if (!kev) { note(el, "CISA KEV data is not available."); return; }
-  const OL = originLabel(ctx.core);
-  let by = kev.byYear && typeof kev.byYear === "object" ? kev.byYear : null;
-  if (!by && Array.isArray(kev.entries)) {
-    by = {};
-    for (const e of kev.entries) {
-      if (!e || !e.added) continue;
-      const y = e.added.slice(0, 4);
-      const b = by[y] || (by[y] = { added: 0, origin: {} });
-      b.added += 1;
-      const o = e.origin || (e.ai ? "ai" : "rest");
-      b.origin[o] = (b.origin[o] || 0) + 1;
-    }
-  }
-  const years = Object.keys(by || {}).filter((y) => /^\d{4}$/.test(y) && y >= "2022" && by[y] && by[y].origin).sort();
-  if (!years.length) { note(el, "KEV per-year data is not available."); return; }
-  const ids = new Set();
-  for (const y of years) for (const id of Object.keys(by[y].origin)) ids.add(id);
-  const order = [...(originList(ctx.core) || []).map((o) => o.id), ...Object.keys(ORIGIN_FALLBACK), "rest"];
-  const present = [...new Set(order)].filter((id) => ids.has(id)).reverse();
-  const groups = present.map((id) => ({
-    label: id === "rest" ? "unclassified" : OL(id), color: ORIGIN_COLORS[id] || OTHER_COLOR,
-    data: years.map((y) => by[y].origin[id] || 0),
-  }));
-  const cur = String(new Date(ctx.F.asOf + "T00:00:00Z").getUTCFullYear());
-  const yLab = (v) => String(v) + (String(v) === cur ? "\nYTD" : "");
-  stackedBars(el, {
-    xs: years.map(Number), groups, height: 260, time: false, xLabel: "year", yLabel: "KEV additions per year",
-    ariaLabel: "CISA KEV additions per year by origin", draw: yearNotes({ ...kevCatchUpYears(ctx.kev), [cur]: `${cur} = ${partialLabel(ctx.F)}` }, false), xValues: tick(yLab), xIncrs: [1, 2, 5], xSpace: 34, xFmt: yLab, barMax: 70,
-  });
-  if (!kev.byYear || ids.has("rest")) {
-    const hint = $("#kev-origin-hint");
-    if (hint) hint.textContent += " Per-origin classification of KEV entries is not in this data build.";
-  }
-}
+/* ================= TIER 2: zero-day proxy ================= */
 function buildZeroDay(ctx) {
   const el = $("#chart-zeroday");
   const kev = ctx.kev;
@@ -2182,15 +2144,6 @@ function kevCatchUpYears(kev) {
   for (const [y, r] of Object.entries(by)) if (r.n >= 50 && r.old / r.n >= 0.4) out[y] = `catch-up year: ${pct(r.old / r.n)} were CVEs 3+ years old`;
   return out;
 }
-function kevBacklogNote(kev) {
-  try {
-    const e = ((kev && kev.entries) || []).filter((x) => (x.added || "").startsWith("2022"));
-    const known = e.filter((x) => x.published);
-    if (known.length < 50) return "";
-    const share = known.filter((x) => x.published < "2021").length / known.length;
-    return share >= 0.5 ? ` 2022 is mostly catch-up: ${Math.round(100 * share)}% of its additions were CVEs published before 2021, not new 2022 exploitation.` : "";
-  } catch (err) { return ""; }
-}
 
 /* y-axis cap that keeps normal years readable when an outlier year exists:
  * 1.4× the largest non-outlier year; outlier bars are clipped and labelled */
@@ -2323,17 +2276,6 @@ function explainSummary(ctx, F, S) {
 function explainRisk(ctx, F, S) {
   const core = ctx.core;
   const OL = originLabel(core);
-  try {
-    const k = S.kev;
-    fig("#chart-kev-origin", {
-      so: "Put emergency-patching capacity where confirmed exploitation concentrates, not where CVE counts are highest.",
-      titleEl: "#h-exploitation",
-      title: k && k.cur ? `${num.format(k.cur)} exploited vulnerabilities added in ${F.year} so far` + (k.prevSame ? ` vs ${num.format(k.prevSame)} by this date in ${F.prevYear}` : "") : null,
-      subEl: "#kev-origin-hint", sub: `CISA KEV additions per year (by date added), 2022 → ${F.year} (${partialLabel(F)}), stacked by origin. 2021 is omitted: the catalog launched in Nov 2021 with a ~300-entry backlog.`,
-      how: "Each bar = vulnerabilities CISA added to KEV that year; segments add up to the total. Pitfall: KEV is a lower bound, and the latest bar is a partial year." + kevBacklogNote(ctx.kev),
-      src: srcLine(ctx, ["kev"]),
-    });
-  } catch (e) { /* skip */ }
   try {
     const k = S.kev;
     let so = null;
@@ -2853,7 +2795,6 @@ function infoize() {
     ["brief", () => buildBrief(ctx, F, S)],
     ["hero chart", () => buildHeroChart(ctx, F)],
     ["where exploitation happens", () => buildWhere(ctx, F, S)],
-    ["KEV by origin", () => buildKevOrigin(ctx)],
     ["zero-days", () => { buildZeroDay(ctx); labelCells($("#tbl-zd")); }],
     ["time to KEV", () => buildTtk(ctx)],
     ["KEV by vendor", () => buildKevVendors(ctx, F)],

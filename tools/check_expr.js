@@ -7,7 +7,6 @@
   // a chart is REQUIRED when the data it is built from exists
   const need = {
     "chart-hero": !!(core && core.months),
-    "chart-kev-origin": !!(kev && (kev.byYear || kev.entries)),
     "chart-zeroday": !!(kev && (kev.byYear || (kev.entries || []).some((e) => typeof e.zeroDay === "boolean"))),
     "chart-supply": !!(core && core.originYears && core.originYears.supplychain),
     "chart-ttk": !!(kev && (kev.entries || []).some((e) => typeof e.daysToKev === "number")),
@@ -30,7 +29,7 @@
     out.inks.push(id + ":" + (a ? Math.max(1, Math.round((100 * a) / b)) : 0) + "%");
   }
   // removed panels must stay gone
-  out.removed = ["chart-hours", "chart-kev", "findings-list", "cards", "latest", "context", "threats", "threat-cards", "tbl-ai", "chart-aipkgs", "chart-adoption"].filter((id) => document.getElementById(id));
+  out.removed = ["chart-hours", "chart-kev", "findings-list", "cards", "latest", "context", "exploitation", "chart-kev-origin", "threats", "threat-cards", "tbl-ai", "chart-aipkgs", "chart-adoption"].filter((id) => document.getElementById(id));
   out.epssRows = document.querySelectorAll("#tbl-epss tbody tr").length;
   out.headline = (document.querySelector("#headline") || {}).textContent || "";
   out.kpis = document.querySelectorAll("#kpis .kpi").length;
