@@ -290,6 +290,8 @@
     <ul class="origin-list" id="method-origins"></ul>
     <h3>CISA KEV: what it measures</h3>
     <p class="mtext" id="method-kev">"Exploited" on this page means listed in CISA's Known Exploited Vulnerabilities (KEV) catalogue. KEV is a lower bound, not a census: CISA lists a CVE only with reliable evidence of exploitation and an available fix or mitigation, and it focuses on products US federal agencies run. A KEV date is when CISA listed the CVE, not when exploitation began; attacks often start earlier. KEV additions in a year include older CVEs newly listed, so they measure CISA's intake, not the volume of attacks. Commercial catalogues (for example VulnCheck KEV) list more CVEs, often earlier.</p>
+    <h3>Bulk filers and surge filers</h3>
+    <p class="mtext" id="method-filers">A CVE Numbering Authority (CNA) assigns CVE IDs. Two kinds of filing change move the counts without more vulnerable software. "Bulk filers" are third parties that file CVEs for other people's software in bulk: GitHub (security advisories for open-source projects) and VulnCheck. "Surge filers" are any CNA whose filing grew at least fourfold to 1,000+ in the last 12 months; besides the bulk filers this includes vendors now filing far more CVEs for their own products. Growth figures say which set they leave out.</p>
     <h3>Zero-day proxy</h3>
     <p class="mtext" id="method-zd">"KEV-listed at disclosure" = a CISA KEV entry added at most one day after its CVE was published. It undercounts true zero-days (exploitation CISA confirms later is missed and never fills in), rises when CISA lists faster (as in 2026, when its deadlines tightened), and is bucketed by CVE publication year; KEV additions are bucketed by date added. Google Project Zero's in-the-wild tracker is shown alongside as an independent count.</p>
     <h3>What counts as AI-related (Part 2)</h3>
@@ -324,7 +326,6 @@
         <li><a href="https://www.first.org/epss/" target="_blank" rel="noopener">FIRST EPSS</a> — exploit prediction scores</li>
         <li><a href="https://osv.dev" target="_blank" rel="noopener">OSV.dev</a> — package advisories and malicious packages</li>
         <li><a href="https://services.nvd.nist.gov/rest/json/cves/2.0" target="_blank" rel="noopener">NVD API 2.0</a> — severity fallback only</li>
-        <li><a href="https://api.npmjs.org/downloads" target="_blank" rel="noopener">npm downloads API</a> — adoption context</li>
       </ul>
     </div>
     <div>

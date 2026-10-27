@@ -2029,7 +2029,6 @@ function srcLine(ctx, names) {
     kev: ["CISA KEV", d(ctx.kev && ctx.kev.generatedAt)],
     epss: ["FIRST EPSS", ctx.epss && (ctx.epss.modelDate || d(ctx.epss.generatedAt))],
     osv: ["OSV.dev", d((ctx.ap && ctx.ap.generatedAt) || (ctx.mal && ctx.mal.generatedAt))],
-    npm: ["npm downloads API", d(ctx.dl && ctx.dl.generatedAt)],
     zd: [ctx.zd && ctx.zd.source ? ctx.zd.source : "zero-day tracker", d(ctx.zd && ctx.zd.generatedAt)],
     sev: ["CVE record CVSS (CNA/ADP), NVD fallback", d(ctx.sev && ctx.sev.generatedAt)],
   };
@@ -2309,12 +2308,14 @@ function explainRisk(ctx, F, S) {
 
 /* " N of M show EPSS under 10% despite confirmed exploitation …" — the trap
  * of reading a low EPSS on a KEV entry as "safe to defer" */
-function lowEpssNote(rows, epss) {
-  const sc = epss && epss.scores;
+/* the score the day BEFORE CISA listed each CVE, as in the table's column: today's
+ * score already reflects the exploitation, so it would understate the miss */
+function lowEpssNote(rows, prior) {
+  const sc = prior && prior.scores;
   if (!sc || !rows || !rows.length) return "";
-  const scored = rows.filter((r) => sc[r.cve] && fin(sc[r.cve].epss));
-  const low = scored.filter((r) => sc[r.cve].epss < 0.1).length;
-  return low ? ` ${low} of ${scored.length} show EPSS under 10% despite confirmed exploitation: EPSS predicts broad, near-term activity and misses targeted attacks, so a low score on a KEV entry does not mean safe to defer.` : "";
+  const scored = rows.filter((r) => sc[r.cve]);
+  const low = scored.filter((r) => !fin(sc[r.cve].epss) || sc[r.cve].epss < 0.1).length;
+  return low ? ` ${low} of ${scored.length} had an EPSS under 10% (or no score) the day before CISA listed them: EPSS predicts broad, near-term activity and misses targeted attacks, so a low score on a KEV entry does not mean safe to defer.` : "";
 }
 
 function explainAi(ctx, F) {
@@ -2327,7 +2328,7 @@ function explainAi(ctx, F) {
       title: rows.length ? `Exploited AI-related vulnerabilities: ${num.format(rows.length)} CVEs across ${prods.length} product${prods.length === 1 ? "" : "s"}, ${num.format(F.kevAiThisYear)} added in ${F.year}` : null,
       subEl: "#kev-hint", sub: "AI-related CVEs in CISA's Known Exploited Vulnerabilities catalog, sorted by date added to KEV, newest first. AI relation = why the CVE counts as AI-related. Days to KEV = days from CVE publication to KEV addition.",
       how: "Each row is confirmed in-the-wild exploitation. EPSS = FIRST's estimated 30-day exploitation probability. Pitfall: KEV is a lower bound."
-        + lowEpssNote(rows, ctx.epss),
+        + lowEpssNote(rows, ctx.epssPrior),
       so: prods.length ? `If you run ${listJoin(prods.map((p) => p.name))}, verify these CVEs are patched now — KEV status outranks any EPSS or CVSS score.` : null,
       src: srcLine(ctx, ["kev", "epss"]),
     });
