@@ -55,7 +55,7 @@ LABELS = os.path.join(BASE, "tools", "ai_labels.json")
 
 # Bump when parse_file()'s output changes meaning: cached rows from an older
 # parser are discarded and every record is re-parsed.
-PARSER_VERSION = 7
+PARSER_VERSION = 8
 # Bump when the AI definition (layers / patterns) changes meaning.
 DEFINITION_VERSION = 6
 HOURS_KEEP = 40 * 24     # keep hourly buckets for the last N hours
@@ -674,6 +674,7 @@ OSS_VENDORS = {
     "erlang", "x.org", "freetype", "phpmyadmin", "webmin", "cacti", "openbsd", "openssh", "postgresql", "mariadb",
     "redis", "kubernetes", "linuxfoundation", "the linux foundation", "python software foundation", "nodejs",
     "node.js", "vim", "git", "git project", "craft cms", "october cms", "roundcube webmail",
+    "rails", "ruby on rails", "yiiframework", "yii", "yii software", "tj-actions", "7-zip", "igor pavlov",
 }
 
 # (vendor regex, product regex or None = any product, exclude regex or None),

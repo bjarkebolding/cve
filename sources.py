@@ -364,6 +364,27 @@ KEV_NOTES = ("added/origin: bucketed by KEV dateAdded year. zeroDay: bucketed by
              "(negative = added before publication).")
 
 
+def oss_vendor(vendor):
+    """True when build.OSS_VENDORS names this (KEV vendorProject) vendor."""
+    try:
+        return (vendor or "").strip().lower() in _build().OSS_VENDORS
+    except Exception:
+        return False
+
+
+def kev_origin(vendor, vp, record_origin, origin_fn=origin_of_text):
+    """One origin per KEV product, so the same product never lands in two
+    origins: CISA's vendor/product text decides edge / platform / plugin; then a
+    known open-source vendor; only then the CVE record's own origin (packageURL,
+    GitHub filing), which varies with how each record was filed."""
+    t = origin_fn(vp)
+    if t in ("edge", "platform", "plugin"):
+        return t
+    if oss_vendor(vendor):
+        return "supplychain"
+    return record_origin or t
+
+
 def kev_entries(vulns, meta, records=None, ai_match=is_ai_text,
                 layer_fn=layer_of_text, origin_fn=origin_of_text, rel_fn=relations_of_text):
     """KEV catalog rows -> (entries newest first, aiCount).
@@ -393,7 +414,7 @@ def kev_entries(vulns, meta, records=None, ai_match=is_ai_text,
             layer = (m or {}).get("layer") or r.get("layer") or layer_fn(text)
             if not is_ai_risk(rels):  # flagged by the KEV text matcher only
                 rels = (rel_fn(text, v.get("vendorProject", "")) or ["product"]) + [x for x in rels if x == "found"]
-        origin = r.get("origin") or origin_fn(vp)
+        origin = kev_origin(v.get("vendorProject", ""), vp, r.get("origin"), origin_fn)
         if origin in ("mcp", "ai"):  # parse cache from before origins ignored AI
             origin = "other"
         days = days_between(pub, added) if pub else None

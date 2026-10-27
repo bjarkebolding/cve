@@ -366,7 +366,17 @@ def test_epss_prior_wanted():
     check("grouped by the day before dateAdded, cached and old skipped", w == {"2026-05-09": ["A", "B"]})
 
 
+def test_kev_origin_consistent():
+    # the same product gets one origin whatever its CVE record says
+    stub = lambda t: "platform" if "Kernel" in t else "other"
+    check("KEV text platform beats a GitHub-filed record", sources.kev_origin("Linux", "Linux Kernel", "supplychain", stub) == "platform")
+    check("open-source vendor beats a record without packageURL", sources.kev_origin("Roundcube", "Roundcube Webmail", "other", stub) == "supplychain")
+    check("unknown vendor falls back to the record", sources.kev_origin("Acme", "Thing", "edge", stub) == "edge")
+    check("no record: text classification", sources.kev_origin("Acme", "Thing", None, stub) == "other")
+
+
 def main():
+    test_kev_origin_consistent()
     test_primary_cvss()
     test_osv()
     test_cvss_settled()
