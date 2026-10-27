@@ -500,6 +500,7 @@ def test_landscape():
 def main():
     test_relations()
     test_landscape()
+    test_ytd_filers()
     test_is_ai_blob()
     test_parse_file()
     test_severity()

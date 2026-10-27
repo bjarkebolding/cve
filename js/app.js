@@ -263,6 +263,14 @@ function relCell(rels, product, RL) {
   if (product) td.append(h("div", { class: "prod", text: product }));
   return td;
 }
+/* KEV tables: EPSS the day before CISA listed the CVE (the advance signal);
+ * falls back to today's score, marked, when no historical score is cached. */
+function kevEpssCell(ctx, cve) {
+  const pr = ctx.epssPrior && ctx.epssPrior.scores && ctx.epssPrior.scores[cve];
+  if (pr) return h("td", { class: "num", text: fin(pr.epss) ? pct(pr.epss, pr.epss < 0.1 ? 1 : 0) : "no score", title: `EPSS on ${pr.date}, the day before CISA listed it` });
+  const sc = ctx.epss && ctx.epss.scores && ctx.epss.scores[cve];
+  return h("td", { class: "num", text: sc ? epssText(sc) + "*" : "—", title: sc ? "today's EPSS (* no pre-listing score cached; inflated by the known exploitation)" : null });
+}
 function epssText(s) { return s && fin(s.epss) ? pct(s.epss, s.epss < 0.1 ? 1 : 0) : "—"; }
 
 /* ---------- chart plumbing ---------- */
@@ -823,12 +831,14 @@ function signalStages(ctx) {
   const sw = L.sevWindow || null;
   const dist = ctx.epss && ctx.epss.dist && ctx.epss.dist.all;
   const kev = ((ctx.kev && ctx.kev.entries) || []).filter((e) => e.published && e.published >= from && e.published <= to);
-  // how many of the confirmed-exploited ones EPSS >= 10% would have caught
-  const sc = (ctx.epss && ctx.epss.scores) || {};
-  const scored = kev.filter((e) => sc[e.cve] && fin(sc[e.cve].epss));
-  const caught = scored.filter((e) => sc[e.cve].epss >= 0.1).length;
+  // advance warning: EPSS the day BEFORE CISA listed each CVE (today's score
+  // already reflects the exploitation). No score that day = no warning.
+  const pr = (ctx.epssPrior && ctx.epssPrior.scores) || null;
+  const scored = pr ? kev.filter((e) => pr[e.cve]) : [];
+  const caught = scored.filter((e) => fin(pr[e.cve].epss) && pr[e.cve].epss >= 0.1).length;
+  const unscored = scored.filter((e) => !fin(pr[e.cve].epss)).length;
   return {
-    recall: scored.length >= 20 ? { caught, of: scored.length } : null,
+    recall: scored.length >= 20 ? { caught, of: scored.length, unscored } : null,
     from, to, base: L.window.n,
     hc: sw ? (sw.CRITICAL || 0) + (sw.HIGH || 0) : null,
     epss: dist && fin(dist.ge10) ? dist.ge10 : null,
@@ -864,7 +874,7 @@ function buildSignal(ctx) {
     subEl: "#signal-hint",
     sub: `Every bar counts the same CVEs: the ${num.format(st.base)} published from ${fmtDay(st.from)} to ${fmtDay(st.to)}. Bars are shares of that one base, not a funnel: an exploited CVE can be rated MEDIUM. EPSS is a model estimate; KEV is confirmed exploitation and lags. Gartner's 2026–2027 threat outlook puts it as leaders needing to "find the threat signal in all the noise".`,
     so: ratio ? `A severity-first queue is about ${num.format(Math.round(ratio))} times larger than the confirmed-exploited list. Patch KEV first, then rank the rest by EPSS, severity and exposure`
-      + (st.recall ? `: EPSS ≥ 10% flagged only ${num.format(st.recall.caught)} of the ${num.format(st.recall.of)} confirmed-exploited CVEs (${pct(st.recall.caught / st.recall.of)}), so treat it as a ranking signal, not a cut-off.` : ".") : null,
+      + (st.recall ? `. EPSS is not an early warning: the day before CISA listed them, only ${num.format(st.recall.caught)} of these ${num.format(st.recall.of)} exploited CVEs (${pct(st.recall.caught / st.recall.of)}) had an EPSS of 10% or more, and ${pct(st.recall.unscored / st.recall.of)} had no score yet.` : ".") : null,
     src: srcLine(ctx, ["cve", "epss", "kev"]),
   });
 }
@@ -963,7 +973,7 @@ function buildBrief(ctx, F, S) {
     const st = signalStages(ctx);
     if (!st || !st.hc || !st.kev) return null;
     return { act: "Rank the patch queue by exploitation, not by severity.", href: "#signal",
-      why: `In the last 12 months ${pct(st.hc / st.base)} of new CVEs were rated HIGH or CRITICAL, but only ${oneIn(st.kev, st.base)} is confirmed exploited (CISA KEV)${st.epss ? `, and ${oneIn(st.epss, st.base)} has an elevated exploit probability (EPSS ≥ 10%)` : ""}. Patch KEV first, then rank the rest by EPSS, severity and exposure${st.recall ? `; EPSS ≥ 10% missed ${pct(1 - st.recall.caught / st.recall.of)} of the CVEs that were exploited, so no score is a safe cut-off` : ""}.` };
+      why: `In the last 12 months ${pct(st.hc / st.base)} of new CVEs were rated HIGH or CRITICAL, but only ${oneIn(st.kev, st.base)} is confirmed exploited (CISA KEV)${st.epss ? `, and ${oneIn(st.epss, st.base)} has an elevated exploit probability (EPSS ≥ 10%)` : ""}. Patch KEV first, then rank the rest by EPSS, severity and exposure${st.recall ? `. EPSS gives little advance warning: the day before listing, only ${pct(st.recall.caught / st.recall.of)} of the CVEs CISA confirmed as exploited scored 10% or more` : ""}.` };
   });
   add(() => {
     const ents = (ctx.kev && ctx.kev.entries || []).filter((e) => e && String(e.added).startsWith(F.year) && fin(e.daysToKev));
@@ -1380,7 +1390,7 @@ function buildKevAll(ctx) {
       originCell(r.origin, OL),
       h("td", { class: "nowrap", text: r.added || "—" }),
       h("td", { class: "num", text: fin(r.daysToKev) ? num.format(r.daysToKev) : "—" }),
-      h("td", { class: "num", text: scores ? epssText(sc) : "n/a", title: sc && fin(sc.pct) ? `percentile ${(100 * sc.pct).toFixed(1)}` : null })));
+      kevEpssCell(ctx, r.cve)));
   }
 }
 function epssTopTable(tbody, rows, cols, cell) {
@@ -1720,7 +1730,7 @@ function buildKevTable(F, ctx) {
       h("td", { class: "nowrap", text: r.published || "—" }),
       h("td", { class: "nowrap", text: r.added || "—" }),
       h("td", { class: "num", text: fin(r.daysToKev) ? num.format(r.daysToKev) : "—" }),
-      h("td", { class: "num", text: scores ? epssText(s) : "n/a", title: s && fin(s.pct) ? `percentile ${(100 * s.pct).toFixed(1)}` : null })));
+      kevEpssCell(ctx, r.cve)));
   }
   const hint = $("#kev-hint");
   if (hint && ctx.kev && ctx.kev.generatedAt) {
@@ -2738,7 +2748,7 @@ function explainPart1(ctx, F, S) {
       so: (() => {
         if (!d || !d.n) return null;
         const st = signalStages(ctx);
-        const miss = st && st.recall ? ` It is a ranking aid, not a safety net: ${pct(1 - st.recall.caught / st.recall.of)} of the CVEs confirmed exploited in the same period scored below 10%.` : "";
+        const miss = st && st.recall ? ` It is a ranking aid, not a safety net: the day before CISA listed them, ${pct(1 - st.recall.caught / st.recall.of)} of the CVEs confirmed exploited in the same period scored below 10% or had no score.` : "";
         return `Fewer than ${pct(Math.max(d.ge10 / d.n, 0.001), 1)} of new CVEs clear 10% EPSS: after KEV, work this list from the top, weighted by your exposure and asset criticality.${miss}`;
       })(),
       src: srcLine(ctx, ["epss", "kev", "cve"]),
@@ -2971,11 +2981,11 @@ function infoize() {
 (async () => {
   const stamp = $("#stamp");
   const opt = (n) => loadJSON(n).catch(() => null);
-  let core, meta, kev, ap, dl, sev, epss, mal, zd;
+  let core, meta, kev, ap, dl, sev, epss, mal, zd, epssPrior;
   try {
-    [core, meta, kev, ap, dl, sev, epss, mal, zd] = await Promise.all([
+    [core, meta, kev, ap, dl, sev, epss, mal, zd, epssPrior] = await Promise.all([
       loadJSON("data.json"), opt("ai_meta.json"), opt("kev.json"), opt("ai_packages.json"),
-      opt("downloads.json"), opt("severity.json"), opt("epss.json"), opt("malicious.json"), opt("zerodays.json"),
+      opt("downloads.json"), opt("severity.json"), opt("epss.json"), opt("malicious.json"), opt("zerodays.json"), opt("epss_prior.json"),
     ]);
   } catch (err) {
     stamp.textContent = "error: " + err.message;
@@ -2994,7 +3004,7 @@ function infoize() {
 
   const layers = layerList(core, meta);
   const rels = relList(core, meta);
-  const ctx = { core, meta, kev, ap, dl, sev, epss, mal, zd, layers, label: makeLayerLabel(layers), metaOf: metaLookup(meta), rels, relLabel: makeRelLabel(rels) };
+  const ctx = { core, meta, kev, ap, dl, sev, epss, mal, zd, epssPrior, layers, label: makeLayerLabel(layers), metaOf: metaLookup(meta), rels, relLabel: makeRelLabel(rels) };
   let F = {};
   try { F = computeFacts(ctx); } catch (e) { F = { asOf: new Date().toISOString().slice(0, 10) }; F.year = F.asOf.slice(0, 4); F.prevYear = String(+F.year - 1); }
   ctx.F = F;

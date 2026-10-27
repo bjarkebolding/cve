@@ -75,6 +75,10 @@ copy of [uPlot](https://uplot.org) (vendored in `vendor/`).
    scores for every AI-related CVE and KEV entry, plus "patch next"
    rankings over all CVEs of the last 12 months that are not in KEV (falls
    back to `api.first.org` for the AI + KEV scores only).
+   Also `data/epss_prior.json`: each KEV CVE's EPSS **the day before CISA
+   listed it** (historical `api.first.org?date=`; cached, only new entries
+   fetched). That is the advance-warning test the page reports; today's score
+   for a KEV CVE already reflects the confirmed exploitation.
 5. **OSV.dev** — (a) package advisories for ~74 AI packages across PyPI, npm
    and Go, with `PYSEC-*`/`GHSA-*` duplicates merged; (b) **malicious
    packages**: `MAL-*` ids counted per ecosystem from the per-ecosystem

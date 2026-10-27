@@ -252,12 +252,15 @@ if page:
     sc = tile("Open-source")
     check(not sc or not xs or num(sc["delta"]) in {float(v) for v in xs},
           f"page: supply tile delta {sc and sc['delta']} vs hero title {page['heroTitle']!r}")
-    sc_ = epss.get("scores") or {}
-    coh = [e for e in ents if e.get("published") and w["cur"][0] <= e["published"] <= w["cur"][1] and e["cve"] in sc_]
+    # EPSS advance warning: score the day BEFORE KEV listing (epss_prior.json), not today's
+    pr_ = (load("epss_prior.json").get("scores") if os.path.exists(os.path.join(DATA, "epss_prior.json")) else None) or {}
+    coh = [e for e in ents if e.get("published") and w["cur"][0] <= e["published"] <= w["cur"][1] and e["cve"] in pr_]
     if len(coh) >= 20:
-        caught = sum(1 for e in coh if sc_[e["cve"]]["epss"] >= 0.1)
-        check(f"only {caught:,} of the {len(coh):,} confirmed-exploited" in page["body"],
-              f"page: EPSS recall {caught}/{len(coh)} not stated on the signal card")
+        caught = sum(1 for e in coh if (pr_[e["cve"]].get("epss") or 0) >= 0.1)
+        check(f"only {caught:,} of these {len(coh):,} exploited CVEs" in page["body"],
+              f"page: pre-listing EPSS recall {caught}/{len(coh)} not stated on the signal card")
+    else:
+        check(not pr_, "data: epss_prior.json present but covers <20 cohort CVEs")
     check("likely to be exploited" not in page["body"].lower(), "page: EPSS described as 'likely to be exploited'")
     from collections import Counter
     vc = Counter((e.get("vendor") or "").strip().lower() for e in kev_cur)

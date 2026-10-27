@@ -356,6 +356,16 @@ def test_malicious():
     check("empty", sources.count_mal("") == ({}, set()))
 
 
+def test_epss_prior_wanted():
+    print("sources.epss_prior_wanted")
+    ents = [{"cve": "A", "added": "2026-05-10", "published": "2026-05-01"},
+            {"cve": "B", "added": "2026-05-10", "published": "2026-05-09"},
+            {"cve": "C", "added": "2026-06-01", "published": "2020-01-01"},   # too old
+            {"cve": "D", "added": "2026-06-01", "published": "2026-05-20"}]
+    w = sources.epss_prior_wanted(ents, {"D": {}}, today=dt.date(2026, 10, 26))
+    check("grouped by the day before dateAdded, cached and old skipped", w == {"2026-05-09": ["A", "B"]})
+
+
 def main():
     test_primary_cvss()
     test_osv()
@@ -366,6 +376,7 @@ def main():
     test_zerodays()
     test_malicious()
     test_epss()
+    test_epss_prior_wanted()
     test_severity()
     test_datadir()
     print(f"\n{PASS} passed, {FAIL} failed")
@@ -374,3 +385,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

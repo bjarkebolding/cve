@@ -704,6 +704,49 @@ def fetch_epss():
     })
 
 
+# --- 2b. EPSS the day before KEV listing (advance-warning test) ----------------
+# A KEV CVE's current EPSS already reflects the confirmed exploitation, so recall
+# measured on today's scores is hindsight. This keeps each recent KEV CVE's score
+# from the day before CISA listed it; past scores never change, so they are
+# cached and only new KEV entries are fetched.
+EPSS_PRIOR_DAYS = 2 * 365
+
+
+def epss_prior_wanted(entries, cached, today=None):
+    """{date: [cve]} still to fetch: KEV entries published in the last two
+    years, score date = the day before dateAdded."""
+    today = today or dt.date.today()
+    since = (today - dt.timedelta(days=EPSS_PRIOR_DAYS)).isoformat()
+    by = {}
+    for e in entries:
+        cve, added, pub = e.get("cve"), e.get("added"), e.get("published")
+        if not cve or not added or not pub or pub < since or cve in cached:
+            continue
+        day = (dt.date.fromisoformat(added) - dt.timedelta(days=1)).isoformat()
+        by.setdefault(day, []).append(cve)
+    return by
+
+
+def fetch_epss_prior():
+    kev = read_json("kev.json", {}) or {}
+    prior = read_json("epss_prior.json", {}) or {}
+    scores = dict(prior.get("scores") or {})
+    for day, cves in sorted(epss_prior_wanted(kev.get("entries") or [], scores).items()):
+        for i in range(0, len(cves), EPSS_BATCH):
+            batch = cves[i:i + EPSS_BATCH]
+            url = f"{EPSS_API}?cve={','.join(batch)}&date={day}&limit={EPSS_BATCH}"
+            got, _ = parse_epss_api(json.loads(get(url, timeout=60)))
+            for c in batch:  # no score that day (CVE not yet published/scored) -> None
+                scores[c] = {"date": day, "epss": got[c]["epss"] if c in got else None}
+            time.sleep(0.3)
+    write_json("epss_prior.json", {
+        "generatedAt": now_iso(),
+        "source": "FIRST EPSS API (historical, date = day before CISA KEV dateAdded)",
+        "method": "epss null = no EPSS score existed that day (counts as no advance warning)",
+        "scores": dict(sorted(scores.items())),
+    })
+
+
 # --- 3. OSV.dev AI package vulnerabilities -----------------------------------
 def osv_query(name, ecosystem):
     """All OSV records for one package (follows next_page_token)."""
@@ -1061,6 +1104,7 @@ def main():
     os.makedirs(DATADIR, exist_ok=True)
     tasks = [("kev", fetch_kev),
              ("epss", fetch_epss),  # after KEV: scores AI-flagged KEV CVEs too
+             ("epssprior", fetch_epss_prior),  # after KEV: EPSS the day before listing
              ("zerodays", fetch_zerodays),  # after KEV: inKev cross-ref
              ("malicious", fetch_malicious),
              ("osv", fetch_osv),
