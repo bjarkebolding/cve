@@ -1463,6 +1463,15 @@ function cweRows(top, names, n) {
   return (top || []).slice(0, n || 10).map((r) => withX(r, { label: names[r.id] ? `${names[r.id]} (${r.id})` : r.id, title: r.id, n: r.n, prev: r.prev }));
 }
 function vendorRows(top, n) { return (top || []).slice(0, n || 10).map((r) => withX(r, { label: r.name || r.id, n: r.n, prev: r.prev })); }
+/* bulk filers (build: surgeCnas) among the top CNAs, then everyone else in one row */
+function bulkFilerRows(L) {
+  const surge = new Set((L.surgeCnas || []).map((c) => c.toLowerCase()));
+  const w = L.window || {};
+  const rows = (L.cnaTop || []).filter((r) => surge.has(String(r.id).toLowerCase()))
+    .map((r) => ({ label: prettyCna(r.id), title: r.id, n: r.n, prev: r.prev }));
+  if (!surge.size || !fin(w.nx)) return cnaRows(L.cnaTop);
+  return rows.concat([{ label: "Everyone else", title: "all other CNAs", n: w.nx, prev: w.prevNx }]);
+}
 function cnaRows(top, n) { return (top || []).slice(0, n || 10).map((r) => ({ label: prettyCna(r.id), title: r.id, n: r.n, prev: r.prev })); }
 /* the row that grew most in absolute terms, among the shown rows */
 /* Grew fastest RELATIVE to all CVEs: the largest rise in share (n/N vs
@@ -1493,7 +1502,7 @@ function buildTops(ctx) {
   // Part 1 lists share one quiet colour: the ranking is the message
   topList($("#cweall"), cweRows(L.cweTop, names), { color: P.steel });
   topList($("#vendall"), vendorRows(L.vendorTop), { color: P.steel });
-  topList($("#cnaall"), cnaRows(L.cnaTop), { color: P.steel });
+  topList($("#cnaall"), bulkFilerRows(L), { color: P.steel });
   // the key sits inside every list card, so a screenshot of one card still explains the tick
   for (const id of ["#cweall", "#vendall", "#cnaall"]) $(id).before(legend.cloneNode(true));
 }
@@ -2806,9 +2815,12 @@ function explainPart1(ctx, F, S) {
       });
       const cr = cnaRows(L.cnaTop);
       const cb = topRiser(cr);
+      const sn = (L.surgeCnas || []).length, bulkAdd = fin(w.nx) ? (w.n - w.nx) - (w.prevN - w.prevNx) : null;
       fig("#cnaall", {
-        titleEl: "#h-cnaall", title: cb ? `Who files moves the curve: ${cb.label} filed ${num.format(cb.n)} CVEs in the last 12 months (${growthText(cb.n, cb.prev)}, against ${baseX(w)} for all CVEs)` : null,
-        subEl: "#cnaall-hint", sub: `CVEs per CVE Numbering Authority (assigner), ${span} vs the 12 months before. Top 10.`,
+        titleEl: "#h-cnaall", title: sn && fin(bulkAdd) && w.prevNx
+          ? `Who files moves the curve: ${sn} bulk filers added ${num.format(bulkAdd)} CVEs in the last 12 months; everyone else grew ${growthText(w.nx, w.prevNx)}`
+          : cb ? `Who files moves the curve: ${cb.label} filed ${num.format(cb.n)} CVEs in the last 12 months (${growthText(cb.n, cb.prev)}, against ${baseX(w)} for all CVEs)` : null,
+        subEl: "#cnaall-hint", sub: `CVEs per CVE Numbering Authority (assigner), ${span} vs the 12 months before: the year's bulk filers (CNAs whose filing grew at least ×4 to 1,000+: ${surgeNames(L) || "none"}) that rank in the top 12, and everyone else combined.`,
         how: "Bar = last 12 months, tick = the 12 months before. A CNA is whoever assigned the CVE id — a vendor, a bug-bounty platform or a coordinator.",
         so: cb && cb.n / Math.max(1, cb.prev) >= 3 ? "Before reading the surge as more vulnerable software, discount the new bulk filers: their growth is a reporting change." : null,
         src: srcLine(ctx, ["cve"]),

@@ -157,7 +157,7 @@ EXPR = r"""(() => {
   const threats = [...document.querySelectorAll("#threat-cards .threat")].map((c) => ({ name: c.querySelector(".th-name").textContent,
     v: (c.querySelector(".v") || {}).textContent || "", unit: (c.querySelector(".th-unit") || {}).textContent || "" }));
   return JSON.stringify({ tiles: tiles("#kpis"), aiTiles: tiles("#ai-kpis"), sig, threats,
-    headline: t("#headline"), kevVendTitle: t("#h-kevvend"), cweTitle: t("#h-cweall"), issTitle: t("#h-issuance"), ransomTitle: t("#h-ransom"), ttkTitle: t("#h-ttk"), sevTitle: t("#h-sevall"), kevVendTop: t("#kevvend-bars .hb-n"), heroTitle: t("#h-hero"), aiHeadline: t("#ai-headline"), signalTitle: t("#h-signal"),
+    headline: t("#headline"), kevVendTitle: t("#h-kevvend"), cweTitle: t("#h-cweall"), issTitle: t("#h-issuance"), ransomTitle: t("#h-ransom"), ttkTitle: t("#h-ttk"), sevTitle: t("#h-sevall"), cnaTitle: t("#h-cnaall"), kevVendTop: t("#kevvend-bars .hb-n"), heroTitle: t("#h-hero"), aiHeadline: t("#ai-headline"), signalTitle: t("#h-signal"),
     brief: [...document.querySelectorAll("#brief-list li")].map((l) => l.textContent),
     body: document.querySelector("main").innerText.slice(0, 200000) });
 })()"""
@@ -209,6 +209,11 @@ if page:
         hc_ = round(100 * (sx["CRITICAL"] + sx["HIGH"]) / rr_)
         check(page.get("sevTitle", "").startswith(f"{hc_}% of {year}'s rated CVEs") and "excluding the Linux kernel" in page.get("sevTitle", ""),
               f"page: severity title should lead with {hc_}% excluding the Linux kernel: {page.get('sevTitle')!r}")
+    Wa = L["all"]["window"]
+    if "nx" in Wa and L["all"].get("surgeCnas"):
+        add_ = (Wa["n"] - Wa["nx"]) - (Wa["prevN"] - Wa["prevNx"])
+        check(f"{len(L['all']['surgeCnas'])} bulk filers added {add_:,} CVEs" in page.get("cnaTitle", ""),
+              f"page: CNA title should state the bulk filers' {add_:,} added CVEs: {page.get('cnaTitle')!r}")
     # ransomware share over settled years (the newest two still fill in)
     st_years = [str(yy) for yy in range(2023, int(year) - 1)]
     rn = sum(1 for e in ents if e["added"][:4] in st_years)
