@@ -1542,10 +1542,12 @@ function buildAiKpis(ctx, F, S) {
   if (k && F.kevAi) {
     const md = F.asOf.slice(5);
     const prevSame = F.kevAi.filter((e) => String(e.added).startsWith(F.prevYear) && String(e.added).slice(5) <= md).length;
-    tiles.push({ k: `Exploited AI-related (KEV) ${F.year}`, v: num.format(k.aiCur), cls: "warn",
-      delta: growthDelta(k.aiCur, prevSame, F.prevYear),
+    // small numbers: no trend arrow below 10 a year earlier, and KEV is a floor for AI —
+    // ShadowRay (CVE-2023-48022) was exploited at scale but is not in KEV
+    tiles.push({ k: `AI-related added to CISA KEV ${F.year}`, v: num.format(k.aiCur), cls: "warn",
+      delta: fin(prevSame) && prevSame >= 10 ? growthDelta(k.aiCur, prevSame, F.prevYear) : null,
       spark: { vals: countByMonth(M, F.kevAi, (e) => e.added), title: sparkTitle },
-      d: `${pct(k.cur ? k.aiCur / k.cur : 0, 1)} of ${F.year} KEV additions · ${num.format(F.kevAi.length)} all time` });
+      d: `${fin(prevSame) ? `${num.format(prevSame)} by this date in ${F.prevYear} · ` : ""}${pct(k.cur ? k.aiCur / k.cur : 0, 1)} of ${F.year} KEV additions · ${num.format(F.kevAi.length)} all time · a floor: ShadowRay (CVE-2023-48022) was exploited but is not in KEV` });
   }
   const fy = foundYtd(core, F);
   if (fy) {

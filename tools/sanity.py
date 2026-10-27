@@ -323,7 +323,7 @@ if page:
     ai = next((x for kk, x in A.items() if kk.startswith("AI-related CVEs")), None)
     check(ai and num(ai["v"]) == exp["ai_ytd"], f"page: AI tile {ai and ai['v']} != data {exp['ai_ytd']}")
     check(ai and ai["v"] in page["aiHeadline"], f"page: AI headline does not repeat the AI tile {ai and ai['v']}")
-    ak = next((x for kk, x in A.items() if kk.startswith("Exploited AI")), None)
+    ak = next((x for kk, x in A.items() if kk.startswith("AI-related added to CISA KEV")), None)
     check(ak and num(ak["v"]) == exp["ai_kev_cur"], f"page: exploited-AI tile {ak and ak['v']} != data {exp['ai_kev_cur']}")
     fd = next((x for kk, x in A.items() if kk.startswith("Found by AI")), None)
     check(fd and num(fd["v"]) == exp["found_cur"], f"page: found-by-AI tile {fd and fd['v']} != data {exp['found_cur']}")
