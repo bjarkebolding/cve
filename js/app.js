@@ -1502,6 +1502,8 @@ function shareRiser(rows, w, minPrev) {
     const rel = (n / N) / (prev / P);
     if (rel > 1.05 && (!best || rel > best.rel)) best = { ...r, rel, gn: n, gprev: prev, base: N / P, ex: useX };
   }
+  // significant = its share of all CVEs rose beyond noise (two-proportion test, 95%)
+  if (best) { const z = propZ(best.gn, N, best.gprev, P); best.sig = z != null && z >= 1.96; best.z = z; }
   return best;
 }
 const surgeNames = (L) => listJoin((L && L.surgeCnas || []).map((c) => prettyCna(c)));
@@ -2460,11 +2462,16 @@ function explainSummary(ctx, F, S) {
         if (lead.length) {
           const n = lead.reduce((t, [, x]) => t + x, 0);
           // lead with the origin most over-represented among exploited CVEs vs new CVEs
+          // one cohort: CVEs PUBLISHED this year — exploited ones (KEV) vs all new ones,
+          // the latter without the bulk filers (their surge would shrink every other share)
           const yo = (core.ytd && core.ytd.origins) || {}, ya = core.ytd && core.ytd.all;
-          const over = ya && ya.cur ? Object.entries(k.origin).filter(([id, x]) => x >= 10 && yo[id] && yo[id].cur)
-            .map(([id, x]) => ({ id, ks: x / k.cur, cs: yo[id].cur / ya.cur })).map((o) => ({ ...o, r: o.ks / o.cs })).sort((a, b) => b.r - a.r)[0] : null;
+          const pubK = ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.published || "").startsWith(F.year));
+          const kBy = {}; for (const e of pubK) kBy[e.origin || "other"] = (kBy[e.origin || "other"] || 0) + 1;
+          const baseN = ya ? ya.cur - (ya.bulkCur || 0) : 0;
+          const over = baseN && pubK.length >= 50 ? Object.entries(kBy).filter(([id, x]) => x >= 10 && yo[id] && yo[id].cur - (yo[id].bulkCur || 0) > 0)
+            .map(([id, x]) => ({ id, x, ks: x / pubK.length, cs: (yo[id].cur - (yo[id].bulkCur || 0)) / baseN })).map((o) => ({ ...o, r: o.ks / o.cs })).sort((a, b) => b.r - a.r)[0] : null;
           if (over && over.r >= 2) {
-            title = `${oShort(over.id, OL).replace(/^./, (c) => c.toUpperCase())} are ${pct(over.ks)} of ${F.year}'s exploited vulnerabilities but only ${pct(over.cs, 1)} of new CVEs: about ${fmtX(over.r)} times their share`;
+            title = `${oShort(over.id, OL).replace(/^./, (c) => c.toUpperCase())} are ${pct(over.ks)} of exploited CVEs published in ${F.year} but ${pct(over.cs, 1)} of all new CVEs (excluding bulk filers): about ${fmtX(over.r)} times their share`;
           } else {
             title = `${listJoin(lead.map(([id]) => oShort(id, OL)))} make up ${pct(n / k.cur)} of ${F.year}'s exploited vulnerabilities`; title = title[0].toUpperCase() + title.slice(1);
           }
@@ -2875,7 +2882,7 @@ function explainPart2(ctx, F, S) {
       const vb = shareRiser(vr, L.window, 20);
       fig("#vendai", {
         so: "Ask your main AI vendors for their disclosure and patch timelines; one product can dominate the count.",
-        titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months` + (vb && vb !== vr[0] ? `; among vendors with 20+ AI CVEs a year earlier, ${vb.label} grew fastest (${growthText(vb.gn, vb.gprev)} against ×${fmtX(vb.base)})` : "") : null,
+        titleEl: "#h-vendai", title: vr.length ? `${vr[0].label} leads AI-related CVEs with ${num.format(vr[0].n)} in the last 12 months` + (vb && vb !== vr[0] && vb.sig ? `; among vendors with 20+ AI CVEs a year earlier, ${vb.label} grew fastest (${growthText(vb.gn, vb.gprev)} against ×${fmtX(vb.base)}, without bulk filers)` : "") : null,
         how: "Bar = last 12 months, tick = the 12 months before; text = count · change. 'new' = none the year before.",
         src: srcLine(ctx, ["cve"]),
       });

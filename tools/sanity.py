@@ -244,6 +244,16 @@ if page:
         mtxt = "under a day" if med < 1 else "1 day" if med == 1 else f"{int(med) if med == int(med) else med} days"
         check(any(b.startswith("Patch internet-facing") and f"last 90 days CISA gave US federal agencies a median of {mtxt}" in b for b in page["brief"]),
               f"page: Brief should state CISA's current (90-day) median deadline {mtxt}")
+    # over-representation headline: one cohort (CVEs published this year), base without bulk filers
+    yr = asof[:4]; pk = [e for e in ents if str(e.get("published", "")).startswith(yr)]
+    ya, yo = d["ytd"]["all"], d["ytd"]["origins"]; base = ya["cur"] - ya.get("bulkCur", 0)
+    kby = {}
+    for e in pk: kby[e.get("origin") or "other"] = kby.get(e.get("origin") or "other", 0) + 1
+    rs = sorted(((x / len(pk)) / ((yo[o]["cur"] - yo[o].get("bulkCur", 0)) / base) for o, x in kby.items()
+                 if x >= 10 and o in yo and yo[o]["cur"] - yo[o].get("bulkCur", 0) > 0), reverse=True)
+    if len(pk) >= 50 and rs and rs[0] >= 2:
+        rt = f"{rs[0]:.0f}" if rs[0] >= 10 else f"{rs[0]:.1f}"
+        check(f"about {rt} times their share" in page["body"], f"page: over-representation headline should say about {rt} times")
     k = tile("Exploited (")
     check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
     check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")
