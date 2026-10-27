@@ -430,6 +430,7 @@ def kev_entries(vulns, meta, records=None, ai_match=is_ai_text,
             "found": "found" in rels,  # discovered by an AI tool (any CVE)
             "layer": layer,
             "vendor": (v.get("vendorProject") or "").strip(),
+            "cna": r.get("cna"),  # who filed the CVE (bulk-filed CVEs are left out of like-for-like shares)
             "origin": origin,
             "published": pub,
             "daysToKev": days,

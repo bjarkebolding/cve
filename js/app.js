@@ -685,7 +685,7 @@ function buildBottomLine(ctx, F, S) {
   } catch (e) { /* skip */ }
   try {
     const k = S.kev, OL = originLabel(ctx.core);
-    const pubK = ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.published || "").startsWith(F.year) && e.origin);
+    const pubK = kevPubCohort(ctx, F).ents;
     const yo = (ctx.core.ytd && ctx.core.ytd.origins) || {}, ya = ctx.core.ytd && ctx.core.ytd.all;
     const base = ya ? ya.cur - (ya.bulkCur || 0) : 0, ed = pubK.filter((e) => e.origin === "edge").length;
     const es = yo.edge && base ? (yo.edge.cur - (yo.edge.bulkCur || 0)) / base : null;
@@ -1070,7 +1070,7 @@ function buildWhere(ctx, F, S) {
   const hint = $("#where-hint");
   // the same cohort as the title: CVEs PUBLISHED this year that CISA has listed, against
   // each origin's share of all new CVEs (without bulk filers) — older CVEs added this year are left out
-  const pubK = ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.published || "").startsWith(F.year) && e.origin);
+  const pubK = kevPubCohort(ctx, F).ents;
   const yo = (ctx.core.ytd && ctx.core.ytd.origins) || {}, ya = ctx.core.ytd && ctx.core.ytd.all;
   const baseN = ya ? ya.cur - (ya.bulkCur || 0) : 0;
   if (pubK.length >= 20 && baseN) {
@@ -1481,6 +1481,13 @@ const surgeNames = (L) => listJoin((L && L.surgeCnas || []).map((c) => prettyCna
 /* "bulk filers" = third parties filing for others in bulk (GitHub, VulnCheck); a surge
  * set that also holds vendors now filing their own CVEs (Oracle, Chrome…) is "surge filers" */
 const THIRD_PARTY_FILERS = new Set(["GitHub_M", "VulnCheck"]);
+/* exploited CVEs published this year, without the bulk filers' CVEs — the same basis as
+ * "share of new CVEs without bulk filers" it is compared with */
+function kevPubCohort(ctx, F) {
+  const pub = ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.published || "").startsWith(F.year) && e.origin);
+  const keep = pub.filter((e) => !THIRD_PARTY_FILERS.has(e.cna));
+  return { ents: keep, bulk: pub.length - keep.length };
+}
 const surgeWord = (L) => ((L && L.surgeCnas || []).every((c) => THIRD_PARTY_FILERS.has(c)) ? "bulk filers" : "surge filers");
 const surgeDef = (L) => {
   const all = (L && L.surgeCnas) || [], tp = all.filter((c) => THIRD_PARTY_FILERS.has(c)), own = all.filter((c) => !THIRD_PARTY_FILERS.has(c));
@@ -2218,13 +2225,13 @@ function explainSummary(ctx, F, S) {
           // one cohort: CVEs PUBLISHED this year — exploited ones (KEV) vs all new ones,
           // the latter without the bulk filers (their surge would shrink every other share)
           const yo = (core.ytd && core.ytd.origins) || {}, ya = core.ytd && core.ytd.all;
-          const pubK = ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.published || "").startsWith(F.year));
+          const pubK = kevPubCohort(ctx, F).ents;
           const kBy = {}; for (const e of pubK) kBy[e.origin || "other"] = (kBy[e.origin || "other"] || 0) + 1;
           const baseN = ya ? ya.cur - (ya.bulkCur || 0) : 0;
           const over = baseN && pubK.length >= 50 ? Object.entries(kBy).filter(([id, x]) => x >= 10 && yo[id] && yo[id].cur - (yo[id].bulkCur || 0) > 0)
             .map(([id, x]) => ({ id, x, ks: x / pubK.length, cs: (yo[id].cur - (yo[id].bulkCur || 0)) / baseN })).map((o) => ({ ...o, r: o.ks / o.cs })).sort((a, b) => b.r - a.r)[0] : null;
           if (over && over.r >= 2) {
-            title = `${oShort(over.id, OL).replace(/^./, (c) => c.toUpperCase())} are ${pct(over.ks)} of the CVEs published in ${F.year} that CISA KEV lists (${num.format(over.x)} of ${num.format(pubK.length)}) but ${pct(over.cs, 1)} of new CVEs without bulk filers: about ${fmtX(over.r)} times their share`;
+            title = `${oShort(over.id, OL).replace(/^./, (c) => c.toUpperCase())} are ${pct(over.ks)} of the CVEs published in ${F.year} that CISA KEV lists (${num.format(over.x)} of ${num.format(pubK.length)}) but ${pct(over.cs, 1)} of new CVEs, both without bulk filers: about ${fmtX(over.r)} times their share`;
           } else {
             title = `${listJoin(lead.map(([id]) => oShort(id, OL)))} make up ${pct(n / k.cur)} of ${F.year}'s exploited vulnerabilities`; title = title[0].toUpperCase() + title.slice(1);
           }
@@ -2236,9 +2243,9 @@ function explainSummary(ctx, F, S) {
       fig("#where-bars", {
         titleEl: "#h-where", title,
         subEl: "#where-hint", sub: (() => {
-          const pubN = ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.published || "").startsWith(F.year) && e.origin).length;
+          const co = kevPubCohort(ctx, F), pubN = co.ents.length;
           const older = k.cur - ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.added).startsWith(F.year) && String(e.published || "").startsWith(F.year)).length;
-          return `The ${num.format(pubN)} CVEs published in ${F.year} (${partialLabel(F)}) that CISA KEV lists, by origin: count · share of them (that origin's share of all new CVEs, without bulk filers).${older > 0 ? ` The ${num.format(older)} older CVEs CISA added this year are left out.` : ""}`;
+          return `The ${num.format(pubN)} CVEs published in ${F.year} (${partialLabel(F)}) that CISA KEV lists, by origin: count · share of them (that origin's share of all new CVEs). Both sides leave out the bulk filers${co.bulk ? ` (${num.format(co.bulk)} of the exploited CVEs were filed by ${BULK_NAMES})` : ""}.${older > 0 ? ` The ${num.format(older)} older CVEs CISA added this year are left out too.` : ""}`;
         })(),
         how: "Bar length = CVEs published this year that CISA lists as exploited; the bracket = that origin's share of all new CVEs (without bulk filers), so a share far above its bracket means over-represented. Pitfall: KEV is a lower bound weighted to products US agencies run and to flaws incident responders report, which favours enterprise appliances; the multiple is KEV-shaped, the direction matches other exploitation reports.",
         so, src: srcLine(ctx, ["kev"]),
