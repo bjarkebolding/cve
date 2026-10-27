@@ -1025,7 +1025,24 @@ function buildWhere(ctx, F, S) {
   if (!k.cur) { note(el, `No KEV additions in ${F.year} yet.`); return; }
   const OL = originLabel(ctx.core);
   const hint = $("#where-hint");
-  if (k.origin) {
+  // the same cohort as the title: CVEs PUBLISHED this year that CISA has listed, against
+  // each origin's share of all new CVEs (without bulk filers) — older CVEs added this year are left out
+  const pubK = ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.published || "").startsWith(F.year) && e.origin);
+  const yo = (ctx.core.ytd && ctx.core.ytd.origins) || {}, ya = ctx.core.ytd && ctx.core.ytd.all;
+  const baseN = ya ? ya.cur - (ya.bulkCur || 0) : 0;
+  if (pubK.length >= 20 && baseN) {
+    const by = {};
+    for (const e of pubK) by[e.origin] = (by[e.origin] || 0) + 1;
+    const order = (originList(ctx.core) || Object.keys(ORIGIN_FALLBACK).map((id) => ({ id }))).map((o) => o.id);
+    const rows = order.filter((id) => by[id]).map((id) => {
+      const cs = yo[id] ? (yo[id].cur - (yo[id].bulkCur || 0)) / baseN : null;
+      return { label: OL(id), n: by[id], color: ORIGIN_COLORS[id] || OTHER_COLOR,
+        txt: `${num.format(by[id])} · ${pct(by[id] / pubK.length)}${fin(cs) ? ` (${pct(cs, 1)} of new CVEs)` : ""}` };
+    }).sort((a, b) => b.n - a.n);
+    hbars(el, rows);
+    const older = k.cur - ((ctx.kev.entries || []).filter((e) => String(e.added).startsWith(F.year) && String(e.published || "").startsWith(F.year)).length);
+    if (hint) hint.textContent = `The ${num.format(pubK.length)} CVEs published in ${F.year} that CISA has listed as exploited, by origin; text = count · share of them (share of all new CVEs, without bulk filers).${older > 0 ? ` The ${num.format(older)} older CVEs CISA added this year are left out.` : ""}`;
+  } else if (k.origin) {
     const order = (originList(ctx.core) || Object.keys(ORIGIN_FALLBACK).map((id) => ({ id }))).map((o) => o.id);
     const rows = order.filter((id) => fin(k.origin[id])).map((id) => ({ label: OL(id), n: k.origin[id], color: ORIGIN_COLORS[id] || OTHER_COLOR }))
       .sort((a, b) => b.n - a.n);
@@ -2186,7 +2203,7 @@ function explainSummary(ctx, F, S) {
           const over = baseN && pubK.length >= 50 ? Object.entries(kBy).filter(([id, x]) => x >= 10 && yo[id] && yo[id].cur - (yo[id].bulkCur || 0) > 0)
             .map(([id, x]) => ({ id, x, ks: x / pubK.length, cs: (yo[id].cur - (yo[id].bulkCur || 0)) / baseN })).map((o) => ({ ...o, r: o.ks / o.cs })).sort((a, b) => b.r - a.r)[0] : null;
           if (over && over.r >= 2) {
-            title = `${oShort(over.id, OL).replace(/^./, (c) => c.toUpperCase())} are ${pct(over.ks)} of exploited CVEs published in ${F.year} but ${pct(over.cs, 1)} of all new CVEs (excluding bulk filers): about ${fmtX(over.r)} times their share`;
+            title = `${oShort(over.id, OL).replace(/^./, (c) => c.toUpperCase())} are ${pct(over.ks)} of the CVEs published in ${F.year} that CISA KEV lists (${num.format(over.x)} of ${num.format(pubK.length)}) but ${pct(over.cs, 1)} of all new CVEs: about ${fmtX(over.r)} times their share`;
           } else {
             title = `${listJoin(lead.map(([id]) => oShort(id, OL)))} make up ${pct(n / k.cur)} of ${F.year}'s exploited vulnerabilities`; title = title[0].toUpperCase() + title.slice(1);
           }
@@ -2197,8 +2214,12 @@ function explainSummary(ctx, F, S) {
       }
       fig("#where-bars", {
         titleEl: "#h-where", title,
-        subEl: "#where-hint", sub: `Vulnerabilities added to CISA KEV in ${F.year} (${partialLabel(F)}), by origin: count · share of the year's additions. Not stacked.`,
-        how: "Bar length = KEV additions this year. Pitfall: KEV is a lower bound — only CISA-confirmed exploitation, weighted to products US agencies run.",
+        subEl: "#where-hint", sub: (() => {
+          const pubN = ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.published || "").startsWith(F.year) && e.origin).length;
+          const older = k.cur - ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.added).startsWith(F.year) && String(e.published || "").startsWith(F.year)).length;
+          return `The ${num.format(pubN)} CVEs published in ${F.year} (${partialLabel(F)}) that CISA KEV lists, by origin: count · share of them (that origin's share of all new CVEs, without bulk filers).${older > 0 ? ` The ${num.format(older)} older CVEs CISA added this year are left out.` : ""}`;
+        })(),
+        how: "Bar length = CVEs published this year that CISA lists as exploited; the bracket = that origin's share of all new CVEs (without bulk filers), so a share far above its bracket means over-represented. Pitfall: KEV is a lower bound weighted to products US agencies run and to flaws incident responders report, which favours enterprise appliances; the multiple is KEV-shaped, the direction matches other exploitation reports.",
         so, src: srcLine(ctx, ["kev"]),
       });
     }
