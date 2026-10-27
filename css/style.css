@@ -644,7 +644,7 @@ td.stack .reltags { margin-bottom: 2px; }
 .adv-recent { margin-top: 20px; }
 .adv-head { color: var(--muted); font-size: 12.5px; margin-bottom: 6px; }
 .adv-row {
-  display: grid; grid-template-columns: 82px 130px minmax(150px, 1fr) 2.2fr;
+  display: grid; grid-template-columns: 82px 130px minmax(150px, 1fr) 2.2fr 64px;
   gap: 10px; align-items: baseline; font-size: 13px; padding: 7px 0;
   border-bottom: 1px solid var(--line);
 }
@@ -776,3 +776,10 @@ footer a { color: var(--ink-2); }
 /* paired cards hug their content instead of stretching to the taller one */
 .slide-group > .duo { align-items: start; }
 .toplegend { font-size: 12px; margin: 0 0 8px; color: var(--muted); }
+
+.adv-fix { text-align: right; white-space: nowrap; }
+@media (max-width: 760px) {
+  .adv-fix { grid-column: 2; text-align: left; }
+  /* phone tiles: the change badge always sits on its own line, so numbers align across tiles */
+  .kpi .vrow { flex-direction: column; align-items: flex-start; gap: 4px; }
+}

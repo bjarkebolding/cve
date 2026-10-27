@@ -680,7 +680,7 @@ function buildHeadline(ctx, F, S) {
       const r = t.cur / t.prev;
       const yr = ytdRatio(ctx.core);
       const ex = yr && yr.rx ? ` (×${fmtX(yr.rx)} without bulk filing by ${BULK_NAMES})` : "";
-      head = r >= 1.15 ? `CVE disclosures are up ~${fmtX(r)}× on the same period last year${ex}: ${num.format(t.cur)} so far in ${F.year}.`
+      head = r >= 1.15 ? `CVE disclosures are up ×${fmtX(r)} on the same period last year${ex}: ${num.format(t.cur)} so far in ${F.year}.`
         : r >= 0.95 ? `CVE disclosures are running level with last year: ${num.format(t.cur)} so far in ${F.year}.`
         : `CVE disclosures are down ${pct(1 - r)} on the same period last year.`;
     } else if (t) head = `${num.format(t.cur)} CVEs published in ${F.year} so far.`;
@@ -863,7 +863,7 @@ function buildSignal(ctx) {
     title: st.hc && st.kev ? `Last 12 months: severity flags ${pct(st.hc / st.base)} of new CVEs; exploitation evidence flags ${oneIn(st.kev, st.base)}` : null,
     subEl: "#signal-hint",
     sub: `Every bar counts the same CVEs: the ${num.format(st.base)} published from ${fmtDay(st.from)} to ${fmtDay(st.to)}. Bars are shares of that one base, not a funnel: an exploited CVE can be rated MEDIUM. EPSS is a model estimate; KEV is confirmed exploitation and lags. Gartner's 2026–2027 threat outlook puts it as leaders needing to "find the threat signal in all the noise".`,
-    so: ratio ? `A severity-first queue is about ${num.format(Math.round(ratio))}× larger than the confirmed-exploited list. Patch KEV first, then rank the rest by EPSS, severity and exposure`
+    so: ratio ? `A severity-first queue is about ${num.format(Math.round(ratio))} times larger than the confirmed-exploited list. Patch KEV first, then rank the rest by EPSS, severity and exposure`
       + (st.recall ? `: EPSS ≥ 10% flagged only ${num.format(st.recall.caught)} of the ${num.format(st.recall.of)} confirmed-exploited CVEs (${pct(st.recall.caught / st.recall.of)}), so treat it as a ranking signal, not a cut-off.` : ".") : null,
     src: srcLine(ctx, ["cve", "epss", "kev"]),
   });
@@ -1436,7 +1436,7 @@ function buildSevAll(ctx) {
 }
 
 /* ================= ranked lists with last-12-months vs prior-12-months ================= */
-const growthText = (n, prev) => (prev > 0 ? (n / prev >= 1.995 ? `×${n / prev >= 10 ? Math.round(n / prev) : (n / prev).toFixed(1)}` : `${n >= prev ? "+" : "−"}${Math.round(Math.abs(100 * (n / prev - 1)))}%`) : "new");
+const growthText = (n, prev) => (prev > 0 ? (n / prev >= 1.05 ? `×${n / prev >= 10 ? Math.round(n / prev) : (n / prev).toFixed(1)}` : n >= prev ? "flat" : `−${Math.round(100 * (1 - n / prev))}%`) : "new");
 /* rows [{label, n, prev, title}] → bar (n) with a tick at the previous
  * period's value and the change as text */
 function topList(el, rows, opts) {
@@ -1711,7 +1711,7 @@ function buildTodo(ctx, F) {
     const tot = layered ? ` (${pct(best.cur / layered)} of CVEs in AI software)` : "";
     const bk = layerBulk(ctx, F, best.id);
     return `Inventory your ${ctx.label(best.id)}: the largest layer in ${F.year} with ${num.format(best.cur)} CVEs so far${tot}, vs ${num.format(best.prev)} in all of ${F.prevYear}`
-      + (bk ? `; ${num.format(bk.n)} of them are one ${prettyProduct(bk.product)} bulk disclosure, but even without it the layer is already ${fmtX((best.cur - bk.n) / Math.max(1, best.prev))}× all of ${F.prevYear}.` : ".");
+      + (bk ? `; ${num.format(bk.n)} of them are one ${prettyProduct(bk.product)} bulk disclosure, but even without it the layer is already ${fmtX((best.cur - bk.n) / Math.max(1, best.prev))} times all of ${F.prevYear}.` : ".");
   });
   if (!out.length) { note(ul.parentElement, "Not enough data for recommendations in this build."); ul.remove(); return; }
   for (const s of out) ul.append(h("li", { text: s }));
@@ -2117,8 +2117,8 @@ function buildAiPkgs(ctx) {
       h("span", { class: "adv-date", text: String(it.published || "").slice(0, 10) }),
       h("span", { class: "adv-pkg", text: it.package || it.id || "" }),
       h("span", { class: "adv-cve", text: it.cve || it.id || "" }),
-      h("span", { class: "adv-sum", text: it.summary || "", title: it.summary || null }));
-    if (typeof it.fixed === "boolean") row.querySelector(".adv-cve").append(badge(it.fixed ? "FIX" : "NO FIX", it.fixed ? "ok" : "", it.fixed ? "a fixed version is listed" : "no fixed version listed"));
+      h("span", { class: "adv-sum", text: it.summary || "", title: it.summary || null }),
+      h("span", { class: "adv-fix" }, typeof it.fixed === "boolean" ? badge(it.fixed ? "FIX" : "NO FIX", it.fixed ? "ok" : "", it.fixed ? "a fixed version is listed" : "no fixed version listed") : null));
     box.append(row);
   }
 }
@@ -2145,9 +2145,9 @@ function buildAdoptionChart(ctx) {
       { space: 36, label: "downloads per month (log scale)", size: 52, values: tick((v) => (Math.abs(v - Math.round(v)) < 1e-6 ? LOGLAB[Math.round(v)] || "" : "")) },
     ],
     series: [
-      { label: "month", value: (u, v) => (v == null ? "—" : new Date(v * 86400e3).toISOString().slice(0, 7)) },
+      { label: "month", value: (u, v) => (v == null ? "" : new Date(v * 86400e3).toISOString().slice(0, 7)) },
       ...pkgs.map((p, i) => ({ label: p, stroke: colors[i], width: 1.5, fill: null,
-        value: (u, v) => (v == null ? "—" : compact(Math.round(10 ** v))) })),
+        value: (u, v) => (v == null ? "" : compact(Math.round(10 ** v))) })),
     ],
     legend: { show: true },
   }, data);
@@ -2519,7 +2519,7 @@ function explainRisk(ctx, F, S) {
         titleEl: "#h-mal", title: cur ? `${num.format(cur)} malicious open-source packages reported in ${F.year} so far` : null,
         subEl: "#mal-hint", sub: `Malicious packages reported to OSV (MAL-* advisories) per year by ecosystem, stacked, through ${F.year} (${partialLabel(F)}). These are not CVEs.`,
         how: "Each bar = malicious-package reports that year, split by registry. Pitfall: " + (Object.entries(malOutliers(mal))
-          .map(([y, o]) => `${y} is ${o.mult}× a typical year, almost all ${o.eco} — a mass spam/campaign wave that flattens the other years; `)
+          .map(([y, o]) => `${y} is ${o.mult} times a typical year, almost all ${o.eco} — a mass spam/campaign wave that flattens the other years; `)
           .join("") || "") + "one report can cover many package versions.",
         so: cur ? "Block or quarantine newly published packages in your package proxy and pin dependencies — malicious uploads now arrive by the thousand." : null,
         src: srcLine(ctx, ["osv"]),
@@ -2620,7 +2620,7 @@ function explainDetail(ctx, F, S) {
       }
       fig("#cwe-compare", {
         titleEl: "#h-cwe",
-        title: best ? `${names[best.id] || best.id} is ${best.r.toFixed(1)}× more common in AI CVEs than in non-AI CVEs (${pct(best.a, 1)} vs ${pct(best.b, 1)})` : null,
+        title: best ? `${names[best.id] || best.id} is ${best.r.toFixed(1)} times more common in AI CVEs than in non-AI CVEs (${pct(best.a, 1)} vs ${pct(best.b, 1)})` : null,
         how: "Blue = share of AI CVEs with that CWE; grey = share of non-AI CVEs. Pitfall: only the first CWE of each record counts; '—' = not among the top CWEs overall.",
         so: best ? `Ask AI vendors and internal AI teams specifically about ${names[best.id] || best.id} defences.` : null,
         src: srcLine(ctx, ["cve"]),
