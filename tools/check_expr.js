@@ -30,7 +30,7 @@
     out.inks.push(id + ":" + (a ? Math.max(1, Math.round((100 * a) / b)) : 0) + "%");
   }
   // removed panels must stay gone
-  out.removed = ["chart-hours", "chart-kev", "findings-list", "cards", "latest", "context", "tbl-ai", "chart-aipkgs", "chart-adoption"].filter((id) => document.getElementById(id));
+  out.removed = ["chart-hours", "chart-kev", "findings-list", "cards", "latest", "context", "threats", "threat-cards", "tbl-ai", "chart-aipkgs", "chart-adoption"].filter((id) => document.getElementById(id));
   out.epssRows = document.querySelectorAll("#tbl-epss tbody tr").length;
   out.headline = (document.querySelector("#headline") || {}).textContent || "";
   out.kpis = document.querySelectorAll("#kpis .kpi").length;
@@ -44,7 +44,6 @@
   out.slideGaps = [...document.querySelectorAll(".slide")].filter((u) => !u.querySelector("h2, h3") || !u.querySelector(".figfoot .so") || !u.querySelector(".src"))
     .map((u) => u.id || ((u.querySelector("h2, h3") || {}).id) || "?");
   out.slides = document.querySelectorAll(".slide").length;
-  out.threatCards = document.querySelectorAll("#threat-cards .threat").length;
   out.briefItems = document.querySelectorAll("#brief-list li").length;
   out.navSub = [...document.querySelectorAll(".topnav a.sub")].filter((a) => document.querySelector(a.getAttribute("href"))).length;
   out.navSubAll = document.querySelectorAll(".topnav a.sub").length;

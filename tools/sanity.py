@@ -161,9 +161,7 @@ EXPR = r"""(() => {
   const tiles = (q) => [...document.querySelectorAll(q + " .kpi")].map((k) => ({ k: t.call(null, "x") || k.querySelector(".k").textContent,
     v: k.querySelector(".v").textContent, delta: (k.querySelector(".delta") || {}).textContent || "", d: (k.querySelector(".d") || {}).textContent || "" }));
   const sig = [...document.querySelectorAll("#signal-bars .sig-row")].map((r) => r.querySelector(".sig-n b").textContent);
-  const threats = [...document.querySelectorAll("#threat-cards .threat")].map((c) => ({ name: c.querySelector(".th-name").textContent,
-    v: (c.querySelector(".v") || {}).textContent || "", unit: (c.querySelector(".th-unit") || {}).textContent || "" }));
-  return JSON.stringify({ tiles: tiles("#kpis"), aiTiles: tiles("#ai-kpis"), sig, threats,
+  return JSON.stringify({ tiles: tiles("#kpis"), aiTiles: tiles("#ai-kpis"), sig,
     headline: t("#headline"), kevVendTitle: t("#h-kevvend"), cweTitle: t("#h-cweall"), issTitle: t("#h-issuance"), ransomTitle: t("#h-ransom"), ttkTitle: t("#h-ttk"), sevTitle: t("#h-sevall"), cnaTitle: t("#h-cnaall"), kevVendTop: t("#kevvend-bars .hb-n"), heroTitle: t("#h-hero"), aiHeadline: t("#ai-headline"), signalTitle: t("#h-signal"),
     brief: [...document.querySelectorAll("#brief-list li")].map((l) => l.textContent),
     body: document.querySelector("main").innerText.slice(0, 200000) });
@@ -309,20 +307,12 @@ if page:
     want = [exp["signal_base"], exp["signal_hc"], exp["signal_epss"], exp["signal_kev"]]
     check(sig == want, f"page: signal bars {sig} != data {want}")
     check(sig == sorted(sig, reverse=True), f"page: signal stages not decreasing {sig}", warn=True)
-    th = {x["name"]: x for x in page["threats"]}
-    s = th.get("Software supply chain")
-    if s and exp["kev_cur"]:
-        pct_exp = round(100 * exp["supply_kev_cur"] / exp["kev_cur"], 1)
-        check(num(s["v"]) == pct_exp, f"page: supply threat {s['v']} != {pct_exp}%")
-        check(f"({exp['supply_kev_cur']} of {exp['kev_cur']})" in s["unit"], f"page: supply threat unit {s['unit']!r}")
     A = {x["k"]: x for x in page["aiTiles"]}
     ai = next((x for kk, x in A.items() if kk.startswith("AI-related CVEs")), None)
     check(ai and num(ai["v"]) == exp["ai_ytd"], f"page: AI tile {ai and ai['v']} != data {exp['ai_ytd']}")
     check(ai and ai["v"] in page["aiHeadline"], f"page: AI headline does not repeat the AI tile {ai and ai['v']}")
     ak = next((x for kk, x in A.items() if kk.startswith("Exploited AI")), None)
     check(ak and num(ak["v"]) == exp["ai_kev_cur"], f"page: exploited-AI tile {ak and ak['v']} != data {exp['ai_kev_cur']}")
-    app = th.get("AI application compromise")
-    check(not app or not ak or num(app["v"]) <= num(ak["v"]), "page: AI-app threat count exceeds exploited-AI tile")
     fd = next((x for kk, x in A.items() if kk.startswith("Found by AI")), None)
     check(fd and num(fd["v"]) == exp["found_cur"], f"page: found-by-AI tile {fd and fd['v']} != data {exp['found_cur']}")
     body = page["body"]

@@ -884,92 +884,11 @@ function buildSignal(ctx) {
     titleEl: "#h-signal",
     title: st.hc && st.kev ? `Last 12 months: severity flags ${pct(st.hc / st.base)} of new CVEs; exploitation evidence flags ${oneIn(st.kev, st.base)}` : null,
     subEl: "#signal-hint",
-    sub: `Every bar counts the same CVEs: the ${num.format(st.base)} published from ${fmtDay(st.from)} to ${fmtDay(st.to)}. Bars are shares of that one base, not a funnel: an exploited CVE can be rated MEDIUM. EPSS is a model estimate; KEV is confirmed exploitation and lags. Gartner's 2026–2027 threat outlook puts it as leaders needing to "find the threat signal in all the noise".`,
+    sub: `Every bar counts the same CVEs: the ${num.format(st.base)} published from ${fmtDay(st.from)} to ${fmtDay(st.to)}. Bars are shares of that one base, not a funnel: an exploited CVE can be rated MEDIUM. EPSS is a model estimate; KEV is confirmed exploitation and lags.`,
     so: ratio ? `A severity-first queue is about ${num.format(Math.round(ratio))} times larger than the confirmed-exploited list. Patch KEV first, then rank the rest by EPSS, severity and exposure`
       + (st.recall ? `. EPSS is not an early warning: the day before CISA listed them, only ${num.format(st.recall.caught)} of these ${num.format(st.recall.of)} exploited CVEs (${pct(st.recall.caught / st.recall.of)}) had an EPSS of 10% or more, and ${pct(st.recall.unscored / st.recall.of)} had no score yet.` : ".") : null,
     src: srcLine(ctx, ["cve", "epss", "kev"]),
   });
-}
-
-/* ================= Gartner's four critical threats (2026–2027) ================= */
-const APP_RELS = new Set(["agent", "product", "feature"]);
-function buildThreats(ctx, F, S) {
-  const wrap = $("#threat-cards");
-  const core = ctx.core;
-  const M = lastMonths(F, 24);
-  const md = F.asOf.slice(5);
-  const kevAll = (ctx.kev && ctx.kev.entries) || [];
-  const cards = [];
-  // 1. AI application compromise: exploited flaws in AI apps, agents, AI features
-  try {
-    const app = (F.kevAi || []).filter((e) => (e.rels || []).some((r) => APP_RELS.has(r)));
-    const cur = app.filter((e) => String(e.added).startsWith(F.year)).length;
-    const prevSame = app.filter((e) => String(e.added).startsWith(F.prevYear) && String(e.added).slice(5) <= md).length;
-    const prods = [...new Set(app.map((e) => shortProduct(e.product)).filter(Boolean))].slice(0, 4);
-    const a = S.aiShare;
-    cards.push({ id: "app", name: "AI application compromise", signal: "strong", href: "#exploited",
-      action: "Inventory AI apps, agents and MCP servers, give each an owner, threat-model them and limit the data and tools they can reach.",
-      v: num.format(cur), unit: `exploited flaws in AI apps & agents, ${F.year}`, delta: growthDelta(cur, prevSame, F.prevYear),
-      spark: { vals: countByMonth(M, app, (e) => e.added), title: "exploited AI app & agent flaws added to CISA KEV per month, last 24 complete months" },
-      foot: (prods.length ? `${listJoin(prods)}: conventional code-execution and access flaws in AI tooling, not attacks on the model.` : "")
-        + (a ? ` ${num.format(a.n)} AI-related CVEs disclosed this year.` : "") });
-  } catch (e) { /* skip */ }
-  // 2. Software supply chain: open-source share of confirmed exploitation
-  try {
-    const cur = kevAll.filter((e) => String(e.added).startsWith(F.year));
-    const prev = kevAll.filter((e) => String(e.added).startsWith(F.prevYear));
-    const sc = (arr) => arr.filter((e) => e.origin === "supplychain").length;
-    if (cur.length) cards.push({ id: "supply", name: "Software supply chain", signal: "strong", href: "#supply", src: "Source: CISA KEV + CVE List + OSV",
-      action: "Require SBOMs (and AI-BOMs for models), pull code, containers and models from curated repositories, and sign build artifacts.",
-      v: pct(sc(cur) / cur.length, 1), unit: `of ${F.year}'s exploited vulnerabilities are open source (${num.format(sc(cur))} of ${num.format(cur.length)})`,
-      delta: prev.length ? (() => {
-        const z = propZ(sc(cur), cur.length, sc(prev), prev.length);
-        const sig = z != null && Math.abs(z) >= 1.96;
-        return { up: sc(cur) / cur.length >= sc(prev) / prev.length, text: `from ${pct(sc(prev) / prev.length, 1)}${sig ? "" : ", not significant"}`,
-          title: `share of KEV additions, all of ${F.prevYear}; two-proportion test z = ${z == null ? "n/a" : z.toFixed(2)} (${sig ? "significant" : "within noise"} at 95%)` };
-      })() : null,
-      spark: { vals: countByMonth(M, kevAll.filter((e) => e.origin === "supplychain"), (e) => e.added), title: "open-source vulnerabilities added to CISA KEV per month, last 24 complete months" },
-      foot: `${S.supply ? num.format(S.supply.n) + ` open-source CVEs this year, ${(() => { const o = ctx.core.ytd && ctx.core.ytd.origins && ctx.core.ytd.origins.supplychain; return o && o.cur ? pct(o.bulkCur / o.cur) + " of them filed by " + BULK_NAMES : "much of the rise from more filing by " + BULK_NAMES; })()}` : ""}`
-        + (fin(S.malYtd) && S.malYtd ? `; ${num.format(S.malYtd)} malicious packages (2025 was inflated by an npm spam flood).` : ".") });
-  } catch (e) { /* skip */ }
-  // 3. Prompt injection: disclosed AI-specific weaknesses (exploitation not observable)
-  try {
-    const ry = relYtd(core, F);
-    const w = ry && ry.weakness;
-    if (w) {
-      const exploited = kevAll.filter((e) => (e.rels || []).includes("weakness")).length;
-      cards.push({ id: "pi", name: "Prompt injection", signal: "partial", href: "#relations",
-        action: "Test your own AI apps for prompt injection before release; add runtime guardrails and monitoring in production.",
-        v: num.format(w.cur), unit: `disclosed AI-specific weaknesses, ${F.year}`,
-        delta: null,
-        foot: `Prompt injection, jailbreaks and unsafe model loading in shipped products (${num.format(w.prev)} in all of ${F.prevYear}). ${exploited ? num.format(exploited) : "None"} confirmed exploited: attacks on your own AI apps never reach CVE data, so test them before release.` });
-    }
-  } catch (e) { /* skip */ }
-  // 4. Deepfakes: outside what vulnerability data can measure
-  cards.push({ id: "deepfake", name: "Deepfake identity impersonation", signal: "none", href: null, src: "Source: no CVE signal",
-    statement: "Not a software flaw",
-    foot: "No CVE describes it, so this dashboard cannot measure it. Defend with process: call-back verification and strong authentication for payments, helpdesk resets and hiring." });
-
-  const SIG = { strong: "Strong signal", partial: "Partial signal", none: "Outside CVE scope" };
-  for (const c of cards) {
-    // a change within noise is shown neutral: no arrow, no alarm colour
-    const flat = c.delta && /not significant/.test(c.delta.text);
-    const delta = c.delta ? h("span", { class: "delta" + (flat ? " flat" : c.delta.up ? " up" : " down"), text: (flat ? "" : c.delta.up ? "▲ " : "▼ ") + c.delta.text, title: c.delta.title || null }) : null;
-    const spark = c.spark && c.spark.vals.some((v) => v > 0) ? h("div", { class: "kspark", title: c.spark.title }, sparkline(c.spark.vals, c.id === "app" ? "ai" : "")) : null;
-    const body = [
-      h("div", { class: "th-eyebrow", text: "Gartner threat · 2026–27" }),
-      h("div", { class: "th-head" }, h("span", { class: "th-name", text: c.name }), h("span", { class: "th-sig " + c.signal, text: SIG[c.signal] })),
-      c.statement ? h("div", { class: "th-statement", text: c.statement })
-        : h("div", { class: "vrow" }, h("span", { class: "v", text: c.v }), delta),
-      c.unit ? h("div", { class: "th-unit", text: c.unit }) : null,
-      spark,
-      h("p", { class: "th-foot", text: c.foot.trim() }),
-      c.action ? h("p", { class: "th-action" }, h("b", { text: "Action: " }), document.createTextNode(c.action)) : null,
-      c.href ? h("a", { class: "th-link", href: c.href, text: "Evidence →" }) : null,
-      h("div", { class: "ksrc", text: `${c.src || "Source: CVE List + CISA KEV"} · ${String((core && core.generatedAt) || "").slice(0, 10)} · ${SITE} · mapping not by Gartner` }),
-    ];
-    wrap.append(h("article", { class: "threat " + c.id }, ...body));
-  }
 }
 
 /* ================= executive brief: how to adjust ================= */
@@ -980,7 +899,7 @@ function buildBrief(ctx, F, S) {
   const items = [];
   const add = (fn) => { try { const r = fn(); if (r && clean(r.why)) items.push(r); } catch (e) { /* skip */ } };
   const OL = originLabel(ctx.core);
-  // 1. find the signal: exploitation first (Gartner: "find the threat signal in all the noise")
+  // 1. find the signal: exploitation first
   add(() => {
     const st = signalStages(ctx);
     if (!st || !st.hc || !st.kev) return null;
@@ -1021,13 +940,11 @@ function buildBrief(ctx, F, S) {
       })() };
   });
   if (!items.length) { $("#brief").remove(); return; }
-  ol.after(h("p", { class: "brief-more" }, document.createTextNode("Actions for AI applications, the software supply chain and prompt injection are on the "),
-    h("a", { href: "#threats", text: "four Gartner threat cards" }), document.createTextNode(" below.")));
   for (const it of items) {
     ol.append(h("li", null,
       h("p", { class: "act" }, h("a", { href: it.href, text: it.act })),
       h("p", { class: "why", text: it.why }),
-      it.tag ? h("a", { class: "brief-tag", href: "#threats", text: it.tag, title: "one of Gartner's four critical threats for 2026–2027" }) : null));
+      null));
   }
 }
 
@@ -2936,7 +2853,6 @@ function infoize() {
     ["KPIs", () => buildKpis(ctx, F, S)],
     ["signal vs noise", () => buildSignal(ctx)],
     ["brief", () => buildBrief(ctx, F, S)],
-    ["threats", () => buildThreats(ctx, F, S)],
     ["hero chart", () => buildHeroChart(ctx, F)],
     ["where exploitation happens", () => buildWhere(ctx, F, S)],
     ["KEV by origin", () => buildKevOrigin(ctx)],
