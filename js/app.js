@@ -1320,7 +1320,8 @@ function buildTtk(ctx) {
   const el = $("#chart-ttk");
   const ents = ctx.kev && ctx.kev.entries;
   if (!ents || !ents.some((e) => fin(e.daysToKev))) { note(el, "Days-to-KEV needs CVE publication dates for KEV entries — not in this data build."); return; }
-  const by = ttkBuckets(ents, "2022");
+  // from 2023: 2022 was CISA's catch-up year (500+ old CVEs) and flattened every later bar
+  const by = ttkBuckets(ents, "2023");
   const years = Object.keys(by).sort();
   const cur = ctx.F.year;
   const yLab = (v) => String(v) + (String(v) === cur ? "\nYTD" : "");
@@ -2360,7 +2361,7 @@ function explainDetail(ctx, F, S) {
       titleEl: "#h-issuance",
       title: ytd && all && all.cur && all.prev ? `AI's share of all CVEs: ${pct(ytd.cur / all.cur, 1)} so far in ${F.year} vs ${pct(ytd.prev / all.prev, 1)} by this date in ${F.prevYear}` : null,
       subEl: "#issuance-hint", sub: "AI-related CVEs as a % of all published CVEs, per month since 2018. Spikes are single-product bulk disclosures (e.g. TensorFlow 2021, OpenClaw 2026). Switch Mode to Count or Cumulative for absolute numbers (lines, not stacked).",
-      after: "#ctl-cves",
+      after: "#issuance details.explore",
       how: "Count = CVEs per period; Cumulative = running total; AI share % = AI ÷ all per period. Pitfall: the last period is partial.",
       src: srcLine(ctx, ["cve"]),
     });
@@ -2395,7 +2396,7 @@ function explainPart1(ctx, F, S) {
           return c && c.full && c.full.n >= 20 && c.prev ? `${pct(c.full.wk / c.full.n)} of exploited CVEs reach KEV within a week of publication, and the pace is ${Math.abs(c.cur.wk / c.cur.n - c.prev.wk / c.prev.n) < 0.05 ? "steady" : c.cur.wk / c.cur.n > c.prev.wk / c.prev.n ? "rising" : "falling"}`
             : n ? `${pct(wk / n)} of ${F.year}'s KEV additions came within a week of publication` : null;
         })(),
-        subEl: "#ttk-hint", sub: `CISA KEV additions per year (by date added), 2022 → ${F.year} (${partialLabel(F)}), stacked by days from CVE publication to KEV addition.`,
+        subEl: "#ttk-hint", sub: `CISA KEV additions per year (by date added), 2023 → ${F.year} (${partialLabel(F)}), stacked by days from CVE publication to KEV addition. 2022, CISA's catch-up year, is left out.`,
         how: "Bars: KEV additions per year by days from CVE publication to KEV addition; red/orange = within a week, grey = old CVEs newly confirmed as exploited. The title uses cohorts instead: the level comes from CVEs published 13–24 months ago (12–24 months of follow-up; recent CVEs that will be listed slowly are not listed yet, and a few older ones still will be), the trend compares the last 12 months with the year before at equal follow-up. Pitfall: this is time to KEV listing, not time to first exploitation; attacks often started earlier.",
         so: (() => { const c = ttkCohort(ctx); const share = c && c.full && c.full.n >= 20 ? c.full.wk / c.full.n : n ? wk / n : 0;
           return share >= 0.25 ? `A monthly patch cycle is too slow for ${pct(share)} of exploited CVEs: keep an emergency path that can ship a fix or mitigation within days.` : null; })(),
