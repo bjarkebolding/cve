@@ -681,7 +681,7 @@ function buildBottomLine(ctx, F, S) {
   const items = [];
   try {
     const yr = ytdRatio(ctx.core), os = ytdRatio(ctx.core, "supplychain");
-    if (yr && fin(yr.rx)) items.push(["What changed", `CVE volume ×${fmtX(yr.r)}, ×${fmtX(yr.rx)} without bulk filing${fin(yr.bulkShare) ? ` (${pct(yr.bulkShare)} of the rise comes from ${BULK_NAMES} bulk filing: a change in who files, not necessarily more risk)` : ""}${os && fin(os.rx) && os.rx >= 2 ? `; open-source component CVEs rose ×${fmtX(os.rx)} even without it` : ""}.`]);
+    if (yr && fin(yr.rx)) items.push(["What changed", `CVE volume ×${fmtX(yr.r)}, ×${fmtX(yr.rx)} without ${BULK_NAMES}${fin(yr.bulkShare) ? ` (${pct(yr.bulkShare)} of the rise comes from them: a change in who files, not necessarily more risk)` : ""}${os && fin(os.rx) && os.rx >= 2 ? `; open-source component CVEs rose ×${fmtX(os.rx)} even without them` : ""}.`]);
   } catch (e) { /* skip */ }
   try {
     const k = S.kev, OL = originLabel(ctx.core);
@@ -695,7 +695,7 @@ function buildBottomLine(ctx, F, S) {
     const ranked = Object.entries(by).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     const cut = ranked.length >= 3 ? ranked[2][1] : 0;
     const top = ranked.filter(([, n], i) => i < 3 || n === cut).slice(0, 5).map(([v]) => v);
-    if (k && k.cur && k.prevSame) items.push(["Where the risk is", `CISA KEV additions ${k.cur / k.prevSame >= 1.05 ? `up ${pct(k.cur / k.prevSame - 1)}` : "level"}; ${pubK.length >= 50 && fin(es) ? `${oShort("edge", OL)} are ${pct(ed / pubK.length)} of newly exploited CVEs from ${pct(es, 1)} of new CVEs (without bulk filers)` : "exploitation is concentrated"}${top.length ? `; ${listJoin(top)} lead the list` : ""}.`]);
+    if (k && k.cur && k.prevSame) items.push(["Where the risk is", `CISA KEV additions ${k.cur / k.prevSame >= 1.05 ? `up ${pct(k.cur / k.prevSame - 1)}` : "level"}; ${pubK.length >= 50 && fin(es) ? `${oShort("edge", OL)} are ${pct(ed / pubK.length)} of newly exploited CVEs from ${pct(es, 1)} of new CVEs (without ${BULK_NAMES})` : "exploitation is concentrated"}${top.length ? `; ${listJoin(top)} lead the list` : ""}.`]);
   } catch (e) { /* skip */ }
   items.push(["What to do", "Match every new CISA KEV entry to your assets the day it is listed and patch those first, edge devices within days; re-scan the whole estate against the full KEV list weekly."]);
   if (items.length < 2) { host.remove(); return; }
@@ -710,7 +710,7 @@ function buildHeadline(ctx, F, S) {
     if (t && t.prev) {
       const r = t.cur / t.prev;
       const yr = ytdRatio(ctx.core);
-      const ex = yr && yr.rx ? ` (×${fmtX(yr.rx)} without bulk filing by ${BULK_NAMES})` : "";
+      const ex = yr && yr.rx ? ` (×${fmtX(yr.rx)} without ${BULK_NAMES})` : "";
       head = r >= 1.15 ? `CVE disclosures are up ×${fmtX(r)} on the same period last year${ex}: ${num.format(t.cur)} so far in ${F.year}.`
         : r >= 0.95 ? `CVE disclosures are running level with last year: ${num.format(t.cur)} so far in ${F.year}.`
         : `CVE disclosures are down ${pct(1 - r)} on the same period last year.`;
@@ -984,8 +984,8 @@ function buildBrief(ctx, F, S) {
       why: (() => {
         // split the intake: bulk filers' records still need triage, but they are not the same growth
         const yr = ytdRatio(ctx.core), day = (n) => num.format(Math.round(n / doy));
-        const split = yr && yr.rx ? ` (×${fmtX(yr.rx)} without bulk filing by ${BULK_NAMES})` : "";
-        const perDay = yr && yr.rx ? `about ${day(t.cur)} a day, ${day(t.cur - yr.xcur)} of them from those two filers` : `about ${day(t.cur)} a day`;
+        const split = yr && yr.rx ? ` (×${fmtX(yr.rx)} without ${BULK_NAMES})` : "";
+        const perDay = yr && yr.rx ? `about ${day(t.cur)} a day, ${day(t.cur - yr.xcur)} of them from those filers` : `about ${day(t.cur)} a day`;
         return `${num.format(t.cur)} CVEs so far in ${F.year}, ×${fmtX(t.cur / t.prev)} the same period of ${F.prevYear}${split}: ${perDay}. Manual review of every advisory does not scale.`;
       })() };
   });
@@ -1095,7 +1095,7 @@ function buildWhere(ctx, F, S) {
     }).sort((a, b) => b.n - a.n);
     hbars(el, rows);
     const older = k.cur - ((ctx.kev.entries || []).filter((e) => String(e.added).startsWith(F.year) && String(e.published || "").startsWith(F.year)).length);
-    if (hint) hint.textContent = `The ${num.format(pubK.length)} CVEs published in ${F.year} that CISA has listed as exploited, by origin; text = count · share of them (share of all new CVEs, without bulk filers).${older > 0 ? ` The ${num.format(older)} older CVEs CISA added this year are left out.` : ""}`;
+    if (hint) hint.textContent = `The ${num.format(pubK.length)} CVEs published in ${F.year} that CISA has listed as exploited, by origin; text = count · share of them (share of all new CVEs, without ${BULK_NAMES}).${older > 0 ? ` The ${num.format(older)} older CVEs CISA added this year are left out.` : ""}`;
   } else if (k.origin) {
     const order = (originList(ctx.core) || Object.keys(ORIGIN_FALLBACK).map((id) => ({ id }))).map((o) => o.id);
     const rows = order.filter((id) => fin(k.origin[id])).map((id) => ({ label: OL(id), n: k.origin[id], color: ORIGIN_COLORS[id] || OTHER_COLOR }))
@@ -1497,7 +1497,7 @@ const THIRD_PARTY_FILERS = new Set(["GitHub_M", "VulnCheck"]);
  * "share of new CVEs without bulk filers" it is compared with */
 function kevPubCohort(ctx, F) {
   const pub = ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.published || "").startsWith(F.year) && e.origin);
-  const keep = pub.filter((e) => !THIRD_PARTY_FILERS.has(e.cna));
+  const keep = pub.filter((e) => !BULK_SET.has(e.cna));
   return { ents: keep, bulk: pub.length - keep.length };
 }
 const surgeWord = (L) => ((L && L.surgeCnas || []).every((c) => THIRD_PARTY_FILERS.has(c)) ? "bulk filers" : "surge filers");
@@ -1547,7 +1547,7 @@ function buildAiHeadline(ctx, F, S) {
     if (a && a.of) {
       const r = F.ytd && F.ytd.prev ? F.ytd.cur / F.ytd.prev : null;
       const ra = ytdRatio(ctx.core, "ai"), rall = ytdRatio(ctx.core);
-      const both = ra && rall && ra.rx && rall.rx ? ` Without bulk filing by ${BULK_NAMES}: ×${fmtX(ra.rx)} against ×${fmtX(rall.rx)}.` : "";
+      const both = ra && rall && ra.rx && rall.rx ? ` Without ${BULK_NAMES}: ×${fmtX(ra.rx)} against ×${fmtX(rall.rx)}.` : "";
       head = `${num.format(a.n)} of this year's ${num.format(a.of)} CVEs are AI-related (${pct(a.n / a.of, a.n / a.of < 0.1 ? 1 : 0)})`
         + (r && r >= 1.15 ? ` — ×${fmtX(r)} on the same period last year, against ×${fmtX(S.total.cur / S.total.prev)} for all CVEs.${both}` : ".");
     }
@@ -1631,7 +1631,7 @@ function buildRelations(ctx, F) {
   hbars(el, ids.map((id) => {
     const y = ytdRel(ctx.core, id);
     return { label: RL(id), n: ry[id].cur, color: REL_COLORS[id] || OTHER_COLOR,
-      txt: num.format(ry[id].cur) + (y ? ` · ${y.prev >= 10 ? growthText(y.cur, y.prev) + (fin(y.rx) && Math.abs(y.rx - y.cur / y.prev) >= 0.3 ? ` (×${fmtX(y.rx)} without bulk filers)` : "") : `${num.format(y.cur)} vs ${num.format(y.prev)}`}` : "") };
+      txt: num.format(ry[id].cur) + (y ? ` · ${y.prev >= 10 ? growthText(y.cur, y.prev) + (fin(y.rx) && Math.abs(y.rx - y.cur / y.prev) >= 0.3 ? ` (×${fmtX(y.rx)} without ${BULK_NAMES})` : "") : `${num.format(y.cur)} vs ${num.format(y.prev)}`}` : "") };
   }).sort((a, b) => b.n - a.n));
 }
 function buildAiOrigin(ctx) {
@@ -2073,7 +2073,16 @@ function ytdRatio(core, origin) {
   return { cur: c.cur, prev: c.prev, r: c.cur / c.prev, rx: xp > 0 ? xc / xp : null, xcur: xc, xprev: xp,
     bulkShare: c.cur - c.prev > 0 ? (c.bulkCur - c.bulkPrev) / (c.cur - c.prev) : null };
 }
-const BULK_NAMES = "GitHub and VulnCheck";
+/* the one set of filers every "without …" figure leaves out: the year's surge filers
+ * from the build (core.ytd.bulkCnas); set at boot */
+let BULK_NAMES = "GitHub and VulnCheck", BULK_SET = new Set(["GitHub_M", "VulnCheck"]);
+const NUM_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+function setFilers(core) {
+  const bc = core && core.ytd && core.ytd.bulkCnas;
+  if (!Array.isArray(bc) || !bc.length) return;
+  BULK_SET = new Set(bc);
+  BULK_NAMES = bc.every((c) => THIRD_PARTY_FILERS.has(c)) ? listJoin(bc.map(prettyCna)) : `the ${NUM_WORDS[bc.length] || bc.length} surge filers`;
+}
 /* one relation (agent, product …) over the same YTD window */
 function ytdRel(core, rel) {
   const c = core && core.ytd && core.ytd.rels && core.ytd.rels[rel];
@@ -2243,7 +2252,7 @@ function explainSummary(ctx, F, S) {
           const over = baseN && pubK.length >= 50 ? Object.entries(kBy).filter(([id, x]) => x >= 10 && yo[id] && yo[id].cur - (yo[id].bulkCur || 0) > 0)
             .map(([id, x]) => ({ id, x, ks: x / pubK.length, cs: (yo[id].cur - (yo[id].bulkCur || 0)) / baseN })).map((o) => ({ ...o, r: o.ks / o.cs })).sort((a, b) => b.r - a.r)[0] : null;
           if (over && over.r >= 2) {
-            title = `${oShort(over.id, OL).replace(/^./, (c) => c.toUpperCase())} are ${pct(over.ks)} of the CVEs published in ${F.year} that CISA KEV lists (${num.format(over.x)} of ${num.format(pubK.length)}) but ${pct(over.cs, 1)} of new CVEs, both without bulk filers: about ${fmtX(over.r)} times their share`;
+            title = `${oShort(over.id, OL).replace(/^./, (c) => c.toUpperCase())} are ${pct(over.ks)} of the CVEs published in ${F.year} that CISA KEV lists (${num.format(over.x)} of ${num.format(pubK.length)}) but ${pct(over.cs, 1)} of new CVEs, both without ${BULK_NAMES}: about ${fmtX(over.r)} times their share`;
           } else {
             title = `${listJoin(lead.map(([id]) => oShort(id, OL)))} make up ${pct(n / k.cur)} of ${F.year}'s exploited vulnerabilities`; title = title[0].toUpperCase() + title.slice(1);
           }
@@ -2257,9 +2266,9 @@ function explainSummary(ctx, F, S) {
         subEl: "#where-hint", sub: (() => {
           const co = kevPubCohort(ctx, F), pubN = co.ents.length;
           const older = k.cur - ((ctx.kev && ctx.kev.entries) || []).filter((e) => String(e.added).startsWith(F.year) && String(e.published || "").startsWith(F.year)).length;
-          return `The ${num.format(pubN)} CVEs published in ${F.year} (${partialLabel(F)}) that CISA KEV lists, by origin: count · share of them (that origin's share of all new CVEs). Both sides leave out the bulk filers${co.bulk ? ` (${num.format(co.bulk)} of the exploited CVEs were filed by ${BULK_NAMES})` : ""}.${older > 0 ? ` The ${num.format(older)} older CVEs CISA added this year are left out too.` : ""}`;
+          return `The ${num.format(pubN)} CVEs published in ${F.year} (${partialLabel(F)}) that CISA KEV lists, by origin: count · share of them (that origin's share of all new CVEs). Both sides leave out ${BULK_NAMES}${co.bulk ? ` (${num.format(co.bulk)} of the exploited CVEs were filed by ${BULK_NAMES})` : ""}.${older > 0 ? ` The ${num.format(older)} older CVEs CISA added this year are left out too.` : ""}`;
         })(),
-        how: "Bar length = CVEs published this year that CISA lists as exploited; the bracket = that origin's share of all new CVEs (without bulk filers), so a share far above its bracket means over-represented. Pitfall: KEV is a lower bound weighted to products US agencies run and to flaws incident responders report, which favours enterprise appliances; the multiple is KEV-shaped, the direction matches other exploitation reports.",
+        how: `Bar length = CVEs published this year that CISA lists as exploited; the bracket = that origin's share of all new CVEs (without ${BULK_NAMES}), so a share far above its bracket means over-represented. Pitfall: KEV is a lower bound weighted to products US agencies run and to flaws incident responders report, which favours enterprise appliances; the multiple is KEV-shaped, the direction matches other exploitation reports.`,
         so, src: srcLine(ctx, ["kev"]),
       });
     }
@@ -2307,7 +2316,7 @@ function explainRisk(ctx, F, S) {
     fig("#chart-supply", {
       titleEl: "#h-supply-cves",
       title: sc ? `Open-source CVEs ${xr(sc.cur, sc.prev)}: ${num.format(sc.cur)} so far in ${F.year} vs ${num.format(sc.prev)} by this date in ${F.prevYear}`
-        + (sc.bulkShare != null && sc.bulkShare >= 0.5 ? `; ${pct(sc.bulkShare)} of the rise is ${BULK_NAMES} filing${fin(sc.rx) ? `, but without them it is still ×${fmtX(sc.rx)}` : ""}` : "") : null,
+        + (sc.bulkShare != null && sc.bulkShare >= 0.5 ? `; ${pct(sc.bulkShare)} of the rise comes from ${BULK_NAMES}${fin(sc.rx) ? `, but without them it is still ×${fmtX(sc.rx)}` : ""}` : "") : null,
       subEl: "#supply-hint", sub: `CVEs in open-source projects and packages (registry packages + GitHub-assigned OSS records), per year, 2018 → ${F.year} (${partialLabel(F)}). Not stacked.`,
       how: "Each bar = open-source CVEs published that year (registry packages plus GitHub-assigned OSS projects, AI packages included). Pitfall: much of the recent jump comes from GitHub's CNA (GitHub_M) issuing far more CVEs — partly a reporting change, not only more vulnerable code.",
       so: sc && sc.prev && sc.cur / sc.prev >= 1.3 ? "Part of what remains is coverage too (new open-source CNAs, Apache filing more of its own CVEs), but the fix volume is real: make sure dependency scanning (SCA) and open-source patching cover every build pipeline." : null,
@@ -2726,6 +2735,7 @@ function infoize() {
 
   const layers = layerList(core, meta);
   const rels = relList(core, meta);
+  setFilers(core);
   const ctx = { core, meta, kev, ap, dl, sev, epss, mal, zd, epssPrior, layers, label: makeLayerLabel(layers), metaOf: metaLookup(meta), rels, relLabel: makeRelLabel(rels) };
   let F = {};
   try { F = computeFacts(ctx); } catch (e) { F = { asOf: new Date().toISOString().slice(0, 10) }; F.year = F.asOf.slice(0, 4); F.prevYear = String(+F.year - 1); }

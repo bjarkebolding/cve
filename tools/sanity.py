@@ -253,7 +253,7 @@ if page:
         check(any(b.startswith("Patch internet-facing") and f"CISA's deadline (now a median {mtxt} after listing)" in b for b in page["brief"]),
               f"page: Brief should state CISA's current (90-day) median deadline {mtxt}")
     # over-representation headline: one cohort (CVEs published this year), base without bulk filers
-    yr = asof[:4]; pk = [e for e in ents if str(e.get("published", "")).startswith(yr) and e.get("origin") and e.get("cna") not in ("GitHub_M", "VulnCheck")]
+    yr = asof[:4]; pk = [e for e in ents if str(e.get("published", "")).startswith(yr) and e.get("origin") and e.get("cna") not in set(d["ytd"].get("bulkCnas") or ["GitHub_M", "VulnCheck"])]
     ya, yo = d["ytd"]["all"], d["ytd"]["origins"]; base = ya["cur"] - ya.get("bulkCur", 0)
     kby = {}
     for e in pk: kby[e.get("origin") or "other"] = kby.get(e.get("origin") or "other", 0) + 1

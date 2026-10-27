@@ -1377,6 +1377,7 @@ def main():
                    "allIs": "non-AI",
                    "note": "totals = CVEs in the window with a CNA CWE id; 'all' = non-AI CVEs"}
 
+    land_all_l = landscape(land_all, months, today)
     payload = {
         "generatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
         "source": "CVEProject/cvelistV5 (PUBLISHED records, by datePublished day)",
@@ -1390,12 +1391,13 @@ def main():
         "aiMonths": [ai_month_counts.get(m, 0) for m in months],
         "layerMonths": {lid: [layer_month[lid].get(m, 0) for m in months] for lid in LAYER_IDS},
         "relations": AI_RELATIONS,
-        "landscape": {"all": landscape(land_all, months, today),
-                      "ai": landscape(land_ai, months, today)},
+        "landscape": {"all": land_all_l, "ai": landscape(land_ai, months, today)},
         "origins": ORIGINS,
         "originMonths": {o: [origin_month[o].get(m, 0) for m in months] for o in ORIGIN_IDS},
         "originYears": origin_years(origin_month),
-        "ytd": ytd_filers(land_all, today),
+        # one exclusion set everywhere: the year's surge filers (third-party bulk filers
+        # and vendors now filing far more of their own CVEs), not only GitHub + VulnCheck
+        "ytd": ytd_filers(land_all, today, bulk=tuple(land_all_l["surgeCnas"]) or BULK_CNAS),
         "cnaYears": cna_years(ai_cna),
         "concentration": concentration(ai_products),
         "severityCompare": severity_compare,
