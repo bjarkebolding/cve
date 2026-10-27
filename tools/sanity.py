@@ -179,6 +179,8 @@ if page:
     check(a and num(a["v"]) == exp["cves_ytd"], f"page: CVE tile {a and a['v']} != data {exp['cves_ytd']}")
     check(a and num(a["delta"]) == exp["cves_ratio"], f"page: CVE tile delta {a and a['delta']} != ×{exp['cves_ratio']}")
     check(f"{exp['cves_ytd']:,}" in page["headline"], f"page: headline does not state {exp['cves_ytd']:,}")
+    check(f"({exp['kev_cur']:,} vs {exp['kev_prev_same']:,})" in page["headline"],
+          f"page: headline exploitation should read {exp['kev_cur']:,} vs {exp['kev_prev_same']:,}")
     if y and bulk_share >= 0.3:  # a growth headline driven by bulk filers must say so
         check("without" in page["headline"] and "without" in page["heroTitle"],
               f"page: {bulk_share:.0%} of the CVE rise is bulk filing, but the headline/hero title do not show growth without it")

@@ -694,6 +694,13 @@ function buildHeadline(ctx, F, S) {
         : r >= 0.95 ? `CVE disclosures are running level with last year: ${num.format(t.cur)} so far in ${F.year}.`
         : `CVE disclosures are down ${pct(1 - r)} on the same period last year.`;
     } else if (t) head = `${num.format(t.cur)} CVEs published in ${F.year} so far.`;
+    // volume alone overstates the change (much of it is reporting): pair it with confirmed exploitation
+    const k = S.kev;
+    if (head && k && k.cur && k.prevSame) {
+      const kr = k.cur / k.prevSame;
+      const kt = kr >= 2 ? `up ×${fmtX(kr)}` : kr >= 1.05 ? `up ${pct(kr - 1)}` : kr > 0.95 ? "level" : `down ${pct(1 - kr)}`;
+      head = head.replace(/\.$/, `; confirmed exploitation is ${kt} (${num.format(k.cur)} vs ${num.format(k.prevSame)}).`);
+    }
   } catch (e) { head = null; }
   head = clean(head);
   if (head) el.textContent = head; else el.remove();
