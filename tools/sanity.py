@@ -187,7 +187,7 @@ if page:
     # the KEV-proxy tile must not be called "zero-days", and must cite Project Zero beside it
     check(not tile("Zero-days"), "page: KEV at-disclosure proxy labelled 'Zero-days'")
     if zd and zd.get("byYear", {}).get(year) is not None:
-        zt = tile("Exploited at disclosure")
+        zt = tile("KEV-listed at disclosure")
         check(zt and f"Project Zero: {zd['byYear'][year]:,}" in zt["d"], "page: at-disclosure tile lacks the Project Zero count")
     # no ×N growth multiple on a base below 10
     for t_ in page["tiles"] + page["aiTiles"]:
@@ -259,7 +259,7 @@ if page:
     k = tile("Exploited (")
     check(k and num(k["v"]) == exp["kev_cur"], f"page: KEV tile {k and k['v']} != data {exp['kev_cur']}")
     check(k and f"{exp['kev_prev_same']:,}" in k["d"], f"page: KEV tile comparison {k and k['d']} != {exp['kev_prev_same']}")
-    z = tile("Exploited at disclosure")
+    z = tile("KEV-listed at disclosure")
     check(z and num(z["v"]) == exp["zd_cur"], f"page: zero-day tile {z and z['v']} != data {exp['zd_cur']}")
     # the same growth figure must read the same everywhere
     xs = set(re.findall(r"[×x](\d+\.\d)", page["heroTitle"]))

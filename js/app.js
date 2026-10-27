@@ -713,7 +713,7 @@ function buildHeadline(ctx, F, S) {
     const k = S.kev;
     if (!k || !k.cur) return null;
     const vs = k.prevSame ? ` (${num.format(k.prevSame)} by this date last year)` : "";
-    const zd = fin(k.zd) ? `, ${num.format(k.zd)} of them exploited at disclosure` : "";
+    const zd = fin(k.zd) ? `, ${num.format(k.zd)} of them KEV-listed at disclosure (within a day of publication, a zero-day proxy)` : "";
     return `CISA confirmed ${num.format(k.cur)} newly exploited vulnerabilities this year${vs}${zd}.`;
   });
   add(() => {
@@ -799,7 +799,8 @@ function buildKpis(ctx, F, S) {
     d: k.prevSame ? `${num.format(k.prevSame)} by this date in ${F.prevYear}` : "added to CISA KEV this year" });
   if (k && fin(k.zd)) {
     const zb = ctx.zd && ctx.zd.byYear;
-    tiles.push({ k: `Exploited at disclosure ${F.year}`, v: num.format(k.zd), cls: "warn", delta: growthDelta(k.zd, k.zdPrevSame, F.prevYear),
+    // no trend arrow: the proxy also rises when CISA lists faster (its deadlines tightened in 2026)
+    tiles.push({ k: `KEV-listed at disclosure ${F.year}`, v: num.format(k.zd), cls: "warn",
       spark: { vals: countByMonth(M, ents.filter((e) => e.zeroDay), (e) => e.published), title: sparkTitle },
       d: [fin(k.zdPrevSame) ? `${num.format(k.zdPrevSame)} by this date in ${F.prevYear}` : null,
         zb && fin(zb[F.year]) ? `Project Zero: ${num.format(zb[F.year])} in-the-wild zero-days patched (${num.format(zb[F.prevYear] || 0)} in all of ${F.prevYear})` : null].filter(Boolean).join(" · ") });
@@ -1167,9 +1168,9 @@ function buildZeroDay(ctx) {
     const cur = ctx.F.year;
     const yLab = (v) => String(v) + (String(v) === cur ? "\nYTD" : "");
     stackedBars(el, {
-      xs: years.map(Number), groups: [{ label: "exploited at disclosure", color: P.red, data: years.map((y) => by[y]) }],
+      xs: years.map(Number), groups: [{ label: "KEV-listed at disclosure", color: P.red, data: years.map((y) => by[y]) }],
       height: 200, time: false, xLabel: "publication year", yLabel: "CVEs per year", legend: false,
-      ariaLabel: "KEV entries exploited at disclosure (added within one day of publication), per CVE publication year",
+      ariaLabel: "KEV entries listed at disclosure (added within one day of publication), per CVE publication year",
       xValues: tick(yLab), xIncrs: [1, 2, 5], xSpace: 34, xFmt: yLab, barMax: 50,
     });
   }
@@ -2529,13 +2530,19 @@ function explainRisk(ctx, F, S) {
       const c = {};
       for (const e of ents) c[e.origin] = (c[e.origin] || 0) + 1;
       const top = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
-      if (top) so = `${num.format(top[1])} of ${num.format(ents.length)} were ${oShort(top[0], OL)}. Exploitation started at or before disclosure: assume compromise was possible, hunt in logs from before the patch date, and pre-stage mitigations for these products.`;
+      if (top) so = `${num.format(top[1])} of ${num.format(ents.length)} were ${oShort(top[0], OL)}. These were exploited by the time they were published: assume compromise was possible, hunt in logs from before the patch date, and pre-stage mitigations for these products.`;
     }
     fig("#chart-zeroday", {
       titleEl: "#h-zd",
-      title: k && fin(k.zd) ? `${num.format(k.zd)} CVEs published in ${F.year} were exploited at disclosure` + (fin(k.zdPrevSame) && k.zdPrevSame ? ` (${num.format(k.zdPrevSame)} by this date in ${F.prevYear})` : "") : null,
+      title: k && fin(k.zd) ? `${num.format(k.zd)} CVEs published in ${F.year} were listed in CISA KEV within a day of publication (a zero-day proxy)` : null,
       subEl: "#zd-hint", sub: `KEV entries added ≤1 day after the CVE was published, per CVE publication year, 2022 → ${F.year} (${partialLabel(F)}). Not stacked.`,
-      how: "A proxy for zero-days: it misses exploitation CISA confirms later, so recent years still fill in.",
+      how: (() => {
+        // the proxy against an independent zero-day list: how many of its recent entries it catches
+        const rz = ((ctx.zd && ctx.zd.recent) || []).filter((r) => r.cve), byCve = new Map(((ctx.kev && ctx.kev.entries) || []).map((e) => [e.cve, e]));
+        const caught = rz.filter((r) => (byCve.get(r.cve) || {}).zeroDay).length;
+        const cmp = rz.length >= 10 ? ` Of the ${rz.length} most recent in-the-wild zero-days tracked by Google Project Zero, it catches ${caught}.` : "";
+        return `A proxy for zero-days: CISA listed the CVE as exploited within a day of its publication. It misses zero-days CISA lists later and does not fill in afterwards; it also rises when CISA lists faster, so year-on-year changes are not a zero-day trend.${cmp}`;
+      })(),
       so, src: srcLine(ctx, ctx.zd ? ["kev", "zd"] : ["kev"]),
     });
     const zb = ctx.zd && ctx.zd.byYear;

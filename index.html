@@ -95,7 +95,7 @@
   <section class="panel" id="speed" aria-labelledby="h-ttk">
     <div class="duo">
       <div class="sub">
-        <h3 id="h-zd">Exploited at disclosure (zero-day proxy)</h3>
+        <h3 id="h-zd">Listed in KEV at disclosure (zero-day proxy)</h3>
         <p class="hint" id="zd-hint">KEV entries added at most one day after the CVE was published, by publication year.</p>
         <div id="chart-zeroday" class="chart"></div>
       </div>
@@ -350,7 +350,7 @@
     <p class="hint">Every published CVE gets exactly one origin — what kind of software it is, regardless of AI. Rules are checked in this order, except that CMS plugins are checked before open-source packages, so a WordPress plugin with a package URL counts as a plugin:</p>
     <ul class="origin-list" id="method-origins"></ul>
     <h3>Zero-day proxy</h3>
-    <p class="mtext" id="method-zd">"Exploited at disclosure" = a CISA KEV entry added at most one day after its CVE was published. It undercounts true zero-days (exploitation CISA confirms later is missed) and is bucketed by CVE publication year; KEV additions are bucketed by date added. Google Project Zero's in-the-wild tracker is shown alongside as an independent count.</p>
+    <p class="mtext" id="method-zd">"KEV-listed at disclosure" = a CISA KEV entry added at most one day after its CVE was published. It undercounts true zero-days (exploitation CISA confirms later is missed and never fills in), rises when CISA lists faster (as in 2026, when its deadlines tightened), and is bucketed by CVE publication year; KEV additions are bucketed by date added. Google Project Zero's in-the-wild tracker is shown alongside as an independent count.</p>
     <h3>What counts as AI-related (Part 2)</h3>
     <p class="hint">A CVE is AI-related when at least one of these relations applies, other than "found by AI": an AI tool finding a bug in ordinary software (curl, OpenSSL) is a discovery trend, counted across all CVEs, not AI attack surface. They are tags, not exclusive buckets — a prompt-injection bug in an MCP server that an AI tool found carries three:</p>
     <ul class="layer-list" id="method-relations"></ul>
